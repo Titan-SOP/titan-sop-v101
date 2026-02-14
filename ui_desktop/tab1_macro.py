@@ -40,240 +40,354 @@ SUB_MODULES = [
 ]
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  MASTER CSS — Glass-HUD Terminal (High Visibility Edition)
+#  MASTER CSS — Glass-HUD Terminal (inject once at module level via render())
 # ══════════════════════════════════════════════════════════════════════════════
 def _inject_css():
-    """
-    Titan OS V100.0 - God-Tier Visual Style Injection
-    修正版：確保所有 CSS 都被正確包裹在 st.markdown(""" ... """) 之中
-    """
     st.markdown("""
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 
-    <style>
-    /* ────────────────────────────────────────────────────────────
-       0. ROOT VARIABLES & GLOBAL RESET (Titan OS Dark Mode)
-    ──────────────────────────────────────────────────────────── */
-    :root {
-      --c-bg:       #06090E;
-      --c-surface:  #0D1117;
-      --c-glass:    rgba(13, 17, 23, 0.95);
-      --c-border:   rgba(0, 245, 255, 0.25);
-      --c-cyan:     #00F5FF;
-      --c-gold:     #FFD700;
-      --c-red:      #FF3131;
-      --c-green:    #00FF7F;
-      --c-dim:      #3A4A5A;
-      --c-text:     #E0E6ED;
-      --c-muted:    #8899AA;
-      --f-display:  'Orbitron', monospace;
-      --f-sub:      'Rajdhani', sans-serif;
-      --f-mono:     'JetBrains Mono', monospace;
-      --glow-cyan:  0 0 10px rgba(0,245,255,0.6), 0 0 30px rgba(0,245,255,0.3);
-      --glow-gold:  0 0 10px rgba(255,215,0,0.6), 0 0 30px rgba(255,215,0,0.3);
-    }
+<style>
+/* ────────────────────────────────────────────────────────────
+   0. ROOT VARIABLES & GLOBAL RESET
+──────────────────────────────────────────────────────────── */
+:root {
+  --c-bg:       #06090E;
+  --c-surface:  #0D1117;
+  --c-glass:    rgba(13, 17, 23, 0.75);
+  --c-border:   rgba(0, 245, 255, 0.15);
+  --c-cyan:     #00F5FF;
+  --c-gold:     #FFD700;
+  --c-red:      #FF3131;
+  --c-green:    #00FF7F;
+  --c-dim:      #3A4A5A;
+  --c-text:     #C8D8E8;
+  --c-muted:    #556070;
+  --f-display:  'Orbitron', monospace;
+  --f-sub:      'Rajdhani', sans-serif;
+  --f-mono:     'JetBrains Mono', monospace;
+  --glow-cyan:  0 0 8px rgba(0,245,255,0.6), 0 0 24px rgba(0,245,255,0.25);
+  --glow-gold:  0 0 8px rgba(255,215,0,0.6), 0 0 24px rgba(255,215,0,0.25);
+  --glow-red:   0 0 8px rgba(255,49,49,0.6),  0 0 24px rgba(255,49,49,0.25);
+}
 
-    /* Streamlit 基本重置 */
-    [data-testid="stAppViewContainer"] { background: var(--c-bg) !important; }
-    [data-testid="stHeader"]           { background: transparent !important; }
-    [data-testid="stSidebar"]          { background: #080C12 !important; border-right: 1px solid var(--c-border) !important; }
-    .main .block-container             { padding: 2rem 3rem 5rem !important; max-width: 1600px !important; }
-
-    /* ────────────────────────────────────────────────────────────
-       1. HEADER — TITAN GLOWING TITLE (超大字體版)
-    ──────────────────────────────────────────────────────────── */
-    .titan-masthead {
-      font-family: var(--f-display);
-      font-size: 42px; 
-      font-weight: 900;
-      letter-spacing: 6px;
-      text-transform: uppercase;
-      color: var(--c-gold);
-      text-shadow: var(--glow-gold);
-      margin: 0 0 8px;
-    }
-    .titan-masthead-sub {
-      font-family: var(--f-sub);
-      font-size: 16px; 
-      letter-spacing: 6px;
-      color: var(--c-muted);
-      text-transform: uppercase;
-      margin-bottom: 32px;
-    }
-
-    /* ────────────────────────────────────────────────────────────
-       2. COMMAND DECK — NAVIGATION (加大按鈕)
-    ──────────────────────────────────────────────────────────── */
-    .cmd-deck {
-      background: linear-gradient(160deg, #0A0E15 0%, #0D1420 100%);
-      border: 1px solid var(--c-border);
-      border-radius: 18px;
-      padding: 24px;
-      margin-bottom: 30px;
-    }
-    .cmd-deck-label {
-      font-family: var(--f-display);
-      font-size: 12px;
-      letter-spacing: 4px;
-      color: var(--c-muted);
-      text-transform: uppercase;
-      margin-bottom: 16px;
-    }
-
-    /* 導航按鈕樣式 */
-    div.stButton > button[kind="secondary"] {
-      font-family: var(--f-display) !important;
-      font-size: 14px !important; 
-      font-weight: 700 !important;
-      letter-spacing: 2px !important;
-      min-height: 80px !important;
-      border-radius: 12px !important;
-      border: 1px solid #333 !important;
-      background: #111 !important;
-      color: #AAA !important;
-    }
-    div.stButton > button[kind="secondary"]:hover {
-      border-color: var(--c-cyan) !important;
-      color: var(--c-cyan) !important;
-      box-shadow: 0 0 15px rgba(0,245,255,0.2) !important;
-    }
-
-    /* 激活狀態的按鈕卡片 */
-    .nav-active {
-      background: linear-gradient(135deg, rgba(0,245,255,0.15), rgba(255,215,0,0.1)) !important;
-      border: 2px solid var(--c-gold) !important;
-      border-radius: 12px !important;
-      min-height: 80px !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      text-align: center !important;
-      box-shadow: var(--glow-gold) !important;
-      padding: 10px !important;
-    }
-    .nav-active div:first-child { font-size: 24px !important; margin-bottom: 6px !important; } /* Icon */
-    .nav-active div:nth-child(2) { font-size: 10px !important; } /* Code */
-    .nav-active div:nth-child(3) { font-size: 14px !important; font-weight: 900 !important; } /* Label */
-
-    /* ────────────────────────────────────────────────────────────
-       3. HUD CARDS (巨型數據卡)
-    ──────────────────────────────────────────────────────────── */
-    .hud-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 24px 0; }
-
-    .hud-card {
-      background: rgba(13,17,23,0.9);
-      backdrop-filter: blur(16px);
-      border-radius: 16px;
-      padding: 24px 20px 20px;
-      position: relative;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .hud-card::before { 
-        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--c-cyan); 
-    }
-
-    .hud-label {
-      font-family: var(--f-display);
-      font-size: 14px; 
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--c-muted);
-      margin-bottom: 12px;
-      font-weight: 700;
-    }
-    .hud-value {
-      font-family: var(--f-mono);
-      font-size: 42px; 
-      font-weight: 800;
-      color: #FFFFFF;
-      line-height: 1.1;
-      margin-bottom: 10px;
-      letter-spacing: -1px;
-    }
-    .hud-delta {
-      font-family: var(--f-sub);
-      font-size: 18px; 
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    /* ────────────────────────────────────────────────────────────
-       4. 表格與標題優化
-    ──────────────────────────────────────────────────────────── */
-    .sec-header {
-      font-size: 20px;
-      letter-spacing: 4px;
-      padding: 0 0 16px 16px;
-      border-left: 4px solid var(--c-cyan);
-      margin-bottom: 24px;
-    }
-
-    /* 加大表格字體 */
-    [data-testid="stDataFrame"] thead tr th { font-size: 14px !important; padding: 12px !important; }
-    [data-testid="stDataFrame"] tbody tr td { font-size: 16px !important; padding: 12px !important; }
-    
-    /* 修正標準 Metric 大小 */
-    [data-testid="stMetricLabel"] p { font-size: 14px !important; }
-    [data-testid="stMetricValue"] { font-size: 36px !important; }
-
-    </style>
-    """, unsafe_allow_html=True)
+/* Streamlit baseline */
+[data-testid="stAppViewContainer"] { background: var(--c-bg) !important; }
+[data-testid="stHeader"]           { background: transparent !important; }
+[data-testid="stSidebar"]          { background: #080C12 !important; border-right: 1px solid var(--c-border) !important; }
+.main .block-container             { padding: 1.2rem 2rem 4rem !important; max-width: 1400px !important; }
 
 /* ────────────────────────────────────────────────────────────
-   5. DATA TABLE (READABLE)
+   1. AMBIENT SCANLINE OVERLAY
+──────────────────────────────────────────────────────────── */
+[data-testid="stAppViewContainer"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 245, 255, 0.012) 2px,
+    rgba(0, 245, 255, 0.012) 4px
+  );
+  z-index: 9999;
+}
+
+/* ────────────────────────────────────────────────────────────
+   2. HEADER — TITAN GLOWING TITLE
+──────────────────────────────────────────────────────────── */
+.titan-masthead {
+  font-family: var(--f-display);
+  font-size: clamp(18px, 2.5vw, 28px);
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--c-gold);
+  text-shadow: var(--glow-gold);
+  margin: 0 0 6px;
+}
+.titan-masthead-sub {
+  font-family: var(--f-sub);
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   3. COMMAND DECK — NAVIGATION
+──────────────────────────────────────────────────────────── */
+.cmd-deck {
+  background: linear-gradient(160deg, #0A0E15 0%, #0D1420 100%);
+  border: 1px solid var(--c-border);
+  border-radius: 16px;
+  padding: 20px 22px 16px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.cmd-deck::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--c-cyan), transparent);
+  opacity: 0.6;
+}
+.cmd-deck-label {
+  font-family: var(--f-display);
+  font-size: 8px;
+  letter-spacing: 4px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+/* Nav buttons */
+div.stButton > button[kind="secondary"] {
+  background: rgba(13,20,32,0.9) !important;
+  border: 1px solid rgba(0,245,255,0.18) !important;
+  border-radius: 10px !important;
+  color: var(--c-muted) !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.5px !important;
+  padding: 10px 4px !important;
+  min-height: 68px !important;
+  width: 100% !important;
+  transition: all 0.2s ease !important;
+  line-height: 1.5 !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+}
+div.stButton > button[kind="secondary"]:hover {
+  border-color: var(--c-cyan) !important;
+  color: var(--c-cyan) !important;
+  background: rgba(0,245,255,0.06) !important;
+  box-shadow: var(--glow-cyan) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Active nav card */
+.nav-active {
+  background: linear-gradient(135deg, rgba(0,245,255,0.10), rgba(255,215,0,0.06)) !important;
+  border: 1.5px solid var(--c-gold) !important;
+  border-radius: 10px !important;
+  min-height: 68px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  color: var(--c-gold) !important;
+  box-shadow: var(--glow-gold) !important;
+  animation: active-breathe 2.8s ease-in-out infinite !important;
+  cursor: default !important;
+  padding: 8px 4px !important;
+}
+@keyframes active-breathe {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,215,0,0.5), 0 0 18px rgba(255,215,0,0.2); }
+  50%       { box-shadow: 0 0 12px rgba(255,215,0,0.8), 0 0 32px rgba(255,215,0,0.35); }
+}
+
+/* ────────────────────────────────────────────────────────────
+   4. HUD CARDS
+──────────────────────────────────────────────────────────── */
+.hud-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+.hud-card {
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 18px 16px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hud-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--accent-color, var(--c-cyan));
+  box-shadow: 0 0 8px var(--accent-color, var(--c-cyan));
+}
+.hud-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; width: 30%; height: 1px;
+  background: linear-gradient(90deg, var(--accent-color, var(--c-cyan)), transparent);
+}
+.hud-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,245,255,0.12);
+}
+.hud-label {
+  font-family: var(--f-display);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 10px;
+}
+.hud-value {
+  font-family: var(--f-mono);
+  font-size: 28px;
+  font-weight: 600;
+  color: #FFFFFF;
+  line-height: 1;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+.hud-delta {
+  font-family: var(--f-sub);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.hud-corner-tag {
+  position: absolute;
+  top: 10px; right: 12px;
+  font-family: var(--f-display);
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--c-muted);
+  opacity: 0.6;
+}
+
+/* ────────────────────────────────────────────────────────────
+   5. SECTION HEADERS
+──────────────────────────────────────────────────────────── */
+.sec-header {
+  font-family: var(--f-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--c-cyan);
+  text-shadow: var(--glow-cyan);
+  padding: 0 0 14px 14px;
+  border-left: 2px solid var(--c-cyan);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sec-header .sec-num {
+  font-size: 10px;
+  color: var(--c-muted);
+  background: rgba(0,245,255,0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+}
+
+/* ────────────────────────────────────────────────────────────
+   6. SIGNAL LIGHT PANEL
+──────────────────────────────────────────────────────────── */
+.signal-panel {
+  background: rgba(8, 12, 18, 0.9);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 18px 0;
+}
+.signal-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(1.15); }
+}
+.signal-text {
+  font-family: var(--f-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.signal-sub {
+  font-family: var(--f-sub);
+  font-size: 13px;
+  color: var(--c-muted);
+  letter-spacing: 1px;
+  margin-top: 3px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   7. DATA TABLE — CUSTOM DARK OVERRIDE
 ──────────────────────────────────────────────────────────── */
 .content-shell {
-  padding: 32px;
+  background: rgba(8,12,18,0.96);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 28px 26px 32px;
+  position: relative;
+  overflow: hidden;
+}
+.content-shell::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 5%, var(--c-cyan) 40%, var(--c-gold) 60%, transparent 95%);
+  opacity: 0.4;
 }
 
+[data-testid="stDataFrame"] { background: transparent !important; }
 [data-testid="stDataFrame"] thead tr th {
-  font-size: 14px !important; /* 原本 10px */
-  padding: 12px !important;
+  background: rgba(0,245,255,0.06) !important;
+  color: var(--c-cyan) !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  letter-spacing: 2px !important;
+  border-bottom: 1px solid var(--c-border) !important;
 }
 [data-testid="stDataFrame"] tbody tr td {
-  font-size: 16px !important; /* 原本 12px，看得清楚了 */
-  padding: 12px !important;
+  font-family: var(--f-mono) !important;
+  font-size: 12px !important;
+  color: var(--c-text) !important;
+  border-bottom: 1px solid rgba(0,245,255,0.04) !important;
 }
 
 /* ────────────────────────────────────────────────────────────
-   6. METRIC OVERRIDE & BUTTONS
+   8. BUTTONS INSIDE CONTENT AREA — OVERRIDE STREAMLIT GREEN
 ──────────────────────────────────────────────────────────── */
-[data-testid="stMetricLabel"] p {
-  font-size: 12px !important; /* 原本 9px */
+.content-shell div.stButton > button,
+.content-shell div.stButton > button:focus {
+  background: linear-gradient(135deg, #0D1420, #0A1028) !important;
+  border: 1px solid var(--c-gold) !important;
+  color: var(--c-gold) !important;
+  font-family: var(--f-display) !important;
+  font-size: 11px !important;
+  letter-spacing: 2px !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  box-shadow: none !important;
+  text-transform: uppercase !important;
+  transition: all 0.2s !important;
 }
-[data-testid="stMetricValue"] {
-  font-size: 32px !important; /* 原本 24px */
+.content-shell div.stButton > button:hover {
+  background: rgba(255,215,0,0.08) !important;
+  box-shadow: var(--glow-gold) !important;
+  transform: translateY(-1px) !important;
 }
-
-.content-shell div.stButton > button {
-  font-size: 14px !important; /* 原本 11px */
-  padding: 12px 24px !important;
-}
-
-/* ────────────────────────────────────────────────────────────
-   7. BASEBALL & HEATMAP
-──────────────────────────────────────────────────────────── */
-.base-card-label { font-size: 12px; }
-.base-card-value { font-size: 28px; font-weight: 800; } /* 棒球跑壘數字加大 */
-.base-card-status { font-size: 14px; }
-
-.tse-cell-label { font-size: 11px; }
-.tse-cell-value { font-size: 20px; }
-
-/* ────────────────────────────────────────────────────────────
-   8. INPUTS
-──────────────────────────────────────────────────────────── */
-[data-testid="stSelectbox"] > div > div {
-  font-size: 16px !important;
-}
-div[data-baseweb="select"] span {
-  font-size: 16px !important;
-}
-</style>
-""", unsafe_allow_html=True)
 
 /* ────────────────────────────────────────────────────────────
    9. METRIC OVERRIDE — hide default st.metric in content
