@@ -1,7 +1,7 @@
 # ui_desktop/tab1_macro.py
-# Titan SOP V100.0 — Tab 1: 宏觀風控指揮中心
-# 架構：Sub-Module Navigation System (Big Buttons)
-# 邏輯：完整保留 V82 靈魂（MacroRiskEngine / Altair / Plotly）
+# Titan SOP V100 — 宏觀風控指揮中心
+# UI: God-Tier Glass-HUD (PLTR × Tesla × iOS)
+# Logic: Fully preserved from V81.1 + V100 refactor
 
 import streamlit as st
 import pandas as pd
@@ -14,128 +14,604 @@ from macro_risk import MacroRiskEngine
 from knowledge_base import TitanKnowledgeBase
 from config import Config
 
-# ══════════════════════════════════════════════════════════════
-#  常數
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONSTANTS
+# ══════════════════════════════════════════════════════════════════════════════
 SIGNAL_MAP = {
     "GREEN_LIGHT":  "🟢 綠燈：積極進攻",
     "YELLOW_LIGHT": "🟡 黃燈：區間操作",
     "RED_LIGHT":    "🔴 紅燈：現金為王",
 }
 
+SIGNAL_PALETTE = {
+    "GREEN_LIGHT":  "#00FF7F",
+    "YELLOW_LIGHT": "#FFD700",
+    "RED_LIGHT":    "#FF3131",
+}
+
 SUB_MODULES = [
-    ("1.1", "🚦", "風控儀表"),
-    ("1.2", "🌡️", "多空溫度"),
-    ("1.3", "📊", "PR90籌碼"),
-    ("1.4", "🗺️", "族群熱度"),
-    ("1.5", "💹", "成交重心"),
-    ("1.6", "👑", "趨勢雷達"),
-    ("1.7", "🎯", "台指獵殺"),
+    ("1.1", "HUD",  "風控儀表"),
+    ("1.2", "TEMP", "多空溫度"),
+    ("1.3", "PR90", "籌碼分佈"),
+    ("1.4", "HEAT", "族群熱度"),
+    ("1.5", "VOL",  "成交重心"),
+    ("1.6", "RADAR","趨勢雷達"),
+    ("1.7", "WTX",  "台指獵殺"),
 ]
 
-# ══════════════════════════════════════════════════════════════
-#  CSS — Titan OS 大按鈕控制台
-# ══════════════════════════════════════════════════════════════
-NAV_CSS = """
+# ══════════════════════════════════════════════════════════════════════════════
+#  MASTER CSS — Glass-HUD Terminal (inject once at module level via render())
+# ══════════════════════════════════════════════════════════════════════════════
+def _inject_css():
+    st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+
 <style>
-/* ── 控制台外框 ─────────────────────────── */
-.titan-nav-deck {
-    background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 100%);
-    border: 1px solid #333;
-    border-radius: 16px;
-    padding: 24px 20px 16px;
-    margin-bottom: 24px;
-}
-.titan-nav-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    color: #555;
-    text-transform: uppercase;
-    margin-bottom: 14px;
-}
-
-/* ── 導航按鈕 ────────────────────────────── */
-div[data-testid="column"] > div > div > div > button.titan-nav-btn,
-div.stButton > button[data-nav="true"] {
-    background: #1a1a2e !important;
-    border: 1px solid #333 !important;
-    border-radius: 12px !important;
-    color: #AAAAAA !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    padding: 14px 8px !important;
-    min-height: 72px !important;
-    width: 100% !important;
-    transition: all 0.25s ease !important;
-    line-height: 1.4 !important;
-}
-div.stButton > button[data-nav="true"]:hover {
-    border-color: #FFD700 !important;
-    color: #FFD700 !important;
-    background: rgba(255,215,0,0.08) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(255,215,0,0.2) !important;
+/* ────────────────────────────────────────────────────────────
+   0. ROOT VARIABLES & GLOBAL RESET
+──────────────────────────────────────────────────────────── */
+:root {
+  --c-bg:       #06090E;
+  --c-surface:  #0D1117;
+  --c-glass:    rgba(13, 17, 23, 0.75);
+  --c-border:   rgba(0, 245, 255, 0.15);
+  --c-cyan:     #00F5FF;
+  --c-gold:     #FFD700;
+  --c-red:      #FF3131;
+  --c-green:    #00FF7F;
+  --c-dim:      #3A4A5A;
+  --c-text:     #C8D8E8;
+  --c-muted:    #556070;
+  --f-display:  'Orbitron', monospace;
+  --f-sub:      'Rajdhani', sans-serif;
+  --f-mono:     'JetBrains Mono', monospace;
+  --glow-cyan:  0 0 8px rgba(0,245,255,0.6), 0 0 24px rgba(0,245,255,0.25);
+  --glow-gold:  0 0 8px rgba(255,215,0,0.6), 0 0 24px rgba(255,215,0,0.25);
+  --glow-red:   0 0 8px rgba(255,49,49,0.6),  0 0 24px rgba(255,49,49,0.25);
 }
 
-/* ── 選中態（用 key 無法精準控制，靠 active class 模擬）─ */
-.nav-active-card {
-    background: linear-gradient(135deg, #2a2a1a 0%, #1a2a1a 100%) !important;
-    border: 2px solid #FFD700 !important;
-    border-radius: 12px !important;
-    padding: 12px 8px !important;
-    min-height: 72px !important;
-    text-align: center !important;
-    color: #FFD700 !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    cursor: default !important;
-    box-shadow: 0 0 20px rgba(255,215,0,0.25) !important;
-    line-height: 1.4 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    flex-direction: column !important;
+/* Streamlit baseline */
+[data-testid="stAppViewContainer"] { background: var(--c-bg) !important; }
+[data-testid="stHeader"]           { background: transparent !important; }
+[data-testid="stSidebar"]          { background: #080C12 !important; border-right: 1px solid var(--c-border) !important; }
+.main .block-container             { padding: 1.2rem 2rem 4rem !important; max-width: 1400px !important; }
+
+/* ────────────────────────────────────────────────────────────
+   1. AMBIENT SCANLINE OVERLAY
+──────────────────────────────────────────────────────────── */
+[data-testid="stAppViewContainer"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 245, 255, 0.012) 2px,
+    rgba(0, 245, 255, 0.012) 4px
+  );
+  z-index: 9999;
 }
 
-/* ── 內容區 ─────────────────────────────── */
-.titan-content-area {
-    background: #111118;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    padding: 28px 24px;
-    margin-top: 4px;
+/* ────────────────────────────────────────────────────────────
+   2. HEADER — TITAN GLOWING TITLE
+──────────────────────────────────────────────────────────── */
+.titan-masthead {
+  font-family: var(--f-display);
+  font-size: clamp(18px, 2.5vw, 28px);
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--c-gold);
+  text-shadow: var(--glow-gold);
+  margin: 0 0 6px;
 }
-.section-header {
-    font-size: 22px;
-    font-weight: 700;
-    color: #FFD700;
-    text-shadow: 0 0 12px rgba(255,215,0,0.4);
-    margin-bottom: 20px;
-    border-left: 4px solid #FFD700;
-    padding-left: 14px;
+.titan-masthead-sub {
+  font-family: var(--f-sub);
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 24px;
 }
 
-/* ── 覆蓋首頁的綠色按鈕 ─────────────────── */
-.titan-content-area div.stButton > button,
-.titan-nav-deck ~ div div.stButton > button {
-    background: linear-gradient(135deg, #2a2a3e, #1a1a2e) !important;
-    color: #FFD700 !important;
-    border: 1px solid #FFD700 !important;
-    box-shadow: none !important;
+/* ────────────────────────────────────────────────────────────
+   3. COMMAND DECK — NAVIGATION
+──────────────────────────────────────────────────────────── */
+.cmd-deck {
+  background: linear-gradient(160deg, #0A0E15 0%, #0D1420 100%);
+  border: 1px solid var(--c-border);
+  border-radius: 16px;
+  padding: 20px 22px 16px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
 }
-.titan-content-area div.stButton > button:hover,
-.titan-nav-deck ~ div div.stButton > button:hover {
-    background: rgba(255,215,0,0.1) !important;
-    box-shadow: 0 4px 16px rgba(255,215,0,0.3) !important;
+.cmd-deck::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--c-cyan), transparent);
+  opacity: 0.6;
+}
+.cmd-deck-label {
+  font-family: var(--f-display);
+  font-size: 8px;
+  letter-spacing: 4px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+/* Nav buttons */
+div.stButton > button[kind="secondary"] {
+  background: rgba(13,20,32,0.9) !important;
+  border: 1px solid rgba(0,245,255,0.18) !important;
+  border-radius: 10px !important;
+  color: var(--c-muted) !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 1.5px !important;
+  padding: 10px 4px !important;
+  min-height: 68px !important;
+  width: 100% !important;
+  transition: all 0.2s ease !important;
+  line-height: 1.5 !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+}
+div.stButton > button[kind="secondary"]:hover {
+  border-color: var(--c-cyan) !important;
+  color: var(--c-cyan) !important;
+  background: rgba(0,245,255,0.06) !important;
+  box-shadow: var(--glow-cyan) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Active nav card */
+.nav-active {
+  background: linear-gradient(135deg, rgba(0,245,255,0.10), rgba(255,215,0,0.06)) !important;
+  border: 1.5px solid var(--c-gold) !important;
+  border-radius: 10px !important;
+  min-height: 68px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  color: var(--c-gold) !important;
+  box-shadow: var(--glow-gold) !important;
+  animation: active-breathe 2.8s ease-in-out infinite !important;
+  cursor: default !important;
+  padding: 8px 4px !important;
+}
+@keyframes active-breathe {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,215,0,0.5), 0 0 18px rgba(255,215,0,0.2); }
+  50%       { box-shadow: 0 0 12px rgba(255,215,0,0.8), 0 0 32px rgba(255,215,0,0.35); }
+}
+
+/* ────────────────────────────────────────────────────────────
+   4. HUD CARDS
+──────────────────────────────────────────────────────────── */
+.hud-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+.hud-card {
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 18px 16px 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hud-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--accent-color, var(--c-cyan));
+  box-shadow: 0 0 8px var(--accent-color, var(--c-cyan));
+}
+.hud-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; width: 30%; height: 1px;
+  background: linear-gradient(90deg, var(--accent-color, var(--c-cyan)), transparent);
+}
+.hud-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,245,255,0.12);
+}
+.hud-label {
+  font-family: var(--f-display);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 10px;
+}
+.hud-value {
+  font-family: var(--f-mono);
+  font-size: 28px;
+  font-weight: 600;
+  color: #FFFFFF;
+  line-height: 1;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+.hud-delta {
+  font-family: var(--f-sub);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.hud-corner-tag {
+  position: absolute;
+  top: 10px; right: 12px;
+  font-family: var(--f-display);
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--c-muted);
+  opacity: 0.6;
+}
+
+/* ────────────────────────────────────────────────────────────
+   5. SECTION HEADERS
+──────────────────────────────────────────────────────────── */
+.sec-header {
+  font-family: var(--f-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--c-cyan);
+  text-shadow: var(--glow-cyan);
+  padding: 0 0 14px 14px;
+  border-left: 2px solid var(--c-cyan);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sec-header .sec-num {
+  font-size: 10px;
+  color: var(--c-muted);
+  background: rgba(0,245,255,0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+}
+
+/* ────────────────────────────────────────────────────────────
+   6. SIGNAL LIGHT PANEL
+──────────────────────────────────────────────────────────── */
+.signal-panel {
+  background: rgba(8, 12, 18, 0.9);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 18px 0;
+}
+.signal-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(1.15); }
+}
+.signal-text {
+  font-family: var(--f-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.signal-sub {
+  font-family: var(--f-sub);
+  font-size: 13px;
+  color: var(--c-muted);
+  letter-spacing: 1px;
+  margin-top: 3px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   7. DATA TABLE — CUSTOM DARK OVERRIDE
+──────────────────────────────────────────────────────────── */
+.content-shell {
+  background: rgba(8,12,18,0.96);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 28px 26px 32px;
+  position: relative;
+  overflow: hidden;
+}
+.content-shell::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 5%, var(--c-cyan) 40%, var(--c-gold) 60%, transparent 95%);
+  opacity: 0.4;
+}
+
+[data-testid="stDataFrame"] { background: transparent !important; }
+[data-testid="stDataFrame"] thead tr th {
+  background: rgba(0,245,255,0.06) !important;
+  color: var(--c-cyan) !important;
+  font-family: var(--f-display) !important;
+  font-size: 10px !important;
+  letter-spacing: 2px !important;
+  border-bottom: 1px solid var(--c-border) !important;
+}
+[data-testid="stDataFrame"] tbody tr td {
+  font-family: var(--f-mono) !important;
+  font-size: 12px !important;
+  color: var(--c-text) !important;
+  border-bottom: 1px solid rgba(0,245,255,0.04) !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   8. BUTTONS INSIDE CONTENT AREA — OVERRIDE STREAMLIT GREEN
+──────────────────────────────────────────────────────────── */
+.content-shell div.stButton > button,
+.content-shell div.stButton > button:focus {
+  background: linear-gradient(135deg, #0D1420, #0A1028) !important;
+  border: 1px solid var(--c-gold) !important;
+  color: var(--c-gold) !important;
+  font-family: var(--f-display) !important;
+  font-size: 11px !important;
+  letter-spacing: 2px !important;
+  border-radius: 8px !important;
+  padding: 10px 20px !important;
+  box-shadow: none !important;
+  text-transform: uppercase !important;
+  transition: all 0.2s !important;
+}
+.content-shell div.stButton > button:hover {
+  background: rgba(255,215,0,0.08) !important;
+  box-shadow: var(--glow-gold) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   9. METRIC OVERRIDE — hide default st.metric in content
+──────────────────────────────────────────────────────────── */
+[data-testid="stMetric"] {
+  background: rgba(13,17,23,0.7) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: 10px !important;
+  padding: 14px !important;
+}
+[data-testid="stMetricLabel"] p {
+  font-family: var(--f-display) !important;
+  font-size: 9px !important;
+  letter-spacing: 2px !important;
+  color: var(--c-muted) !important;
+  text-transform: uppercase !important;
+}
+[data-testid="stMetricValue"] {
+  font-family: var(--f-mono) !important;
+  font-size: 24px !important;
+  color: #FFF !important;
+}
+[data-testid="stMetricDelta"] {
+  font-family: var(--f-sub) !important;
+  font-size: 12px !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   10. INFO / WARNING CHIPS
+──────────────────────────────────────────────────────────── */
+[data-testid="stAlert"] {
+  background: rgba(0,245,255,0.05) !important;
+  border: 1px solid rgba(0,245,255,0.2) !important;
+  border-radius: 10px !important;
+  font-family: var(--f-sub) !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   11. DIVIDERS
+──────────────────────────────────────────────────────────── */
+hr {
+  border: none !important;
+  height: 1px !important;
+  background: linear-gradient(90deg, transparent, var(--c-border), transparent) !important;
+  margin: 20px 0 !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   12. TSE ANALYSIS MINI-GRID
+──────────────────────────────────────────────────────────── */
+.tse-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+.tse-cell {
+  background: rgba(0,245,255,0.04);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.tse-cell-label {
+  font-family: var(--f-display);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.tse-cell-value {
+  font-family: var(--f-sub);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+.deduct-bar {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  letter-spacing: 1px;
+  word-break: break-all;
+}
+
+/* ────────────────────────────────────────────────────────────
+   13. BASEBALL CHART WRAPPER
+──────────────────────────────────────────────────────────── */
+.chart-dark-wrap {
+  background: rgba(6,9,14,0.95);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   14. BASE HIT TARGETS GRID
+──────────────────────────────────────────────────────────── */
+.base-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+.base-card {
+  border-radius: 12px;
+  padding: 16px 14px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.base-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+}
+.base-card-label {
+  font-family: var(--f-display);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.base-card-value {
+  font-family: var(--f-mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: #FFF;
+}
+.base-card-status {
+  font-family: var(--f-sub);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   15. SECTOR HEATMAP TABLE STYLES
+──────────────────────────────────────────────────────────── */
+.hm-hot   { background: rgba(255,49,49,0.25)   !important; color: #FF9090 !important; }
+.hm-warm  { background: rgba(255,215,0,0.20)   !important; color: #FFD700 !important; }
+.hm-cool  { background: rgba(0,245,255,0.12)   !important; color: #7AF5FF !important; }
+
+/* ────────────────────────────────────────────────────────────
+   16. EMPTY STATE
+──────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--c-dim);
+}
+.empty-state-icon { font-size: 52px; margin-bottom: 14px; }
+.empty-state-text {
+  font-family: var(--f-sub);
+  font-size: 16px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ────────────────────────────────────────────────────────────
+   17. SELECTBOX / INPUT CLEANUP
+──────────────────────────────────────────────────────────── */
+[data-testid="stSelectbox"] > div > div {
+  background: rgba(13,20,32,0.9) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: 8px !important;
+  font-family: var(--f-sub) !important;
+  color: var(--c-text) !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   18. SPINNER
+──────────────────────────────────────────────────────────── */
+[data-testid="stSpinner"] p {
+  font-family: var(--f-display) !important;
+  font-size: 11px !important;
+  letter-spacing: 2px !important;
+  color: var(--c-cyan) !important;
+  text-transform: uppercase !important;
 }
 </style>
-"""
+""", unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════
-#  引擎（單例 + 緩存）
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  HUD CARD COMPONENT
+# ══════════════════════════════════════════════════════════════════════════════
+def _render_hud_card(label: str, value: str, delta: str = "",
+                     color: str = "#00F5FF", tag: str = ""):
+    """Glassmorphism HUD card — replaces st.metric everywhere in 1.1"""
+    delta_html = f'<div class="hud-delta" style="color:{color};">{delta}</div>' if delta else ""
+    tag_html   = f'<div class="hud-corner-tag">{tag}</div>' if tag else ""
+    st.markdown(f"""
+    <div class="hud-card" style="--accent-color:{color};">
+        {tag_html}
+        <div class="hud-label">{label}</div>
+        <div class="hud-value">{value}</div>
+        {delta_html}
+    </div>""", unsafe_allow_html=True)
+
+
+def _render_hud_row(cards: list):
+    """Render a row of HUD cards via st.columns"""
+    cols = st.columns(len(cards))
+    for col, (label, value, delta, color, tag) in zip(cols, cards):
+        with col:
+            _render_hud_card(label, value, delta, color, tag)
+
+
+def _render_section_header(code: str, icon: str, title: str):
+    st.markdown(f"""
+    <div class="sec-header">
+        <span class="sec-num">{code}</span>
+        <span>{icon} {title}</span>
+    </div>""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ENGINES (singleton + cache)
+# ══════════════════════════════════════════════════════════════════════════════
 @st.cache_resource
 def _load_engines():
     from strategy import TitanStrategyEngine
@@ -152,26 +628,32 @@ def _get_macro_data(_macro, _df_hash):
     return _macro.check_market_status(cb_df=df)
 
 
-# ══════════════════════════════════════════════════════════════
-#  通用工具
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  SHARED HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 def _render_leader_dashboard(session_state_key: str, fetch_function, top_n: int, sort_key_name: str):
-    """雙雷達趨勢掃描（V78.2 完整版）"""
+    """雙雷達趨勢掃描 V78.2 完整版 (Glass-HUD 外殼)"""
     macro, kb, strat = _load_engines()
 
-    st.info(f"此功能將掃描指定股票池，依「{sort_key_name}」找出市場最關注的 Top {top_n}，並對其進行高階趨勢預測。")
+    st.markdown(f"""
+    <div style="font-family:var(--f-sub);font-size:14px;color:#667788;letter-spacing:1px;
+                border-left:2px solid var(--c-border);padding:8px 14px;margin-bottom:16px;">
+        掃描指定股票池，依「{sort_key_name}」找出 Top {top_n}，進行高階趨勢預測
+    </div>""", unsafe_allow_html=True)
 
     if session_state_key not in st.session_state:
         st.session_state[session_state_key] = pd.DataFrame()
 
-    if st.button(f"🛰️ 掃描 {sort_key_name} Top {top_n}", key=f"btn_{session_state_key}"):
-        with st.spinner("正在掃描並進行高階運算… (可能需要 1-2 分鐘)"):
+    if st.button(f"▶  掃描 {sort_key_name} TOP {top_n}", key=f"btn_{session_state_key}"):
+        with st.spinner(f"SCANNING {sort_key_name} TOP {top_n} — PLEASE WAIT…"):
             st.session_state[session_state_key] = fetch_function(top_n=top_n)
 
     leaders_df = st.session_state[session_state_key]
-
     if leaders_df.empty:
-        st.info("點擊上方按鈕以啟動掃描。")
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">📡</div>
+            <div class="empty-state-text">AWAITING SCAN COMMAND</div>
+        </div>""", unsafe_allow_html=True)
         return
     if "error" in leaders_df.columns:
         st.error(leaders_df.iloc[0]["error"])
@@ -179,36 +661,52 @@ def _render_leader_dashboard(session_state_key: str, fetch_function, top_n: int,
 
     def style_status(status):
         if "多頭" in str(status):
-            return f"<span style='color:#FF4B4B;font-weight:bold'>{status}</span>"
+            return f"<span style='color:#FF4B4B;font-weight:700;font-family:var(--f-sub)'>{status}</span>"
         if "空頭" in str(status):
-            return f"<span style='color:#26A69A;font-weight:bold'>{status}</span>"
+            return f"<span style='color:#26A69A;font-weight:700;font-family:var(--f-sub)'>{status}</span>"
         return status
 
-    def style_deduction(signal):
-        if "助漲" in str(signal):
-            return f"<span style='color:#FF4B4B;'>{signal}</span>"
-        if "壓力" in str(signal):
-            return f"<span style='color:#26A69A;'>{signal}</span>"
-        return signal
+    def style_deduction(sig):
+        if "助漲" in str(sig): return f"<span style='color:#00FF7F'>{sig}</span>"
+        if "壓力" in str(sig): return f"<span style='color:#FF3131'>{sig}</span>"
+        return sig
 
     display_df = leaders_df.copy()
-    display_df['排名']       = display_df['rank']
-    display_df['代號']       = display_df['ticker']
-    display_df['名稱']       = display_df['name']
-    display_df['產業']       = display_df['industry']
-    display_df['現價']       = display_df['current_price'].apply(lambda x: f"{x:.2f}")
-    display_df['趨勢狀態']   = display_df['trend_status'].apply(style_status)
-    display_df['持續天數']   = display_df['trend_days']
-    display_df['87MA扣抵預判'] = display_df['deduction_signal'].apply(style_deduction)
+    display_df['#']          = display_df['rank']
+    display_df['代號']        = display_df['ticker']
+    display_df['名稱']        = display_df['name']
+    display_df['產業']        = display_df['industry']
+    display_df['現價']        = display_df['current_price'].apply(lambda x: f"{x:.2f}")
+    display_df['趨勢']        = display_df['trend_status'].apply(style_status)
+    display_df['天數']        = display_df['trend_days']
+    display_df['87MA扣抵']    = display_df['deduction_signal'].apply(style_deduction)
 
-    st.subheader(f"📈 今日 {sort_key_name} Top {top_n} 榜單")
-    cols_show = ['排名', '代號', '名稱', '產業', '現價', '趨勢狀態', '持續天數', '87MA扣抵預判']
-    st.markdown(display_df[cols_show].to_html(escape=False, index=False), unsafe_allow_html=True)
-    st.divider()
+    cols_show = ['#', '代號', '名稱', '產業', '現價', '趨勢', '天數', '87MA扣抵']
+    table_html = display_df[cols_show].to_html(escape=False, index=False)
+    styled_table = f"""
+    <style>
+    .leader-tbl {{ width:100%; border-collapse:collapse; font-family:'Rajdhani',sans-serif; }}
+    .leader-tbl th {{
+        background:rgba(0,245,255,0.07); color:#00C8D8;
+        font-size:10px; letter-spacing:2px; text-transform:uppercase;
+        padding:10px 10px; border-bottom:1px solid rgba(0,245,255,0.15);
+    }}
+    .leader-tbl td {{
+        font-size:13px; color:#B0C0D0; padding:8px 10px;
+        border-bottom:1px solid rgba(255,255,255,0.04);
+    }}
+    .leader-tbl tr:hover td {{ background:rgba(0,245,255,0.04); }}
+    </style>
+    {table_html.replace('<table', '<table class="leader-tbl"')}
+    """
+    st.markdown(styled_table, unsafe_allow_html=True)
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    st.subheader("🔍 選擇一檔主流股進行深度預測")
+    # ── 深度預測 ──
+    st.markdown('<div class="sec-header" style="margin-top:12px"><span class="sec-num">DEEP</span> 🔍 深度預測</div>',
+                unsafe_allow_html=True)
     options = [f"{row['rank']}. {row['name']} ({row['ticker']})" for _, row in leaders_df.iterrows()]
-    selected_str = st.selectbox("選擇標的", options=options, key=f"select_{session_state_key}")
+    selected_str = st.selectbox("選擇分析標的", options=options, key=f"select_{session_state_key}")
 
     if selected_str:
         selected_rank = int(selected_str.split('.')[0])
@@ -220,33 +718,36 @@ def _render_leader_dashboard(session_state_key: str, fetch_function, top_n: int,
         current_price = sel['current_price']
         ma87          = sel['ma87']
 
-        kpi_c1, kpi_c2 = st.columns(2)
-        kpi_c1.metric("目前股價", f"{current_price:.2f}")
-        bias_pct    = ((current_price - ma87) / ma87) * 100 if ma87 > 0 else 0
-        is_recent_bo = (current_price > ma87) and (stock_df['Close'].iloc[-5] < ma87)
-        granville   = strat._get_granville_status(current_price, ma87, is_recent_bo, bias_pct)
-        kpi_c2.metric("格蘭碧法則狀態", granville)
-        st.markdown("---")
+        bias_pct      = ((current_price - ma87) / ma87) * 100 if ma87 > 0 else 0
+        is_recent_bo  = (current_price > ma87) and (stock_df['Close'].iloc[-5] < ma87)
+        granville     = strat._get_granville_status(current_price, ma87, is_recent_bo, bias_pct)
 
-        t_c1, t_c2, t_c3, t_c4 = st.columns(4)
-        t_c1.metric("趨勢波段",   sel['trend_status'])
-        t_c2.metric("已持續天數", f"{sel['trend_days']} 天")
-        t_c3.metric("生命線斜率", f"{sel['ma87_slope']:.2f}°")
-        t_c4.metric("87MA扣抵預判", sel['deduction_signal'])
+        _render_hud_row([
+            ("現價", f"{current_price:.2f}", "", "#00F5FF", "PRICE"),
+            ("格蘭碧狀態", granville, "", "#FFD700", "GRANVILLE"),
+            ("趨勢波段", sel['trend_status'], f"{sel['trend_days']} 天", "#00FF7F", "TREND"),
+            ("87MA扣抵預判", sel['deduction_signal'], f"斜率 {sel['ma87_slope']:.2f}°", "#FF9A3C", "DEDUCT"),
+        ])
 
-        tab_deduct, tab_adam = st.tabs(["**87MA 扣抵值預測**", "**亞當理論二次反射**"])
+        tab_deduct, tab_adam = st.tabs(["📉 87MA 扣抵值預測", "🔄 亞當理論二次反射"])
 
         with tab_deduct:
             if not deduction_df.empty:
                 chart_data = deduction_df.reset_index()
                 chart_data['Current_Price'] = current_price
                 base   = alt.Chart(chart_data).encode(x='Date:T')
-                line_d = (base.mark_line(color='orange', strokeDash=[5, 5])
+                line_d = (base.mark_line(color='#FFD700', strokeDash=[6, 3])
                           .encode(y=alt.Y('Deduction_Value', title='Price'),
                                   tooltip=['Date', 'Deduction_Value'])
-                          .properties(title="未來60日 87MA 扣抵值預測"))
-                line_c = base.mark_line(color='#4B9CD3').encode(y='Current_Price')
-                st.altair_chart((line_d + line_c).interactive(), use_container_width=True)
+                          .properties(title=alt.TitleParams("未來 60 日 87MA 扣抵值預測", color='#FFD700')))
+                line_c = base.mark_line(color='#00F5FF', strokeWidth=1.5).encode(y='Current_Price')
+                st.altair_chart(
+                    (line_d + line_c).interactive()
+                    .configure_view(strokeOpacity=0, fill='#06090E')
+                    .configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#667788', titleColor='#667788')
+                    .configure_title(color='#FFD700'),
+                    use_container_width=True
+                )
             else:
                 st.warning("歷史資料不足，無法預測均線扣抵值。")
 
@@ -256,25 +757,31 @@ def _render_leader_dashboard(session_state_key: str, fetch_function, top_n: int,
                 hist_d['Type'] = '歷史路徑'
                 proj_d = adam_df.reset_index()
                 proj_d['Type'] = '亞當投影'
-                proj_d.rename(columns={'Projected_Price': 'Close', 'Date': 'Date'}, inplace=True)
+                proj_d.rename(columns={'Projected_Price': 'Close'}, inplace=True)
                 combined = pd.concat([hist_d[['Date', 'Close', 'Type']], proj_d[['Date', 'Close', 'Type']]])
+                adam_colors = alt.Scale(domain=['歷史路徑', '亞當投影'], range=['#00F5FF', '#FFD700'])
                 chart = (alt.Chart(combined)
-                         .mark_line()
+                         .mark_line(strokeWidth=2)
                          .encode(
                              x='Date:T',
                              y=alt.Y('Close', title='Price', scale=alt.Scale(zero=False)),
-                             color='Type:N',
+                             color=alt.Color('Type:N', scale=adam_colors),
                              strokeDash='Type:N'
                          )
-                         .properties(title="亞當理論二次反射路徑圖")
+                         .properties(title=alt.TitleParams("亞當理論二次反射路徑圖", color='#FFD700'))
                          .interactive())
-                st.altair_chart(chart, use_container_width=True)
+                st.altair_chart(
+                    chart.configure_view(strokeOpacity=0, fill='#06090E')
+                         .configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#667788', titleColor='#667788')
+                         .configure_legend(labelColor='#C8D8E8', titleColor='#C8D8E8'),
+                    use_container_width=True
+                )
             else:
                 st.warning("歷史資料不足，無法進行亞當理論投影。")
 
 
 def _calculate_futures_targets():
-    """V82.0 台指期月K結算目標價推導"""
+    """V82.0 台指期月K結算目標價推導 — fully preserved"""
     macro, _, _ = _load_engines()
     df = macro.get_single_stock_data("WTX=F", period="max")
     if df.empty or len(df) < 300:
@@ -328,298 +835,322 @@ def _calculate_futures_targets():
     cl_v   = float(curr.iloc[-1]['Close'])
     is_red = cl_v >= op_v
     sign   = 1 if is_red else -1
-
     targets = {
         "1B": op_v + sign * min_a * 0.5,
         "2B": op_v + sign * min_a,
         "3B": op_v + sign * avg_a,
-        "HR": op_v + sign * max_a
+        "HR": op_v + sign * max_a,
     }
     return {"name": ticker_name, "anc": op_v, "price": cl_v, "is_red": is_red, "t": targets}
 
 
-# ══════════════════════════════════════════════════════════════
-#  7 個子模組渲染函式
-# ══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  SUB-MODULE RENDERERS
+# ══════════════════════════════════════════════════════════════════════════════
 
 def render_1_1_hud():
-    """1.1 🚦 宏觀風控儀表（HUD）"""
-    st.markdown('<div class="section-header">🚦 1.1 宏觀風控儀表</div>', unsafe_allow_html=True)
-    macro, kb, strat = _load_engines()
+    _render_section_header("1.1", "🚦", "MACRO RISK HUD")
+    macro, _, _ = _load_engines()
     df      = st.session_state.get('df', pd.DataFrame())
     df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
-    if not df.empty:
-        macro_data   = _get_macro_data(macro, df_hash)
-        signal_text  = SIGNAL_MAP.get(macro_data['signal'], "⚪ 未知")
-        signal_emoji, signal_desc = (
-            signal_text.split('：') if '：' in signal_text else (signal_text, "")
-        )
-
-        # ── 四格 KPI ──
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🚦 總體燈號",    signal_emoji, help=signal_desc)
-        c2.metric("😱 VIX恐慌指數", f"{macro_data['vix']:.2f}", "高於25為警示")
-        c3.metric("🔥 PR90市場熱度",
-                  f"{macro_data['price_distribution']['pr90']:.2f}",
-                  "高於130為紅燈")
-        ptt_ratio = macro_data['ptt_ratio']
-        ptt_text  = f"{ptt_ratio:.1f}%" if ptt_ratio != -1.0 else "N/A"
-        c4.metric("📊 PTT空頭比例", ptt_text, help="空頭家數佔比，高於50%為紅燈")
-
-        st.divider()
-
-        # ── 台股加權 ──
-        st.subheader("🇹🇼 台股加權指數深度分析")
-        tse = macro_data['tse_analysis']
-        k1, k2, k3 = st.columns(3)
-        k1.metric(f"目前點位: {tse['price']:.2f}", tse['momentum'])
-        k2.metric("神奇均線趨勢", tse['magic_ma'])
-        k3.metric("格蘭碧法則",   tse['granville'])
-        st.text("扣抵與斜率: " + " | ".join(tse['deduct_slope']))
-
-        # ── 信號燈視覺化 ──
-        st.divider()
-        signal_color = {"GREEN_LIGHT": "#00FF00", "YELLOW_LIGHT": "#FFD700", "RED_LIGHT": "#FF4B4B"}
-        sig = macro_data['signal']
-        st.markdown(f"""
-        <div style="
-            background: radial-gradient(circle, {signal_color.get(sig,'#555')}22 0%, transparent 70%);
-            border: 2px solid {signal_color.get(sig,'#555')};
-            border-radius: 16px;
-            padding: 24px;
-            text-align: center;
-            font-size: 28px;
-            font-weight: bold;
-            color: {signal_color.get(sig,'#FFF')};
-            text-shadow: 0 0 20px {signal_color.get(sig,'#555')}99;
-            margin-top: 12px;
-        ">
-            {SIGNAL_MAP.get(sig, '⚪ 未知')}
+    if df.empty:
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">📂</div>
+            <div class="empty-state-text">UPLOAD CB LIST TO ACTIVATE HUD</div>
         </div>""", unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="background:#1a1a2e; border:1px dashed #444; border-radius:12px;
-                    padding:40px; text-align:center; color:#888;">
-            <div style="font-size:48px; margin-bottom:12px;">📂</div>
-            <div style="font-size:18px;">請於左側側邊欄上傳 CB 清單以啟動戰情室</div>
-        </div>""", unsafe_allow_html=True)
+        return
+
+    macro_data  = _get_macro_data(macro, df_hash)
+    sig         = macro_data['signal']
+    sig_color   = SIGNAL_PALETTE.get(sig, "#888888")
+    sig_text    = SIGNAL_MAP.get(sig, "⚪ 未知")
+    sig_emoji   = sig_text.split('：')[0] if '：' in sig_text else sig_text
+    sig_desc    = sig_text.split('：')[1] if '：' in sig_text else ""
+    ptt_ratio   = macro_data['ptt_ratio']
+    ptt_str     = f"{ptt_ratio:.1f}%" if ptt_ratio != -1.0 else "N/A"
+    pr90        = macro_data['price_distribution']['pr90']
+
+    # ── 4-Column Glass HUD Row ──
+    cols = st.columns(4)
+    cards = [
+        ("SIGNAL LIGHT",    sig_emoji, sig_desc,             sig_color,  "MARKET"),
+        ("VIX FEAR INDEX",  f"{macro_data['vix']:.2f}", "高於25為警示", "#FF9A3C", "VIX"),
+        ("PR90 HEAT",       f"{pr90:.2f}",        "高於130為過熱",   "#FF3131",  "PR90"),
+        ("PTT SHORT RATIO", ptt_str,              "高於50%為危險",   "#00F5FF",  "PTT"),
+    ]
+    for col, (label, value, delta, color, tag) in zip(cols, cards):
+        with col:
+            _render_hud_card(label, value, delta, color, tag)
+
+    # ── Signal Light Panel ──
+    st.markdown(f"""
+    <div class="signal-panel" style="border-color:{sig_color}33; margin-top:20px;">
+        <div class="signal-dot" style="background:{sig_color}; box-shadow:0 0 12px {sig_color}, 0 0 28px {sig_color}66;"></div>
+        <div>
+            <div class="signal-text" style="color:{sig_color}; text-shadow:0 0 10px {sig_color}88;">{sig_text}</div>
+            <div class="signal-sub">MARKET CONDITION · {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # ── TSE Deep Analysis ──
+    tse = macro_data['tse_analysis']
+    st.markdown("""<div style="font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;
+                             color:#334455;text-transform:uppercase;margin:14px 0 10px;">
+        ▸ TAIWAN WEIGHTED INDEX — DEEP ANALYSIS</div>""", unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="tse-grid">
+        <div class="tse-cell">
+            <div class="tse-cell-label">CURRENT LEVEL</div>
+            <div class="tse-cell-value" style="color:#00F5FF;font-family:'JetBrains Mono',monospace;">
+                {tse['price']:.2f} <span style="font-size:12px;color:#667788;">{tse['momentum']}</span>
+            </div>
+        </div>
+        <div class="tse-cell">
+            <div class="tse-cell-label">MAGIC MA TREND</div>
+            <div class="tse-cell-value">{tse['magic_ma']}</div>
+        </div>
+        <div class="tse-cell">
+            <div class="tse-cell-label">GRANVILLE RULE</div>
+            <div class="tse-cell-value">{tse['granville']}</div>
+        </div>
+    </div>
+    <div class="deduct-bar">
+        DEDUCT &amp; SLOPE — {' &nbsp;|&nbsp; '.join(tse['deduct_slope'])}
+    </div>""", unsafe_allow_html=True)
 
 
 def render_1_2_thermometer():
-    """1.2 🌡️ 高價權值股多空溫度計"""
-    st.markdown('<div class="section-header">🌡️ 1.2 高價權值股多空溫度計</div>', unsafe_allow_html=True)
+    _render_section_header("1.2", "🌡️", "BULL/BEAR THERMOMETER")
     macro, _, _ = _load_engines()
 
     if 'high_50_sentiment' not in st.session_state:
         st.session_state.high_50_sentiment = None
 
-    if st.button("🔄 刷新市場多空溫度", key="btn_sentiment"):
-        with st.spinner("正在分析高價權值股…"):
+    if st.button("▶  REFRESH MARKET TEMPERATURE", key="btn_sentiment"):
+        with st.spinner("ANALYZING HIGH-PRICE LEADERS…"):
             st.session_state.high_50_sentiment = macro.analyze_high_50_sentiment()
 
-    if st.session_state.high_50_sentiment:
-        sentiment = st.session_state.high_50_sentiment
-        if "error" in sentiment:
-            st.error(sentiment["error"])
-        else:
-            col1, col2 = st.columns(2)
-            col1.metric("市場氣氛", sentiment['sentiment'])
-            col2.metric(
-                "多空比例 (站上/跌破87MA)",
-                f"🐂 {sentiment['bull_ratio']:.1f}% | 🐻 {sentiment['bear_ratio']:.1f}%",
-                help=f"基於 {sentiment['total']} 檔高價權值股分析"
-            )
+    if not st.session_state.high_50_sentiment:
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">🌡️</div>
+            <div class="empty-state-text">CLICK BUTTON TO ANALYZE</div>
+        </div>""", unsafe_allow_html=True)
+        return
 
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=sentiment['bull_ratio'],
-                title={'text': "多頭佔比 (%)"},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar':  {'color': "#FF4B4B"},
-                    'steps': [
-                        {'range': [0,   35], 'color': '#1a3a4a'},
-                        {'range': [35,  65], 'color': '#2d4a2d'},
-                        {'range': [65, 100], 'color': '#4a1a1a'},
-                    ],
-                    'threshold': {
-                        'line': {'color': "gold", 'width': 4},
-                        'thickness': 0.75,
-                        'value': 50
-                    }
-                }
-            ))
-            fig.update_layout(height=340, template="plotly_dark",
-                              paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig, use_container_width=True)
+    sentiment = st.session_state.high_50_sentiment
+    if "error" in sentiment:
+        st.error(sentiment["error"])
+        return
 
-            # ── 多空分類標籤 ──
-            ratio = sentiment['bull_ratio']
-            if ratio >= 65:
-                label, color = "🔥 強勢多頭市場，攻擊態勢", "#FF4B4B"
-            elif ratio >= 50:
-                label, color = "🟢 多方略佔優勢，持股向好", "#00FF7F"
-            elif ratio >= 35:
-                label, color = "🟡 多空交戰，審慎選股", "#FFD700"
-            else:
-                label, color = "🔴 空頭市場，輕倉防守", "#26A69A"
-            st.markdown(f"""
-            <div style="border:1px solid {color}; border-radius:10px; padding:14px;
-                        color:{color}; font-size:18px; font-weight:bold; text-align:center;
-                        background:rgba(0,0,0,0.3); margin-top:12px;">
-                {label}
-            </div>""", unsafe_allow_html=True)
+    bull = sentiment['bull_ratio']
+    bear = sentiment['bear_ratio']
+    mood = sentiment['sentiment']
+    total = sentiment['total']
+
+    # Determine colors
+    if bull >= 65:
+        mood_color, mood_label = "#FF3131", "🔥 強勢多頭 · BULL DOMINANT"
+    elif bull >= 50:
+        mood_color, mood_label = "#00FF7F", "✅ 多方略優 · BULLISH"
+    elif bull >= 35:
+        mood_color, mood_label = "#FFD700", "⚡ 多空交戰 · NEUTRAL"
     else:
-        st.info("點擊上方按鈕以分析市場多空溫度。")
+        mood_color, mood_label = "#00F5FF", "🧊 空頭市場 · BEARISH"
+
+    # HUD row
+    _render_hud_row([
+        ("MARKET MOOD", mood, f"Based on {total} stocks", mood_color, "SENTIMENT"),
+        ("BULL RATIO", f"{bull:.1f}%", "Above 87MA",  "#FF3131", "BULL"),
+        ("BEAR RATIO", f"{bear:.1f}%", "Below 87MA",  "#00F5FF", "BEAR"),
+        ("SIGNAL",     mood_label.split('·')[0].strip(), "", mood_color, "SIGNAL"),
+    ])
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    # Plotly gauge
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=bull,
+        delta={'reference': 50, 'valueformat': '.1f', 'suffix': '%'},
+        title={'text': "BULL RATIO (87MA)", 'font': {'family': 'Orbitron', 'color': '#FFD700', 'size': 13}},
+        number={'font': {'family': 'JetBrains Mono', 'color': '#FFFFFF', 'size': 40}, 'suffix': '%'},
+        gauge={
+            'axis': {'range': [0, 100], 'tickcolor': '#334455',
+                     'tickfont': {'family': 'Orbitron', 'color': '#334455', 'size': 9}},
+            'bar': {'color': mood_color, 'thickness': 0.22},
+            'bgcolor': 'rgba(0,0,0,0)',
+            'bordercolor': 'rgba(0,245,255,0.15)',
+            'steps': [
+                {'range': [0,  35], 'color': 'rgba(0,245,255,0.10)'},
+                {'range': [35, 65], 'color': 'rgba(255,215,0,0.08)'},
+                {'range': [65,100], 'color': 'rgba(255,49,49,0.12)'},
+            ],
+            'threshold': {
+                'line': {'color': '#FFD700', 'width': 3},
+                'thickness': 0.78, 'value': 50
+            }
+        }
+    ))
+    fig.update_layout(
+        height=280,
+        template="plotly_dark",
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=40, b=10, l=20, r=20),
+        font=dict(family='Rajdhani')
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Status bar
+    st.markdown(f"""
+    <div style="background:rgba(0,0,0,0.4);border:1px solid {mood_color}44;border-radius:10px;
+                padding:14px 20px;text-align:center;font-family:'Rajdhani',sans-serif;
+                font-size:18px;font-weight:700;letter-spacing:2px;color:{mood_color};
+                box-shadow:0 0 16px {mood_color}22;margin-top:4px;">
+        {mood_label}
+    </div>""", unsafe_allow_html=True)
 
 
 def render_1_3_pr90():
-    """1.3 📊 PR90 籌碼分佈圖"""
-    st.markdown('<div class="section-header">📊 1.3 PR90 籌碼分佈圖</div>', unsafe_allow_html=True)
+    _render_section_header("1.3", "📊", "PR90 CHIP DISTRIBUTION")
     macro, _, _ = _load_engines()
     df      = st.session_state.get('df', pd.DataFrame())
     df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
-    if not df.empty:
-        macro_data = _get_macro_data(macro, df_hash)
-        price_dist = macro_data.get('price_distribution', {})
-        chart_data = price_dist.get('chart_data')
+    if df.empty:
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">📊</div>
+            <div class="empty-state-text">UPLOAD CB LIST TO GENERATE CHART</div>
+        </div>""", unsafe_allow_html=True)
+        return
 
-        if chart_data is not None and not chart_data.empty:
-            c1, c2, c3 = st.columns(3)
-            c1.metric("PR90 (過熱線)", f"{price_dist.get('pr90', 0):.2f}",
-                      help="90%的CB低於此價，代表市場熱度")
-            c2.metric("PR75 (機會線)", f"{price_dist.get('pr75', 0):.2f}",
-                      help="75%的CB低於此價，尋寶機會區")
-            c3.metric("市場均價",     f"{price_dist.get('avg', 0):.2f}")
+    macro_data = _get_macro_data(macro, df_hash)
+    price_dist = macro_data.get('price_distribution', {})
+    chart_data = price_dist.get('chart_data')
 
-            st.divider()
+    if chart_data is None or chart_data.empty:
+        st.warning("無法生成籌碼分佈圖，請檢查 CB 清單中的價格欄位。")
+        return
 
-            # Altair 黑金風柱狀圖（v6 相容：用 DataFrame 欄位做色彩，不用巢狀 condition）
-            pr90_val = price_dist.get('pr90', 999)
-            pr75_val = price_dist.get('pr75', 999)
+    pr90 = price_dist.get('pr90', 0)
+    pr75 = price_dist.get('pr75', 0)
+    avg  = price_dist.get('avg',  0)
 
-            chart_data = chart_data.copy()
+    _render_hud_row([
+        ("PR90 OVERHEATING LINE", f"{pr90:.2f}", "90% CB below this", "#FF3131",  "PR90"),
+        ("PR75 OPPORTUNITY LINE", f"{pr75:.2f}", "75% CB below this", "#FFD700",  "PR75"),
+        ("MARKET AVG PRICE",      f"{avg:.2f}",  "All CB average",    "#00F5FF",  "AVG"),
+    ])
 
-            def _zone(label):
-                try:
-                    mid = float(str(label).split('~')[0])
-                except Exception:
-                    return "正常區"
-                if mid >= pr90_val:
-                    return "PR90 過熱區"
-                if mid >= pr75_val:
-                    return "PR75 警示區"
-                return "正常區"
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-            chart_data['區域'] = chart_data['區間'].apply(_zone)
+    # Zone coloring via DataFrame column
+    chart_data = chart_data.copy()
+    def _zone(label):
+        try:
+            mid = float(str(label).split('~')[0])
+        except Exception:
+            return "正常區"
+        if mid >= pr90: return "PR90 過熱區"
+        if mid >= pr75: return "PR75 警示區"
+        return "正常區"
+    chart_data['區域'] = chart_data['區間'].apply(_zone)
 
-            bar_chart = (
-                alt.Chart(chart_data)
-                .mark_bar(opacity=0.88)
-                .encode(
-                    x=alt.X('區間:N', sort=None, title='CB 市價區間'),
-                    y=alt.Y('數量:Q', title='檔數'),
-                    color=alt.Color(
-                        '區域:N',
-                        scale=alt.Scale(
-                            domain=["正常區", "PR75 警示區", "PR90 過熱區"],
-                            range=["#4B9CD3", "#FFD700", "#FF4B4B"]
-                        ),
-                        legend=alt.Legend(orient='top', labelColor='#AAAAAA',
-                                          titleColor='#AAAAAA')
-                    ),
-                    tooltip=['區間', '數量', '區域']
-                )
-                .properties(
-                    title=alt.TitleParams(
-                        text="CB 市場籌碼分佈 (Price Distribution)",
-                        color='#FFD700'
-                    ),
-                    height=320
-                )
-                .configure_axis(labelColor='#AAAAAA', titleColor='#AAAAAA')
-                .configure_view(strokeOpacity=0)
-            )
-            st.altair_chart(bar_chart, use_container_width=True)
+    bar = (
+        alt.Chart(chart_data)
+        .mark_bar(opacity=0.90, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+        .encode(
+            x=alt.X('區間:N', sort=None, title=None,
+                    axis=alt.Axis(labelColor='#556070', labelFontSize=10,
+                                  labelFont='JetBrains Mono', grid=False, ticks=False,
+                                  domainColor='rgba(0,245,255,0.1)')),
+            y=alt.Y('數量:Q', title='VOLUME',
+                    axis=alt.Axis(labelColor='#556070', titleColor='#556070',
+                                  gridColor='rgba(0,245,255,0.05)', tickColor='transparent',
+                                  labelFont='JetBrains Mono', labelFontSize=10)),
+            color=alt.Color('區域:N',
+                scale=alt.Scale(
+                    domain=["正常區", "PR75 警示區", "PR90 過熱區"],
+                    range=["#1A6CA8", "#C8A000", "#C82828"]
+                ),
+                legend=alt.Legend(orient='top', labelColor='#8899AA', titleColor='#556070',
+                                  labelFont='Rajdhani', titleFont='Orbitron',
+                                  titleFontSize=8, labelFontSize=12, symbolSize=80)),
+            tooltip=[
+                alt.Tooltip('區間:N', title='RANGE'),
+                alt.Tooltip('數量:Q', title='COUNT'),
+                alt.Tooltip('區域:N', title='ZONE'),
+            ]
+        )
+        .properties(height=320)
+        .configure_view(fill='#06090E', strokeOpacity=0)
+        .configure_title(color='#FFD700')
+    )
+    st.altair_chart(bar, use_container_width=True)
 
-            st.markdown("""
-            <div style="display:flex; gap:12px; margin-top:8px; font-size:12px;">
-                <span style="color:#4B9CD3">■ 正常區</span>
-                <span style="color:#FFD700">■ PR75 警示區</span>
-                <span style="color:#FF4B4B">■ PR90 過熱區</span>
-            </div>""", unsafe_allow_html=True)
-        else:
-            st.warning("無法生成籌碼分佈圖，請檢查 CB 清單中的價格欄位。")
-    else:
-        st.info("請上傳 CB 清單以生成籌碼分佈圖。")
+    # Legend note
+    st.markdown("""
+    <div style="display:flex;gap:20px;font-family:'Rajdhani';font-size:12px;
+                letter-spacing:1px;opacity:0.7;margin-top:-4px;padding:0 4px;">
+        <span style="color:#4490C8">■ NORMAL ZONE</span>
+        <span style="color:#C8A000">■ PR75 WARNING</span>
+        <span style="color:#C82828">■ PR90 OVERHEATING</span>
+    </div>""", unsafe_allow_html=True)
 
 
 def render_1_4_heatmap():
-    """1.4 🗺️ 族群熱度雷達"""
-    st.markdown('<div class="section-header">🗺️ 1.4 族群熱度雷達</div>', unsafe_allow_html=True)
+    _render_section_header("1.4", "🗺️", "SECTOR HEAT RADAR")
     macro, kb, _ = _load_engines()
     df = st.session_state.get('df', pd.DataFrame())
 
-    if not df.empty:
-        if 'sector_heatmap' not in st.session_state:
-            st.session_state.sector_heatmap = pd.DataFrame()
+    if df.empty:
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">🗺️</div>
+            <div class="empty-state-text">UPLOAD CB LIST TO SCAN SECTORS</div>
+        </div>""", unsafe_allow_html=True)
+        return
 
-        if st.button("🛰️ 掃描市場族群熱度", key="btn_heatmap"):
-            with st.spinner("正在分析族群資金流向…"):
-                st.session_state.sector_heatmap = macro.analyze_sector_heatmap(df, kb)
+    if 'sector_heatmap' not in st.session_state:
+        st.session_state.sector_heatmap = pd.DataFrame()
 
-        if not st.session_state.sector_heatmap.empty:
-            st.info("「多頭比例」代表該族群中，有多少比例的標的股價站上 87MA 生命線。")
+    if st.button("▶  SCAN SECTOR HEAT", key="btn_heatmap"):
+        with st.spinner("ANALYZING SECTOR CAPITAL FLOWS…"):
+            st.session_state.sector_heatmap = macro.analyze_sector_heatmap(df, kb)
 
-            heatmap_df = st.session_state.sector_heatmap.copy()
+    if st.session_state.sector_heatmap.empty:
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">📡</div>
+            <div class="empty-state-text">AWAITING SCAN — CLICK BUTTON ABOVE</div>
+        </div>""", unsafe_allow_html=True)
+        return
 
-            def colorize_ratio(val):
-                try:
-                    v = float(val)
-                    if v >= 70:
-                        return 'background-color: rgba(255,75,75,0.4)'
-                    elif v >= 50:
-                        return 'background-color: rgba(255,215,0,0.3)'
-                    else:
-                        return 'background-color: rgba(38,166,154,0.3)'
-                except Exception:
-                    return ''
+    st.markdown("""
+    <div style="font-family:'Rajdhani';font-size:13px;color:#556070;letter-spacing:1px;
+                border-left:2px solid rgba(0,245,255,0.2);padding:6px 12px;margin-bottom:14px;">
+        「多頭比例」= 各族群中股價站上 87MA 生命線之比例
+    </div>""", unsafe_allow_html=True)
 
-            styled = heatmap_df.style.applymap(colorize_ratio, subset=['多頭比例 (%)'])
-            st.dataframe(styled, use_container_width=True)
+    heatmap_df = st.session_state.sector_heatmap.copy()
 
-            # ── Plotly 圓餅圖（族群佔比）──
-            if '產業' in heatmap_df.columns and 'CB 數量' in heatmap_df.columns:
-                try:
-                    fig_pie = go.Figure(go.Pie(
-                        labels=heatmap_df['產業'],
-                        values=heatmap_df['CB 數量'],
-                        hole=0.4,
-                        marker=dict(colors=[
-                            '#FF4B4B', '#FFD700', '#4B9CD3', '#00FF7F',
-                            '#FF69B4', '#FFA07A', '#9370DB', '#26A69A',
-                        ])
-                    ))
-                    fig_pie.update_layout(
-                        title="各族群 CB 數量佔比",
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        height=320
-                    )
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                except Exception:
-                    pass
-        else:
-            st.info("點擊按鈕以分析族群熱度。")
-    else:
-        st.info("請上傳 CB 清單以啟動族群熱度雷達。")
+    def colorize_ratio(val):
+        try:
+            v = float(val)
+            if v >= 70: return 'background-color:rgba(255,49,49,0.22);color:#FF9090;font-weight:700'
+            if v >= 50: return 'background-color:rgba(255,215,0,0.18);color:#FFD700;font-weight:700'
+            return 'background-color:rgba(0,245,255,0.10);color:#7AF5FF'
+        except Exception:
+            return ''
+
+    styled = heatmap_df.style.applymap(colorize_ratio, subset=['多頭比例 (%)'])
+    st.dataframe(styled, use_container_width=True)
 
 
 def render_1_5_turnover():
-    """1.5 💹 成交重心即時預測（動態 Top 100）"""
-    st.markdown('<div class="section-header">💹 1.5 成交重心即時預測 (Top 100)</div>', unsafe_allow_html=True)
+    _render_section_header("1.5", "💹", "VOLUME GRAVITY CENTER — TOP 100")
     macro, _, _ = _load_engines()
     _render_leader_dashboard(
         session_state_key="w15_data",
@@ -630,8 +1161,7 @@ def render_1_5_turnover():
 
 
 def render_1_6_trend_radar():
-    """1.6 👑 高價權值股趨勢雷達（Top 50）"""
-    st.markdown('<div class="section-header">👑 1.6 高價權值股趨勢雷達 (Top 50)</div>', unsafe_allow_html=True)
+    _render_section_header("1.6", "👑", "HIGH-PRICE TREND RADAR — TOP 50")
     macro, _, _ = _load_engines()
     _render_leader_dashboard(
         session_state_key="w16_data",
@@ -642,51 +1172,92 @@ def render_1_6_trend_radar():
 
 
 def render_1_7_predator():
-    """1.7 🎯 台指期月K結算目標價推導（Baseball Chart）"""
-    st.markdown('<div class="section-header">🎯 1.7 台指期月K結算目標價推導</div>', unsafe_allow_html=True)
-    st.info("💡 獨門戰法：利用過去 12 個月結算慣性，推導本月台指期 (TX) 的「虛擬 K 棒」與目標價。")
+    _render_section_header("1.7", "🎯", "WTX PREDATOR — SETTLEMENT TARGETS")
 
-    if st.button("🔮 推導台指期目標", key="btn_futures"):
-        with st.spinner("推導台指期…"):
+    st.markdown("""
+    <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);
+                border-radius:10px;padding:12px 18px;font-family:'Rajdhani';font-size:14px;
+                color:#AABBCC;letter-spacing:1px;margin-bottom:20px;">
+        💡 <strong style="color:#FFD700;">獨門戰法</strong>：利用過去 12 個月結算慣性，推導本月台指期 (TX) 的「虛擬 K 棒」與目標價
+    </div>""", unsafe_allow_html=True)
+
+    if st.button("▶  DERIVE WTX SETTLEMENT TARGETS", key="btn_futures"):
+        with st.spinner("CALCULATING FUTURES TARGETS…"):
             st.session_state['futures_result'] = _calculate_futures_targets()
 
     res = st.session_state.get('futures_result', None)
 
     if res is None:
-        st.info("點擊按鈕以推導台指期目標價。")
+        st.markdown("""<div class="empty-state">
+            <div class="empty-state-icon">🎯</div>
+            <div class="empty-state-text">AWAITING DERIVATION COMMAND</div>
+        </div>""", unsafe_allow_html=True)
         return
 
     if "error" in res:
-        st.warning(f"⚠️ {res['error']}")
+        st.markdown(f"""
+        <div style="background:rgba(255,49,49,0.08);border:1px solid rgba(255,49,49,0.3);
+                    border-radius:10px;padding:14px 18px;color:#FF6666;font-family:'Rajdhani';">
+            ⚠️ {res['error']}
+        </div>""", unsafe_allow_html=True)
         return
 
-    is_red = res['is_red']
-    color  = "#d62728" if is_red else "#2ca02c"
+    is_red  = res['is_red']
+    c_bull  = "#FF3131"
+    c_bear  = "#00F5FF"
+    c_main  = c_bull if is_red else c_bear
+    polarity = "🔴 多方控盤" if is_red else "🟢 空方控盤"
+    bias_str = f"+{res['price']-res['anc']:.0f}" if res['price'] >= res['anc'] else f"{res['price']-res['anc']:.0f}"
 
-    st.subheader(f"📊 {res['name']}：{'🔴 多方控盤' if is_red else '🟢 空方控盤'}")
+    # Header banner
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{c_main}14,{c_main}06);
+                border:1px solid {c_main}44;border-radius:12px;
+                padding:16px 22px;display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+        <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:{c_main};
+                    text-shadow:0 0 12px {c_main}88;">{polarity}</div>
+        <div style="font-family:'Rajdhani';font-size:14px;color:#778899;letter-spacing:2px;">{res['name']}</div>
+        <div style="margin-left:auto;font-family:'JetBrains Mono';font-size:13px;color:#889AAA;">
+            {"🔥 易收長紅" if is_red else "💀 易收長黑"}
+        </div>
+    </div>""", unsafe_allow_html=True)
 
-    c1, c2 = st.columns(2)
-    c1.metric("定錨開盤價", f"{res['anc']:.0f}")
-    c2.metric("目前點位",   f"{res['price']:.0f}", f"{res['price'] - res['anc']:.0f}")
+    # Top 2 HUD
+    _render_hud_row([
+        ("ANCHOR OPEN",  f"{res['anc']:.0f}",   "定錨開盤價",  "#FFD700",  "ANCHOR"),
+        ("CURRENT PRICE",f"{res['price']:.0f}", bias_str,     c_main,     "NOW"),
+    ])
 
-    if is_red:
-        st.success("🔥 多方贏慣性：易收長紅。")
-    else:
-        st.success("💀 空方贏慣性：易收長黑。")
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    def check_hit(tg):
-        return "✅ 達標" if (is_red and res['price'] >= tg) or \
-               (not is_red and res['price'] <= tg) else "⏳ 未達"
+    # Baseball targets
+    def hit_check(tg):
+        return ("✅ REACHED", "#00FF7F") if (is_red and res['price'] >= tg) or \
+               (not is_red and res['price'] <= tg) else ("⏳ PENDING", "#556070")
 
-    t1, t2, t3, t4 = st.columns(4)
-    t1.metric("1壘", f"{res['t']['1B']:.0f}", check_hit(res['t']['1B']))
-    t2.metric("2壘", f"{res['t']['2B']:.0f}", check_hit(res['t']['2B']))
-    t3.metric("3壘", f"{res['t']['3B']:.0f}", check_hit(res['t']['3B']))
-    t4.metric("HR",  f"{res['t']['HR']:.0f}", check_hit(res['t']['HR']))
+    base_config = [
+        ("1B", "1壘 — SINGLE",   c_main + "22", c_main),
+        ("2B", "2壘 — DOUBLE",   c_main + "33", c_main),
+        ("3B", "3壘 — TRIPLE",   c_main + "44", c_main),
+        ("HR", "HR — HOME RUN",  "#FF3131"+"33", "#FF3131"),
+    ]
+    base_html_parts = []
+    for k, label, bg, bc in base_config:
+        val = res['t'][k]
+        status, st_color = hit_check(val)
+        base_html_parts.append(f"""
+        <div class="base-card" style="background:{bg};border:1px solid {bc}55;">
+            <div class="base-card::before" style="background:{bc};"></div>
+            <div class="base-card-label" style="color:{bc};">{label}</div>
+            <div class="base-card-value">{val:.0f}</div>
+            <div class="base-card-status" style="color:{st_color};">{status}</div>
+        </div>""")
 
-    st.divider()
+    st.markdown(f'<div class="base-grid">{"".join(base_html_parts)}</div>', unsafe_allow_html=True)
 
-    # ── Altair Baseball K棒圖（完整保留）──
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # ── Altair Baseball K-Bar Chart — fully preserved ──
     chart_df = pd.DataFrame({
         "Label":     ["本月"],
         "Anchor":    [res['anc']],
@@ -697,44 +1268,54 @@ def render_1_7_predator():
         "Target_3B": [res['t']['3B']],
     })
 
-    base  = alt.Chart(chart_df).encode(x=alt.X('Label', axis=None))
-    ghost = (base.mark_bar(size=60, color="#ffcccc" if is_red else "#ccffcc", opacity=0.5)
-             .encode(y=alt.Y('Anchor', scale=alt.Scale(zero=False), title='Price'),
-                     y2='Target_HR'))
-    real  = (base.mark_bar(size=30, color=color)
-             .encode(y='Anchor', y2='Current'))
-
+    bar_color  = "#CC2222" if is_red else "#117755"
+    ghost_c    = "#331111" if is_red else "#113322"
+    base       = alt.Chart(chart_df).encode(x=alt.X('Label', axis=None))
+    ghost      = (base.mark_bar(size=72, color=ghost_c, opacity=0.9)
+                  .encode(y=alt.Y('Anchor', scale=alt.Scale(zero=False), title='INDEX'),
+                          y2='Target_HR'))
+    real       = (base.mark_bar(size=32, color=bar_color)
+                  .encode(y='Anchor', y2='Current'))
     chart = ghost + real
+
     for k in ['1B', '2B', '3B']:
         chart += (
-            base.mark_tick(color='gold', thickness=2, size=70)
+            base.mark_tick(color='#FFD700', thickness=2, size=80)
             .encode(y=f'Target_{k}')
-            + base.mark_text(dx=44, align='left', color='gold', fontSize=13, fontWeight='bold')
-            .encode(y=f'Target_{k}', text=alt.value(f"{k}  {res['t'][k]:.0f}"))
+            + base.mark_text(dx=50, align='left', color='#FFD700',
+                             fontSize=13, fontWeight='bold', font='Rajdhani')
+            .encode(y=f'Target_{k}', text=alt.value(f"{k}   {res['t'][k]:.0f}"))
         )
     chart += (
-        base.mark_tick(color='#FF4B4B', thickness=4, size=80)
+        base.mark_tick(color='#FF3131', thickness=4, size=90)
         .encode(y='Target_HR')
-        + base.mark_text(dx=48, align='left', color='#FF4B4B', fontSize=14, fontWeight='bold')
-        .encode(y='Target_HR', text=alt.value(f"HR  {res['t']['HR']:.0f}"))
+        + base.mark_text(dx=54, align='left', color='#FF3131',
+                         fontSize=15, fontWeight='bold', font='Rajdhani')
+        .encode(y='Target_HR', text=alt.value(f"HR   {res['t']['HR']:.0f}"))
     )
 
+    st.markdown('<div class="chart-dark-wrap">', unsafe_allow_html=True)
     _, chart_col, _ = st.columns([1, 2, 1])
     with chart_col:
         st.altair_chart(
-            chart.properties(height=420)
-                 .configure_view(strokeOpacity=0)
-                 .configure_axis(labelColor='#AAAAAA'),
+            chart.properties(height=460)
+                 .configure_view(fill='#06090E', strokeOpacity=0)
+                 .configure_axis(labelColor='#556070', titleColor='#556070',
+                                 gridColor='rgba(0,245,255,0.06)'),
             use_container_width=True
         )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.caption(f"📅 數據更新時間: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    st.markdown(f"""
+    <div style="text-align:right;font-family:'JetBrains Mono';font-size:10px;
+                color:#334455;letter-spacing:2px;margin-top:10px;">
+        LAST UPDATE: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    </div>""", unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════
-#  主渲染入口
-# ══════════════════════════════════════════════════════════════
-
+# ══════════════════════════════════════════════════════════════════════════════
+#  ROUTER
+# ══════════════════════════════════════════════════════════════════════════════
 RENDER_MAP = {
     "1.1": render_1_1_hud,
     "1.2": render_1_2_thermometer,
@@ -746,91 +1327,95 @@ RENDER_MAP = {
 }
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  MAIN ENTRY POINT
+# ══════════════════════════════════════════════════════════════════════════════
 def render():
-    """Tab 1 主入口 — Titan OS Sub-Module Navigator"""
+    """Tab 1 — Titan OS God-Tier Glass-HUD Terminal"""
 
-    # ── CSS 注入 ──────────────────────────────────────────────
-    st.markdown(NAV_CSS, unsafe_allow_html=True)
+    _inject_css()
 
-    # ── Session State ─────────────────────────────────────────
     if 'tab1_active' not in st.session_state:
         st.session_state.tab1_active = "1.1"
 
     active = st.session_state.tab1_active
 
-    # ── 標題 ──────────────────────────────────────────────────
+    # ── MASTHEAD ──────────────────────────────────────────────
     st.markdown("""
-    <div style="
-        font-size: 28px;
-        font-weight: 800;
-        color: #FFD700;
-        text-shadow: 0 0 16px rgba(255,215,0,0.5);
-        letter-spacing: 2px;
-        margin-bottom: 20px;
-    ">🛡️ 宏觀風控指揮中心</div>
+    <div class="titan-masthead">🛡️ MACRO RISK COMMAND CENTER</div>
+    <div class="titan-masthead-sub">TITAN SOP · REAL-TIME MARKET INTELLIGENCE PLATFORM</div>
     """, unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
-    #  控制台：7 大導航按鈕
+    #  COMMAND DECK — 7 NAV BUTTONS
     # ══════════════════════════════════════════════════════════
-    st.markdown('<div class="titan-nav-deck">', unsafe_allow_html=True)
-    st.markdown('<div class="titan-nav-title">🎛️ SELECT MODULE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="cmd-deck">', unsafe_allow_html=True)
+    st.markdown('<div class="cmd-deck-label">▸ COMMAND SELECT · MODULE NAVIGATION</div>', unsafe_allow_html=True)
 
-    # Row 1：4 個按鈕
-    row1_modules = SUB_MODULES[:4]
-    cols_r1 = st.columns(4)
-    for col, (code, icon, label) in zip(cols_r1, row1_modules):
+    row1 = SUB_MODULES[:4]
+    row2 = SUB_MODULES[4:]
+
+    # Row 1
+    r1_cols = st.columns(4)
+    for col, (code, short, label) in zip(r1_cols, row1):
         with col:
             if active == code:
-                # 選中態：顯示金色卡片
                 st.markdown(f"""
-                <div class="nav-active-card">
-                    <div style="font-size:24px">{icon}</div>
-                    <div style="font-size:11px; margin-top:4px">{code}</div>
-                    <div style="font-size:14px; font-weight:700">{label}</div>
+                <div class="nav-active">
+                    <div style="font-size:18px;margin-bottom:3px">{short}</div>
+                    <div style="font-size:7px;letter-spacing:2px;color:#FFD70088">{code}</div>
+                    <div style="font-size:11px;margin-top:2px">{label}</div>
                 </div>""", unsafe_allow_html=True)
             else:
-                if st.button(f"{icon}\n{code} {label}", key=f"nav_{code}",
+                if st.button(f"{short}\n{code}  {label}", key=f"nav_{code}",
                              use_container_width=True):
                     st.session_state.tab1_active = code
                     st.rerun()
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # Row 2：3 個按鈕 + 空欄
-    row2_modules = SUB_MODULES[4:]
-    cols_r2 = st.columns(4)
-    for i, (code, icon, label) in enumerate(row2_modules):
-        with cols_r2[i]:
+    # Row 2
+    r2_cols = st.columns(4)
+    for i, (code, short, label) in enumerate(row2):
+        with r2_cols[i]:
             if active == code:
                 st.markdown(f"""
-                <div class="nav-active-card">
-                    <div style="font-size:24px">{icon}</div>
-                    <div style="font-size:11px; margin-top:4px">{code}</div>
-                    <div style="font-size:14px; font-weight:700">{label}</div>
+                <div class="nav-active">
+                    <div style="font-size:18px;margin-bottom:3px">{short}</div>
+                    <div style="font-size:7px;letter-spacing:2px;color:#FFD70088">{code}</div>
+                    <div style="font-size:11px;margin-top:2px">{label}</div>
                 </div>""", unsafe_allow_html=True)
             else:
-                if st.button(f"{icon}\n{code} {label}", key=f"nav_{code}",
+                if st.button(f"{short}\n{code}  {label}", key=f"nav_{code}",
                              use_container_width=True):
                     st.session_state.tab1_active = code
                     st.rerun()
-    # 第四欄空白（美觀佔位）
-    with cols_r2[3]:
-        st.markdown("<div style='min-height:72px'></div>", unsafe_allow_html=True)
+    # 4th col spacer
+    with r2_cols[3]:
+        st.markdown("<div style='min-height:68px'></div>", unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # .titan-nav-deck
+    st.markdown('</div>', unsafe_allow_html=True)  # cmd-deck
 
     # ══════════════════════════════════════════════════════════
-    #  內容區：只渲染選中的子模組
+    #  CONTENT SHELL
     # ══════════════════════════════════════════════════════════
-    st.markdown('<div class="titan-content-area">', unsafe_allow_html=True)
+    st.markdown('<div class="content-shell">', unsafe_allow_html=True)
+
     render_fn = RENDER_MAP.get(active)
     if render_fn:
         try:
             render_fn()
         except Exception as e:
             import traceback
-            st.error(f"❌ 子模組 {active} 渲染失敗: {e}")
-            with st.expander("🔍 錯誤詳情"):
+            st.markdown(f"""
+            <div style="background:rgba(255,49,49,0.08);border:1px solid rgba(255,49,49,0.35);
+                        border-radius:10px;padding:16px 20px;font-family:'Rajdhani';">
+                <div style="color:#FF6666;font-size:14px;font-weight:700;margin-bottom:6px;">
+                    ❌ MODULE {active} RENDER ERROR
+                </div>
+                <div style="color:#888;font-size:13px;">{e}</div>
+            </div>""", unsafe_allow_html=True)
+            with st.expander("🔍 STACK TRACE"):
                 st.code(traceback.format_exc())
-    st.markdown('</div>', unsafe_allow_html=True)  # .titan-content-area
+
+    st.markdown('</div>', unsafe_allow_html=True)  # content-shell
