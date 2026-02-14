@@ -1,11 +1,15 @@
 # ui_desktop/layout.py
-# Titan SOP V100.0 — Desktop UI Layout
-
 import streamlit as st
 import pandas as pd
+import sys, os
 from datetime import datetime
 
-from utils_ui import inject_css, create_glowing_title, render_sidebar_utilities
+# 確保根目錄在 sys.path（讓 tab 模組能被找到）
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
+from utils_ui import inject_css, create_glowing_title
 
 try:
     from data_engine import load_cb_data_from_upload
@@ -14,14 +18,13 @@ except ImportError:
 
 
 def _import_tab(name):
-    try:
-        import importlib
+    import importlib
+    for attempt in [f"ui_desktop.{name}", name]:
         try:
-            return importlib.import_module(f"ui_desktop.{name}")
+            return importlib.import_module(attempt)
         except ImportError:
-            return importlib.import_module(name)
-    except ImportError:
-        return None
+            continue
+    return None
 
 
 _tab1 = _import_tab("tab1_macro")
@@ -43,49 +46,39 @@ def _render_sidebar():
 
         st.divider()
         st.header("📂 CB 資料上傳")
-        uploaded_file = st.file_uploader(
-            "上傳 CB 清單 (Excel/CSV)", type=['csv', 'xlsx'], key="layout_cb_upload"
-        )
-        if uploaded_file and load_cb_data_from_upload:
-            with st.spinner("載入數據…"):
-                df = load_cb_data_from_upload(uploaded_file)
+        f = st.file_uploader("CB 清單 (Excel/CSV)", type=['csv','xlsx'], key="layout_cb_upload")
+        if f and load_cb_data_from_upload:
+            with st.spinner("載入…"):
+                df = load_cb_data_from_upload(f)
                 if df is not None and not df.empty:
                     st.session_state.df = df
                     st.success(f"✅ {len(df)} 筆 CB")
-
         df_cur = st.session_state.get('df', pd.DataFrame())
         if not df_cur.empty:
-            st.caption(f"📊 目前：{len(df_cur)} 筆 CB")
+            st.caption(f"📊 {len(df_cur)} 筆 CB")
 
         st.divider()
         st.header("🔑 AI 功能")
-        api_key = st.text_input(
-            "Gemini API Key (選填)", type="password",
-            value=st.session_state.get('api_key', ''), key="layout_api_key"
-        )
+        api_key = st.text_input("Gemini API Key (選填)", type="password",
+                                value=st.session_state.get('api_key',''), key="layout_api_key")
         st.session_state.api_key = api_key
-        st.caption("✅ AI 已啟用" if api_key else "ℹ️ 未設定 API Key")
 
         st.divider()
         st.header("🕵️ 情報上傳")
-        intel_files = st.file_uploader(
-            "情報文件 (PDF/TXT)", type=['pdf', 'txt'],
-            accept_multiple_files=True, key="layout_intel"
-        )
-        st.session_state.intel_files = intel_files or []
+        intel = st.file_uploader("情報文件 (PDF/TXT)", type=['pdf','txt'],
+                                  accept_multiple_files=True, key="layout_intel")
+        st.session_state.intel_files = intel or []
 
         st.divider()
         if st.button("🗑️ 清除快取", use_container_width=True, key="layout_clear_cache"):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            st.toast("快取已清除", icon="✅")
+            st.cache_data.clear(); st.cache_resource.clear()
+            st.toast("快取已清除 ✅")
         st.caption(f"V100.0 | {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
 
 def render():
     inject_css("desktop")
     _render_sidebar()
-
     st.markdown(create_glowing_title("🏛️ Titan SOP V100.0 — 全自動戰情室"), unsafe_allow_html=True)
     st.markdown("---")
 
@@ -96,14 +89,14 @@ def render():
 
     def _safe(mod, num):
         if mod is None:
-            st.warning(f"Tab {num} 模組未找到"); return
+            st.warning(f"⚠️ Tab {num} 模組未找到，請確認檔案已上傳至根目錄")
+            return
         try:
             mod.render()
         except Exception as e:
             st.error(f"Tab {num} 錯誤: {e}")
-            with st.expander("詳情"):
-                import traceback
-                st.code(traceback.format_exc())
+            with st.expander("錯誤詳情"):
+                import traceback; st.code(traceback.format_exc())
 
     with t1: _safe(_tab1, 1)
     with t2: _safe(_tab2, 2)
