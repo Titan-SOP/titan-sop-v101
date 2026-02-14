@@ -496,26 +496,41 @@ def render_1_3_pr90():
 
             st.divider()
 
-            # Altair 黑金風柱狀圖
+            # Altair 黑金風柱狀圖（v6 相容：用 DataFrame 欄位做色彩，不用巢狀 condition）
             pr90_val = price_dist.get('pr90', 999)
             pr75_val = price_dist.get('pr75', 999)
 
+            chart_data = chart_data.copy()
+
+            def _zone(label):
+                try:
+                    mid = float(str(label).split('~')[0])
+                except Exception:
+                    return "正常區"
+                if mid >= pr90_val:
+                    return "PR90 過熱區"
+                if mid >= pr75_val:
+                    return "PR75 警示區"
+                return "正常區"
+
+            chart_data['區域'] = chart_data['區間'].apply(_zone)
+
             bar_chart = (
                 alt.Chart(chart_data)
-                .mark_bar(opacity=0.85)
+                .mark_bar(opacity=0.88)
                 .encode(
                     x=alt.X('區間:N', sort=None, title='CB 市價區間'),
                     y=alt.Y('數量:Q', title='檔數'),
-                    color=alt.condition(
-                        alt.datum['區間'] >= str(int(pr90_val)),
-                        alt.value('#FF4B4B'),
-                        alt.condition(
-                            alt.datum['區間'] >= str(int(pr75_val)),
-                            alt.value('#FFD700'),
-                            alt.value('#4B9CD3')
-                        )
+                    color=alt.Color(
+                        '區域:N',
+                        scale=alt.Scale(
+                            domain=["正常區", "PR75 警示區", "PR90 過熱區"],
+                            range=["#4B9CD3", "#FFD700", "#FF4B4B"]
+                        ),
+                        legend=alt.Legend(orient='top', labelColor='#AAAAAA',
+                                          titleColor='#AAAAAA')
                     ),
-                    tooltip=['區間', '數量']
+                    tooltip=['區間', '數量', '區域']
                 )
                 .properties(
                     title=alt.TitleParams(
