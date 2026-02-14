@@ -527,7 +527,7 @@ def _sniper_quantum_path(df, cp, m87, m284):
 
     color = "#00FF00" if score >= 80 else ("#FFD700" if score >= 50 else "#FF4444")
     status= "🔥 Clear Sky" if score >= 80 else ("⚠️ 區間震盪" if score >= 50 else "🐻 空頭壓力")
-    _signal_box(f"G-Score: {score}/100　{status}", color="#1a1a1a", color=color)
+    _signal_box(f"G-Score: {score}/100　{status}", "#1a1a1a", color)
 
     for n in notes: st.caption(n)
 
