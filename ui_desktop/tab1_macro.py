@@ -40,14 +40,241 @@ SUB_MODULES = [
 ]
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  MASTER CSS — Glass-HUD Terminal (inject once at module level via render())
+#  MASTER CSS — Glass-HUD Terminal (High Visibility Edition)
 # ══════════════════════════════════════════════════════════════════════════════
 def _inject_css():
     st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
 
 <style>
+/* ────────────────────────────────────────────────────────────
+   0. ROOT VARIABLES & GLOBAL RESET
+──────────────────────────────────────────────────────────── */
+:root {
+  --c-bg:       #06090E;
+  --c-surface:  #0D1117;
+  --c-glass:    rgba(13, 17, 23, 0.85);
+  --c-border:   rgba(0, 245, 255, 0.25);
+  --c-cyan:     #00F5FF;
+  --c-gold:     #FFD700;
+  --c-red:      #FF3131;
+  --c-green:    #00FF7F;
+  --c-dim:      #3A4A5A;
+  --c-text:     #E0E6ED;
+  --c-muted:    #8899AA;
+  --f-display:  'Orbitron', monospace;
+  --f-sub:      'Rajdhani', sans-serif;
+  --f-mono:     'JetBrains Mono', monospace;
+  --glow-cyan:  0 0 10px rgba(0,245,255,0.6), 0 0 30px rgba(0,245,255,0.3);
+  --glow-gold:  0 0 10px rgba(255,215,0,0.6), 0 0 30px rgba(255,215,0,0.3);
+}
+
+/* Streamlit baseline */
+[data-testid="stAppViewContainer"] { background: var(--c-bg) !important; }
+[data-testid="stHeader"]           { background: transparent !important; }
+[data-testid="stSidebar"]          { background: #080C12 !important; border-right: 1px solid var(--c-border) !important; }
+.main .block-container             { padding: 2rem 3rem 5rem !important; max-width: 1600px !important; }
+
+/* ────────────────────────────────────────────────────────────
+   1. HEADER — TITAN GLOWING TITLE (BIGGER)
+──────────────────────────────────────────────────────────── */
+.titan-masthead {
+  font-family: var(--f-display);
+  font-size: 42px; /* 原本 28px */
+  font-weight: 900;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--c-gold);
+  text-shadow: var(--glow-gold);
+  margin: 0 0 8px;
+}
+.titan-masthead-sub {
+  font-family: var(--f-sub);
+  font-size: 16px; /* 原本 12px */
+  letter-spacing: 6px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 32px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   2. COMMAND DECK — NAVIGATION (BIGGER BUTTONS)
+──────────────────────────────────────────────────────────── */
+.cmd-deck {
+  background: linear-gradient(160deg, #0A0E15 0%, #0D1420 100%);
+  border: 1px solid var(--c-border);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 30px;
+}
+.cmd-deck-label {
+  font-family: var(--f-display);
+  font-size: 12px; /* 原本 8px */
+  letter-spacing: 4px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+/* Nav buttons - Increasing size */
+div.stButton > button[kind="secondary"] {
+  font-family: var(--f-display) !important;
+  font-size: 14px !important; /* 原本 10px */
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+  min-height: 80px !important; /* 加高 */
+  border-radius: 12px !important;
+}
+
+/* Active nav card */
+.nav-active {
+  background: linear-gradient(135deg, rgba(0,245,255,0.15), rgba(255,215,0,0.1)) !important;
+  border: 2px solid var(--c-gold) !important;
+  border-radius: 12px !important;
+  min-height: 80px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-shadow: var(--glow-gold) !important;
+  padding: 10px !important;
+}
+.nav-active div:first-child { font-size: 24px !important; margin-bottom: 6px !important; } /* Icon */
+.nav-active div:nth-child(2) { font-size: 10px !important; } /* Code */
+.nav-active div:nth-child(3) { font-size: 14px !important; font-weight: 900 !important; } /* Label */
+
+
+/* ────────────────────────────────────────────────────────────
+   3. HUD CARDS (MASSIVE DATA)
+──────────────────────────────────────────────────────────── */
+.hud-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin: 24px 0; }
+
+.hud-card {
+  background: rgba(13,17,23,0.9);
+  backdrop-filter: blur(16px);
+  border-radius: 16px;
+  padding: 24px 20px 20px; /* 加大內距 */
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.hud-card::before { height: 4px; } /* 更粗的頂部線條 */
+
+.hud-label {
+  font-family: var(--f-display);
+  font-size: 14px; /* 原本 9px，大幅提升 */
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.hud-value {
+  font-family: var(--f-mono);
+  font-size: 42px; /* 原本 28px，霸氣數據 */
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.1;
+  margin-bottom: 10px;
+  letter-spacing: -1px;
+}
+.hud-delta {
+  font-family: var(--f-sub);
+  font-size: 18px; /* 原本 13px */
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hud-corner-tag {
+  font-size: 10px; /* 原本 7px */
+  top: 14px; right: 16px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   4. SECTION HEADERS & SIGNALS
+──────────────────────────────────────────────────────────── */
+.sec-header {
+  font-size: 20px; /* 原本 14px */
+  letter-spacing: 4px;
+  padding: 0 0 16px 16px;
+  border-left: 4px solid var(--c-cyan);
+  margin-bottom: 24px;
+}
+.sec-header .sec-num {
+  font-size: 14px;
+  padding: 4px 8px;
+}
+
+.signal-panel {
+  padding: 28px 32px;
+}
+.signal-dot { width: 24px; height: 24px; }
+.signal-text {
+  font-size: 28px; /* 原本 18px */
+  letter-spacing: 3px;
+}
+.signal-sub {
+  font-size: 16px; /* 原本 13px */
+  margin-top: 6px;
+}
+
+/* ────────────────────────────────────────────────────────────
+   5. DATA TABLE (READABLE)
+──────────────────────────────────────────────────────────── */
+.content-shell {
+  padding: 32px;
+}
+
+[data-testid="stDataFrame"] thead tr th {
+  font-size: 14px !important; /* 原本 10px */
+  padding: 12px !important;
+}
+[data-testid="stDataFrame"] tbody tr td {
+  font-size: 16px !important; /* 原本 12px，看得清楚了 */
+  padding: 12px !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   6. METRIC OVERRIDE & BUTTONS
+──────────────────────────────────────────────────────────── */
+[data-testid="stMetricLabel"] p {
+  font-size: 12px !important; /* 原本 9px */
+}
+[data-testid="stMetricValue"] {
+  font-size: 32px !important; /* 原本 24px */
+}
+
+.content-shell div.stButton > button {
+  font-size: 14px !important; /* 原本 11px */
+  padding: 12px 24px !important;
+}
+
+/* ────────────────────────────────────────────────────────────
+   7. BASEBALL & HEATMAP
+──────────────────────────────────────────────────────────── */
+.base-card-label { font-size: 12px; }
+.base-card-value { font-size: 28px; font-weight: 800; } /* 棒球跑壘數字加大 */
+.base-card-status { font-size: 14px; }
+
+.tse-cell-label { font-size: 11px; }
+.tse-cell-value { font-size: 20px; }
+
+/* ────────────────────────────────────────────────────────────
+   8. INPUTS
+──────────────────────────────────────────────────────────── */
+[data-testid="stSelectbox"] > div > div {
+  font-size: 16px !important;
+}
+div[data-baseweb="select"] span {
+  font-size: 16px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 /* ────────────────────────────────────────────────────────────
    0. ROOT VARIABLES & GLOBAL RESET
 ──────────────────────────────────────────────────────────── */
