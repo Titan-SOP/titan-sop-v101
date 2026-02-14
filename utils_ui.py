@@ -113,7 +113,17 @@ DESKTOP_CSS = """
     }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    
+    /* [FIX] 強制顯示側邊欄按鈕，其餘 Header 透明 */
+    header {visibility: visible !important; background: transparent !important;}
+    [data-testid="stHeader"] { background: transparent !important; }
+    [data-testid="collapsedControl"] {
+        visibility: visible !important;
+        display: block !important;
+        color: #FFD700 !important;
+        z-index: 100000 !important;
+    }
+    .stAppDeployButton { display: none; }
 </style>
 """
 
