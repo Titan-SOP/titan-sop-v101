@@ -34,15 +34,24 @@ def import_ui_modules():
     return desktop_layout, mobile_layout
 
 
+# ==========================================
+# [1] 頁面配置
+#   initial_sidebar_state = "auto" 保持側邊欄切換按鈕可見
+# ==========================================
+
 st.set_page_config(
     page_title="Titan SOP V100.0 - Ray of Hope",
     layout="wide",
     page_icon="🌅",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="auto"   # ← 改為 auto，收縮後按鈕仍可見
 )
 
 import pandas as pd
 from datetime import datetime, timedelta
+
+# ==========================================
+# [2] Session State 初始化
+# ==========================================
 
 for k, v in {
     'animation_shown':  False,
@@ -68,16 +77,35 @@ if (_now - st.session_state.last_active_time) > timedelta(minutes=120):
     pass
 st.session_state.last_active_time = _now
 
+
+# ==========================================
+# [3] CSS 樣式
+#   - header 不整體隱藏（保留側邊欄切換按鈕）
+#   - 只隱藏 Streamlit 裝飾元素
+#   - 所有 CTA 按鈕改為金色 #FFD700
+# ==========================================
+
 MAIN_CSS = """
 <style>
+    /* 全局 */
     .stApp {
         background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
         color: #FFFFFF;
     }
-    #MainMenu {visibility: hidden;}
-    footer    {visibility: hidden;}
-    header    {visibility: hidden;}
 
+    /* 隱藏 Streamlit 品牌，但保留 header（讓側邊欄按鈕可見）*/
+    #MainMenu        { visibility: hidden; }
+    footer           { visibility: hidden; }
+    [data-testid="stDecoration"]   { display: none; }
+    [data-testid="stStatusWidget"] { display: none; }
+
+    /* Header 只透明化，不隱藏 */
+    [data-testid="stHeader"] {
+        background: transparent !important;
+        border-bottom: none !important;
+    }
+
+    /* 宣言文字 */
     .manifesto {
         font-size: 32px;
         font-weight: 300;
@@ -95,6 +123,7 @@ MAIN_CSS = """
         opacity: 0.9;
     }
 
+    /* 選擇卡片 */
     .choice-card {
         background: linear-gradient(135deg, #1a1a2e 0%, #2a2a3e 100%);
         border: 2px solid #444;
@@ -107,20 +136,20 @@ MAIN_CSS = """
     }
     .choice-card:hover {
         transform: translateY(-10px) scale(1.02);
-        border-color: #00FF00;
-        box-shadow: 0 16px 48px rgba(0, 255, 0, 0.3);
+        border-color: #FFD700;
+        box-shadow: 0 16px 48px rgba(255, 215, 0, 0.3);
     }
     .choice-icon {
         font-size: 120px;
         margin-bottom: 30px;
-        filter: drop-shadow(0 0 20px rgba(255,255,255,0.3));
+        filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
     }
     .choice-title {
         font-size: 36px;
         font-weight: bold;
         color: #FFD700;
         margin-bottom: 20px;
-        text-shadow: 0 0 10px rgba(255,215,0,0.5);
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
     }
     .choice-subtitle {
         font-size: 18px;
@@ -129,45 +158,48 @@ MAIN_CSS = """
         margin-bottom: 30px;
     }
 
+    /* ★ 所有按鈕改金色 ★ */
     div.stButton > button {
-        background: linear-gradient(135deg, #00FF00 0%, #00CC00 100%);
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
         color: #000000;
         font-size: 20px;
         font-weight: bold;
         padding: 16px 40px;
         border-radius: 12px;
         border: none;
-        box-shadow: 0 4px 16px rgba(0, 255, 0, 0.3);
+        box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
         transition: all 0.3s ease;
         width: 100%;
     }
     div.stButton > button:hover {
         transform: scale(1.05);
-        box-shadow: 0 8px 24px rgba(0, 255, 0, 0.5);
+        box-shadow: 0 8px 24px rgba(255, 215, 0, 0.6);
     }
 
+    /* Matrix 格線背景 */
     .matrix-bg {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
         background:
             linear-gradient(0deg,
                 transparent 24%,
-                rgba(0,255,0,0.05) 25%, rgba(0,255,0,0.05) 26%,
+                rgba(255,215,0,0.03) 25%, rgba(255,215,0,0.03) 26%,
                 transparent 27%, transparent 74%,
-                rgba(0,255,0,0.05) 75%, rgba(0,255,0,0.05) 76%,
+                rgba(255,215,0,0.03) 75%, rgba(255,215,0,0.03) 76%,
                 transparent 77%, transparent),
             linear-gradient(90deg,
                 transparent 24%,
-                rgba(0,255,0,0.05) 25%, rgba(0,255,0,0.05) 26%,
+                rgba(255,215,0,0.03) 25%, rgba(255,215,0,0.03) 26%,
                 transparent 27%, transparent 74%,
-                rgba(0,255,0,0.05) 75%, rgba(0,255,0,0.05) 76%,
+                rgba(255,215,0,0.03) 75%, rgba(255,215,0,0.03) 76%,
                 transparent 77%, transparent);
         background-size: 50px 50px;
         pointer-events: none;
         z-index: -1;
-        opacity: 0.3;
+        opacity: 0.5;
     }
 
+    /* 頁面標題 */
     .page-title {
         font-size: 48px;
         font-weight: bold;
@@ -185,6 +217,7 @@ MAIN_CSS = """
         animation: fadeIn 1.5s ease-in;
     }
 
+    /* 動畫 */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(20px); }
         to   { opacity: 1; transform: translateY(0); }
@@ -199,17 +232,21 @@ MAIN_CSS = """
 st.markdown(MAIN_CSS, unsafe_allow_html=True)
 
 
+# ==========================================
+# [4] Ray of Hope 動畫
+# ==========================================
+
 def render_sunrise_animation():
-    lottie_url     = get_lottie_animation("sunrise")
-    lottie_sunrise = load_lottie_url(lottie_url)
+    lottie_sunrise = load_lottie_url(get_lottie_animation("sunrise"))
 
     if lottie_sunrise:
         try:
             from streamlit_lottie import st_lottie
             st_lottie(lottie_sunrise, speed=1.0, height=300, key="sunrise")
         except Exception:
-            st.markdown('<h1 style="text-align:center; font-size:80px;">🌅</h1>',
-                        unsafe_allow_html=True)
+            st.markdown(
+                '<h1 style="text-align:center; font-size:80px; animation:pulse 2s infinite;">🌅</h1>',
+                unsafe_allow_html=True)
     else:
         st.markdown(
             '<h1 style="text-align:center; font-size:80px; animation:pulse 2s infinite;">🌅</h1>',
@@ -222,13 +259,19 @@ def render_sunrise_animation():
         </div>
     """, unsafe_allow_html=True)
 
+    # ★ 確認進入按鈕 → 金色（繼承全局 CSS）
     if st.button("🚀 確認進入戰情室", use_container_width=True):
         st.session_state.animation_shown = True
         st.rerun()
 
 
+# ==========================================
+# [5] The Matrix Choice（設備選擇）
+# ==========================================
+
 def render_device_selection():
     st.markdown('<div class="matrix-bg"></div>', unsafe_allow_html=True)
+
     st.markdown('<div class="page-title">🏛️ Titan SOP V100.0</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="page-subtitle">Choose Your Battle Station | 選擇你的戰鬥模式</div>',
@@ -248,6 +291,7 @@ def render_device_selection():
                 適合：深度研究、多螢幕操作
             </div>
         </div>""", unsafe_allow_html=True)
+        # ★ 金色按鈕
         if st.button("⚔️ Enter Desktop Mode", key="desktop_btn", use_container_width=True):
             st.session_state.device_mode     = "desktop"
             st.session_state.choice_confirmed = True
@@ -265,6 +309,7 @@ def render_device_selection():
                 適合：快速決策、移動狙擊
             </div>
         </div>""", unsafe_allow_html=True)
+        # ★ 金色按鈕
         if st.button("🎯 Enter Mobile Mode", key="mobile_btn", use_container_width=True):
             st.session_state.device_mode     = "mobile"
             st.session_state.choice_confirmed = True
@@ -273,9 +318,13 @@ def render_device_selection():
     st.markdown("---")
     st.markdown(
         '<div style="text-align:center; color:#666; font-size:14px; margin-top:20px;">'
-        '💡 提示：選擇後可隨時在設定中切換模式</div>',
+        '💡 提示：選擇後可隨時在側邊欄切換模式</div>',
         unsafe_allow_html=True)
 
+
+# ==========================================
+# [6] UI 路由
+# ==========================================
 
 def render_ui():
     desktop_layout, mobile_layout = import_ui_modules()
@@ -308,6 +357,10 @@ def render_ui():
             import traceback
             st.code(traceback.format_exc())
 
+
+# ==========================================
+# [7] 主流程
+# ==========================================
 
 def main():
     if not st.session_state.animation_shown:
