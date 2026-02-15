@@ -1,19 +1,29 @@
-# ui_desktop/tab5_wiki.py
+# ui_desktop/tab5_wiki.py — DIRECTOR'S CUT
 # Titan SOP V300 — Tab 5: 戰略知識法典 (Strategic Knowledge Codex)
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  Design: Netflix × Palantir × Classified Intel Dossier           ║
-# ║  Hero Billboard → Poster Rail → Classified File Cards            ║
-# ║  ALL original logic preserved verbatim:                          ║
-# ║    TitanKnowledgeBase, CalendarAgent, CBAS Leverage,             ║
-# ║    5-sub-tab SOP rules, Intel analysis, Event Calendar           ║
+# ║  🎬 DIRECTOR'S CUT FEATURES:                                      ║
+# ║  [DC1] 🔰 Tactical Guide Modal (Onboarding)                      ║
+# ║  [DC2] 🍞 Toast Notifications (No More Green Boxes)              ║
+# ║  [DC3] ⌨️ Valkyrie AI Typewriter (Streaming Text)                ║
+# ║  [DC4] 🎬 Cinematic Visuals (Hero Billboard + Glassmorphism)     ║
+# ║  ALL original logic preserved 100% verbatim                      ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import time
 
 from knowledge_base import TitanKnowledgeBase
 from execution import CalendarAgent
+
+
+# ── [DC3] VALKYRIE AI TYPEWRITER ──────────────────────────────────
+def _stream_text(text, speed=0.02):
+    """Character-by-character text streaming for cinematic effect"""
+    for char in text:
+        yield char
+        time.sleep(speed)
 
 
 # ── Cached Resources (PRESERVED) ──────────────────────────────────
@@ -27,90 +37,533 @@ def _load_calendar():
 
 
 # ═══════════════════════════════════════════════════════════════
-# CSS — CLASSIFIED INTEL DOSSIER THEME
+# [DC4] DIRECTOR'S CUT MASTER CSS
 # ═══════════════════════════════════════════════════════════════
 def _inject_css():
     st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-:root{--c-gold:#FFD700;--c-cyan:#00F5FF;--c-red:#FF3131;--c-green:#00FF7F;
-  --f-d:'Bebas Neue',sans-serif;--f-b:'Rajdhani',sans-serif;--f-m:'JetBrains Mono',monospace;
-  --f-i:'Inter',sans-serif;--f-o:'Orbitron',sans-serif;}
+/* ═══════════════════════════════════════════════════════ */
+/* TITAN OS MASTER CSS — DIRECTOR'S CUT */
+/* ═══════════════════════════════════════════════════════ */
+:root {
+  --c-gold: #FFD700;
+  --c-cyan: #00F5FF;
+  --c-red: #FF3131;
+  --c-green: #00FF7F;
+  --bg-card: #0D1117;
+  --f-d: 'Bebas Neue', sans-serif;
+  --f-b: 'Rajdhani', sans-serif;
+  --f-m: 'JetBrains Mono', monospace;
+  --f-i: 'Inter', sans-serif;
+  --f-o: 'Orbitron', sans-serif;
+}
 
-/* HERO BILLBOARD */
-.t5-hero{padding:48px 40px 36px;background:linear-gradient(180deg,rgba(8,8,16,0) 0%,rgba(4,4,12,.7) 50%,rgba(0,0,0,.9) 100%);border-bottom:1px solid rgba(0,245,255,.08);text-align:center;margin-bottom:28px;}
-.t5-hero-sur{font-family:var(--f-o);font-size:10px;color:rgba(255,49,49,.45);letter-spacing:10px;text-transform:uppercase;margin-bottom:12px;}
-.t5-hero-title{font-family:var(--f-i);font-size:72px;font-weight:900;letter-spacing:-3px;line-height:1;color:#FFF;text-shadow:0 0 40px rgba(255,255,255,.06);}
-.t5-hero-sub{font-family:var(--f-m);font-size:10px;color:rgba(160,176,208,.3);letter-spacing:4px;text-transform:uppercase;margin-top:10px;}
+/* 1. HERO BILLBOARD (CINEMATIC) */
+.hero-container {
+  padding: 48px 40px 36px;
+  background: linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(0,0,0,0.9) 100%);
+  border-bottom: 1px solid rgba(255,215,0,0.2);
+  text-align: center;
+  margin-bottom: 28px;
+}
+.hero-val {
+  font-size: 84px !important;
+  font-weight: 900;
+  line-height: 1;
+  color: #FFF;
+  text-shadow: 0 0 40px rgba(0,245,255,0.3);
+  font-family: 'Arial Black', sans-serif;
+}
+.hero-lbl {
+  font-size: 16px;
+  letter-spacing: 4px;
+  color: #888;
+  text-transform: uppercase;
+}
 
-/* POSTER NAV RAIL */
-.t5-poster{flex:1;min-width:110px;min-height:130px;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:16px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:all .2s ease;}
-.t5-poster.active{border-color:var(--c-cyan);background:rgba(0,245,255,.04);box-shadow:0 0 30px rgba(0,245,255,.08);}
-.t5-poster-icon{font-size:28px;margin-bottom:6px;}
-.t5-poster-title{font-family:var(--f-d);font-size:14px;color:#FFF;letter-spacing:1.5px;}
-.t5-poster-sub{font-family:var(--f-m);font-size:7px;color:rgba(140,155,178,.4);letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;}
+/* T5-specific hero styling */
+.t5-hero {
+  padding: 48px 40px 36px;
+  background: linear-gradient(180deg, rgba(8,8,16,0) 0%, rgba(4,4,12,.7) 50%, rgba(0,0,0,.9) 100%);
+  border-bottom: 1px solid rgba(0,245,255,.08);
+  text-align: center;
+  margin-bottom: 28px;
+}
+.t5-hero-sur {
+  font-family: var(--f-o);
+  font-size: 10px;
+  color: rgba(255,49,49,.45);
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.t5-hero-title {
+  font-family: var(--f-i);
+  font-size: 84px;
+  font-weight: 900;
+  letter-spacing: -3px;
+  line-height: 1;
+  color: #FFF;
+  text-shadow: 0 0 40px rgba(255,255,255,.06);
+}
+.t5-hero-sub {
+  font-family: var(--f-m);
+  font-size: 10px;
+  color: rgba(160,176,208,.3);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+/* 2. POSTER NAV RAIL (NETFLIX STYLE) */
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+div.stButton > button[kind="secondary"] {
+  height: 140px !important;
+  border: 1px solid #333 !important;
+  background: #161b22 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #888 !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 20px !important;
+  transition: all 0.3s;
+}
+div.stButton > button[kind="secondary"]:hover {
+  border-color: var(--c-gold) !important;
+  color: #FFF !important;
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+div.stButton > button[kind="primary"] {
+  background: linear-gradient(45deg, #FFD700, #DAA520) !important;
+  color: #000 !important;
+  border: none !important;
+  box-shadow: 0 0 20px rgba(255,215,0,0.4);
+}
+
+/* T5-specific poster styling */
+.t5-poster {
+  flex: 1;
+  min-width: 110px;
+  min-height: 130px;
+  background: rgba(255,255,255,.015);
+  border: 1px solid rgba(255,255,255,.05);
+  border-radius: 14px;
+  padding: 16px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: all .2s ease;
+}
+.t5-poster.active {
+  border-color: var(--c-cyan);
+  background: rgba(0,245,255,.04);
+  box-shadow: 0 0 30px rgba(0,245,255,.08);
+}
+.t5-poster:hover {
+  border-color: var(--c-gold);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.t5-poster-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+.t5-poster-title {
+  font-family: var(--f-d);
+  font-size: 14px;
+  color: #FFF;
+  letter-spacing: 1.5px;
+}
+.t5-poster-sub {
+  font-family: var(--f-m);
+  font-size: 7px;
+  color: rgba(140,155,178,.4);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* 3. STREAMING TEXT & DATA (GLASSMORPHISM) */
+.stMarkdown p {
+  font-size: 18px !important;
+  line-height: 1.6;
+}
+[data-testid="stDataFrame"] {
+  font-size: 16px !important;
+  background: rgba(13, 17, 23, 0.6) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 10px;
+}
 
 /* SECTION HEADER */
-.t5-sec-head{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.052);margin-bottom:20px;}
-.t5-sec-num{font-family:var(--f-d);font-size:56px;color:rgba(0,245,255,.06);letter-spacing:2px;line-height:1;}
-.t5-sec-title{font-family:var(--f-d);font-size:22px;color:var(--sa,#00F5FF);letter-spacing:2px;}
-.t5-sec-sub{font-family:var(--f-m);font-size:9px;color:rgba(0,245,255,.28);letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.t5-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.052);
+  margin-bottom: 20px;
+}
+.t5-sec-num {
+  font-family: var(--f-d);
+  font-size: 56px;
+  color: rgba(0,245,255,.06);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+.t5-sec-title {
+  font-family: var(--f-d);
+  font-size: 22px;
+  color: var(--sa, #00F5FF);
+  letter-spacing: 2px;
+}
+.t5-sec-sub {
+  font-family: var(--f-m);
+  font-size: 9px;
+  color: rgba(0,245,255,.28);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
 
-/* CLASSIFIED FILE CARDS */
-.codex-card{background:rgba(255,255,255,.025);border:1px solid rgba(80,90,110,.25);border-left:4px solid #00F5FF;padding:22px 24px 18px;margin-bottom:14px;border-radius:0 10px 10px 0;position:relative;overflow:hidden;}
-.codex-card::before{content:'CLASSIFIED';position:absolute;top:8px;right:12px;font-family:var(--f-o);font-size:7px;color:rgba(255,49,49,.18);letter-spacing:4px;}
-.codex-card.gold{border-left-color:#FFD700;}
-.codex-card.gold::before{content:'PRIORITY';}
-.codex-card.red{border-left-color:#FF3131;}
-.codex-card.red::before{content:'CRITICAL';}
-.codex-card.green{border-left-color:#00FF7F;}
-.codex-card.green::before{content:'ACTIVE';}
-.codex-card.purple{border-left-color:#B77DFF;}
-.codex-card.purple::before{content:'TACTICAL';}
-.codex-card-title{font-family:var(--f-b);font-size:18px;font-weight:700;color:#FFF;letter-spacing:1px;margin-bottom:6px;}
-.codex-card-key{font-family:var(--f-i);font-size:15px;font-weight:600;color:rgba(0,245,255,.85);line-height:1.6;margin-bottom:8px;}
-.codex-card-detail{font-family:var(--f-m);font-size:11px;color:rgba(160,176,208,.5);line-height:1.7;}
+/* CLASSIFIED FILE CARDS (GLASSMORPHISM) */
+.codex-card {
+  background: rgba(255,255,255,.025);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(80,90,110,.25);
+  border-left: 4px solid #00F5FF;
+  padding: 22px 24px 18px;
+  margin-bottom: 14px;
+  border-radius: 0 10px 10px 0;
+  position: relative;
+  overflow: hidden;
+}
+.codex-card::before {
+  content: 'CLASSIFIED';
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: var(--f-o);
+  font-size: 7px;
+  color: rgba(255,49,49,.18);
+  letter-spacing: 4px;
+}
+.codex-card.gold {
+  border-left-color: #FFD700;
+}
+.codex-card.gold::before {
+  content: 'PRIORITY';
+}
+.codex-card.red {
+  border-left-color: #FF3131;
+}
+.codex-card.red::before {
+  content: 'CRITICAL';
+}
+.codex-card.green {
+  border-left-color: #00FF7F;
+}
+.codex-card.green::before {
+  content: 'ACTIVE';
+}
+.codex-card.purple {
+  border-left-color: #B77DFF;
+}
+.codex-card.purple::before {
+  content: 'TACTICAL';
+}
+.codex-card-title {
+  font-family: var(--f-b);
+  font-size: 18px;
+  font-weight: 700;
+  color: #FFF;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.codex-card-key {
+  font-family: var(--f-i);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(0,245,255,.85);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.codex-card-detail {
+  font-family: var(--f-m);
+  font-size: 11px;
+  color: rgba(160,176,208,.5);
+  line-height: 1.7;
+}
 
 /* MINDSET CARD */
-.mindset-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:18px 20px;margin-bottom:10px;display:flex;align-items:flex-start;gap:16px;}
-.mindset-num{font-family:var(--f-i);font-size:36px;font-weight:900;color:rgba(255,215,0,.15);min-width:48px;line-height:1;}
-.mindset-title{font-family:var(--f-b);font-size:15px;font-weight:700;color:#FFF;margin-bottom:3px;}
-.mindset-desc{font-family:var(--f-m);font-size:11px;color:rgba(160,176,208,.45);line-height:1.6;}
+.mindset-card {
+  background: rgba(255,255,255,.02);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.05);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.mindset-num {
+  font-family: var(--f-i);
+  font-size: 36px;
+  font-weight: 900;
+  color: rgba(255,215,0,.15);
+  min-width: 48px;
+  line-height: 1;
+}
+.mindset-title {
+  font-family: var(--f-b);
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFF;
+  margin-bottom: 3px;
+}
+.mindset-desc {
+  font-family: var(--f-m);
+  font-size: 11px;
+  color: rgba(160,176,208,.45);
+  line-height: 1.6;
+}
 
-/* CALC SCREEN */
-.calc-screen{background:#000;border:2px solid rgba(80,90,110,.35);border-radius:14px;padding:32px 28px;text-align:center;margin-top:16px;position:relative;overflow:hidden;}
-.calc-screen::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,245,255,.2),transparent);}
-.calc-screen::after{content:'CBAS LEVERAGE ENGINE';position:absolute;top:10px;left:16px;font-family:var(--f-o);font-size:7px;color:rgba(0,245,255,.15);letter-spacing:4px;}
-.calc-val{font-size:80px;font-weight:900;font-family:var(--f-o);line-height:1;letter-spacing:-2px;}
-.calc-val.green{color:#00FF7F;text-shadow:0 0 30px rgba(0,255,127,.35);}
-.calc-val.gold{color:#FFD700;text-shadow:0 0 30px rgba(255,215,0,.35);}
-.calc-val.red{color:#FF6B6B;text-shadow:0 0 30px rgba(255,107,107,.35);}
-.calc-lbl{font-family:var(--f-m);font-size:11px;color:rgba(160,176,208,.4);text-transform:uppercase;letter-spacing:3px;margin-top:8px;}
-.calc-unit{font-family:var(--f-m);font-size:14px;color:rgba(255,255,255,.25);margin-left:4px;}
-.calc-divider{width:60%;height:1px;background:rgba(255,255,255,.05);margin:20px auto;}
+/* CALC SCREEN (MASSIVE DISPLAY) */
+.calc-screen {
+  background: #000;
+  border: 2px solid rgba(80,90,110,.35);
+  border-radius: 14px;
+  padding: 32px 28px;
+  text-align: center;
+  margin-top: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.calc-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0,245,255,.2), transparent);
+}
+.calc-screen::after {
+  content: 'CBAS LEVERAGE ENGINE';
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  font-family: var(--f-o);
+  font-size: 7px;
+  color: rgba(0,245,255,.15);
+  letter-spacing: 4px;
+}
+.calc-val {
+  font-size: 84px;
+  font-weight: 900;
+  font-family: var(--f-o);
+  line-height: 1;
+  letter-spacing: -2px;
+}
+.calc-val.green {
+  color: #00FF7F;
+  text-shadow: 0 0 30px rgba(0,255,127,.35);
+}
+.calc-val.gold {
+  color: #FFD700;
+  text-shadow: 0 0 30px rgba(255,215,0,.35);
+}
+.calc-val.red {
+  color: #FF6B6B;
+  text-shadow: 0 0 30px rgba(255,107,107,.35);
+}
+.calc-lbl {
+  font-family: var(--f-m);
+  font-size: 11px;
+  color: rgba(160,176,208,.4);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-top: 8px;
+}
+.calc-unit {
+  font-family: var(--f-m);
+  font-size: 14px;
+  color: rgba(255,255,255,.25);
+  margin-left: 4px;
+}
+.calc-divider {
+  width: 60%;
+  height: 1px;
+  background: rgba(255,255,255,.05);
+  margin: 20px auto;
+}
 
 /* EVENT EPISODE CARDS */
-.event-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:12px;display:flex;align-items:center;gap:20px;}
-.event-day{font-size:60px;font-weight:900;font-family:var(--f-o);color:#FFD700;text-shadow:0 0 20px rgba(255,215,0,.2);line-height:1;min-width:100px;text-align:center;}
-.event-day-unit{font-family:var(--f-m);font-size:9px;color:rgba(255,215,0,.4);letter-spacing:2px;text-transform:uppercase;margin-top:4px;text-align:center;}
-.event-body{flex:1;}
-.event-name{font-family:var(--f-b);font-size:17px;font-weight:700;color:#FFF;letter-spacing:1px;}
-.event-type{font-family:var(--f-m);font-size:11px;color:rgba(0,245,255,.6);letter-spacing:1px;margin-top:3px;}
-.event-date{font-family:var(--f-m);font-size:10px;color:rgba(160,176,208,.35);margin-top:2px;}
-.event-desc{font-family:var(--f-m);font-size:10px;color:rgba(160,176,208,.3);margin-top:5px;line-height:1.5;}
+.event-card {
+  background: rgba(255,255,255,.02);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.event-day {
+  font-size: 60px;
+  font-weight: 900;
+  font-family: var(--f-o);
+  color: #FFD700;
+  text-shadow: 0 0 20px rgba(255,215,0,.2);
+  line-height: 1;
+  min-width: 100px;
+  text-align: center;
+}
+.event-day-unit {
+  font-family: var(--f-m);
+  font-size: 9px;
+  color: rgba(255,215,0,.4);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 4px;
+  text-align: center;
+}
+.event-body {
+  flex: 1;
+}
+.event-name {
+  font-family: var(--f-b);
+  font-size: 17px;
+  font-weight: 700;
+  color: #FFF;
+  letter-spacing: 1px;
+}
+.event-type {
+  font-family: var(--f-m);
+  font-size: 11px;
+  color: rgba(0,245,255,.6);
+  letter-spacing: 1px;
+  margin-top: 3px;
+}
+.event-date {
+  font-family: var(--f-m);
+  font-size: 10px;
+  color: rgba(160,176,208,.35);
+  margin-top: 2px;
+}
+.event-desc {
+  font-family: var(--f-m);
+  font-size: 10px;
+  color: rgba(160,176,208,.3);
+  margin-top: 5px;
+  line-height: 1.5;
+}
 
 /* SECTOR TABLE */
-.sector-row{display:flex;align-items:center;gap:14px;padding:10px 16px;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.04);border-radius:8px;margin-bottom:6px;}
-.sector-name{font-family:var(--f-b);font-size:14px;font-weight:700;color:rgba(0,245,255,.7);min-width:120px;}
-.sector-stocks{font-family:var(--f-m);font-size:11px;color:rgba(160,176,208,.5);line-height:1.5;}
+.sector-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,.015);
+  border: 1px solid rgba(255,255,255,.04);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.sector-name {
+  font-family: var(--f-b);
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(0,245,255,.7);
+  min-width: 120px;
+}
+.sector-stocks {
+  font-family: var(--f-m);
+  font-size: 11px;
+  color: rgba(160,176,208,.5);
+  line-height: 1.5;
+}
 
-/* TERMINAL BOX */
-.t5-terminal{background:#0D1117;border:1px solid #30363d;border-left:4px solid #00F5FF;border-radius:0 10px 10px 0;padding:22px 24px;font-family:var(--f-m);color:#c9d1d9;font-size:12px;line-height:1.7;margin:12px 0;}
-.t5-terminal::before{content:'> INTEL TERMINAL';display:block;font-size:9px;letter-spacing:3px;color:rgba(0,245,255,.25);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(0,245,255,.06);}
+/* TERMINAL BOX (GLASSMORPHISM) */
+.t5-terminal {
+  background: rgba(13, 17, 23, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid #30363d;
+  border-left: 4px solid #00F5FF;
+  border-radius: 0 10px 10px 0;
+  padding: 22px 24px;
+  font-family: var(--f-m);
+  color: #c9d1d9;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.t5-terminal::before {
+  content: '> INTEL TERMINAL';
+  display: block;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(0,245,255,.25);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0,245,255,.06);
+}
 
 /* FOOTER */
-.t5-foot{font-family:var(--f-m);font-size:9px;color:rgba(70,90,110,.25);letter-spacing:2px;text-align:right;margin-top:28px;text-transform:uppercase;}
+.t5-foot {
+  font-family: var(--f-m);
+  font-size: 9px;
+  color: rgba(70,90,110,.25);
+  letter-spacing: 2px;
+  text-align: right;
+  margin-top: 28px;
+  text-transform: uppercase;
+}
 </style>""", unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════
+# [DC1] TACTICAL GUIDE MODAL
+# ═══════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 / Tactical Guide")
+def show_tactical_guide():
+    st.markdown("""
+    ### 戰略知識法典操作指南
+    
+    **核心功能 / Core Functions:**
+    
+    • **📖 戰略法典 (5.1)** — SOP標準作業程序：四大時間套利、進出場紀律、產業族群、特殊心法、OTC均線  
+    • **🧠 情報獵殺 (5.2)** — 上傳PDF/TXT情報文件，本地解析 + Gemini AI深度分析，快速掌握關鍵訊息  
+    • **⚡ CBAS試算 (5.3)** — CB套利槓桿試算儀，輸入CB市價即時計算理論權利金與槓桿倍數  
+    
+    **操作流程 / Workflow:**
+    1. 在 5.1 查閱SOP戰略法典，建立交易紀律
+    2. 在 5.2 上傳情報文件進行AI分析
+    3. 在 5.3 試算CB槓桿效益評估進場價值
+    4. 在 5.4 追蹤時間套利事件行事曆
+    
+    ---
+    *此系統整合知識管理、情報分析、計算工具、日曆追蹤，是戰略決策的知識中樞。*
+    """)
+    
+    if st.button("✅ Roger that (收到)", type="primary", use_container_width=True):
+        st.session_state.t5_guide_shown = True
+        st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -164,6 +617,15 @@ def _s51(kb):
     <div class="t5-sec-sub">Time Arbitrage · Entry/Exit Discipline · Sector Intel · Hidden Tactics · OTC MA</div>
   </div>
 </div>""", unsafe_allow_html=True)
+
+    # [DC3] Streaming intro text
+    intro_text = """
+    **戰略法典系統:**
+    
+    本法典整合四大時間套利、進出場鐵律、產業族群情報、特殊心法與OTC均線秘技。
+    這是Titan系統的知識核心，所有交易決策必須遵循此處的標準作業程序。
+    """
+    st.write_stream(_stream_text(intro_text, speed=0.01))
 
     # Load rules from knowledge base (PRESERVED)
     if 'all_rules' not in st.session_state:
@@ -322,20 +784,35 @@ def _s52(kb, df):
   </div>
 </div>""", unsafe_allow_html=True)
 
+    # [DC3] Streaming intro
+    intel_intro = """
+    **情報獵殺系統:**
+    
+    上傳PDF或TXT情報文件，系統將執行本地解析提取關鍵資訊。
+    配置Gemini API Key後，可啟動AI深度分析，自動生成情報摘要與戰略建議。
+    """
+    st.write_stream(_stream_text(intel_intro, speed=0.01))
+
     intel_files = st.session_state.get('intel_files', [])
     if intel_files:
+        st.toast("🎯 偵測到情報檔案 / Intel files detected", icon="🔍")
+        
         for file in intel_files:
             st.markdown(f'<div class="codex-card gold"><div class="codex-card-title">📄 {file.name}</div><div class="codex-card-detail">情報檔案已上傳，展開查看分析結果</div></div>', unsafe_allow_html=True)
             with st.expander(f"🔍 展開分析報告: {file.name}", expanded=False):
                 try:
                     from intelligence import IntelligenceEngine
                     intel = IntelligenceEngine()
+                    
+                    st.toast("🚀 系統分析中 / Analyzing...", icon="⏳")
                     result = intel.analyze_file(file, kb, df)
+                    
                     if "error" in result:
-                        st.error(result["error"])
+                        st.toast(f"❌ 分析失敗 / Analysis failed: {result['error']}", icon="⚡")
                     else:
                         st.markdown(f'<div class="t5-terminal">{result.get("local_analysis_md", "本地分析失敗。")}</div>', unsafe_allow_html=True)
                         st.divider()
+                        
                         api_key = st.session_state.get('api_key', '')
                         if api_key:
                             with st.spinner(f"執行 Gemini AI 深度分析: {file.name}…"):
@@ -345,12 +822,13 @@ def _s52(kb, df):
                                     report = intel.analyze_with_gemini(result["full_text"])
                                     st.markdown("### 💎 **Gemini AI 深度解析**")
                                     st.markdown(report)
+                                    st.toast("✅ AI分析完成 / AI analysis complete", icon="🎯")
                                 except Exception as e:
-                                    st.error(f"Gemini 失敗: {e}")
+                                    st.toast(f"❌ Gemini失敗 / Gemini failed: {e}", icon="⚡")
                         else:
-                            st.info("未輸入 Gemini API Key，跳過 AI 深度解析。")
+                            st.toast("⚠️ 未輸入API Key / No API key provided", icon="⚡")
                 except ImportError:
-                    st.info(f"📄 已上傳: **{file.name}**（情報引擎尚未掛載，請確認 intelligence.py）")
+                    st.toast(f"⚠️ 情報引擎未掛載 / Intel engine not mounted", icon="⚡")
     else:
         st.markdown("""
 <div style="text-align:center;padding:60px 30px;">
@@ -361,7 +839,7 @@ def _s52(kb, df):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 5.3 — CBAS 槓桿試算儀 (80px MASSIVE DISPLAY)
+# 5.3 — CBAS 槓桿試算儀 (84px MASSIVE DISPLAY)
 # ═══════════════════════════════════════════════════════════════
 def _s53():
     st.markdown("""
@@ -372,6 +850,15 @@ def _s53():
     <div class="t5-sec-sub">Convertible Bond Arbitrage Simulator · Leverage Engine</div>
   </div>
 </div>""", unsafe_allow_html=True)
+
+    # [DC3] Streaming explanation
+    cbas_intro = """
+    **CBAS槓桿試算系統:**
+    
+    輸入CB市價，系統自動計算理論權利金（CB價 - 100元）與槓桿倍數。
+    槓桿倍數 = CB市價 ÷ 權利金，高槓桿（>5×）適合以小博大，低槓桿（<3×）風報比偏低。
+    """
+    st.write_stream(_stream_text(cbas_intro, speed=0.01))
 
     # Wide input area
     col_in, col_space = st.columns([2, 1])
@@ -404,6 +891,8 @@ def _s53():
   <div class="calc-lbl">Leverage Ratio (槓桿倍數)</div>
   <div class="calc-val {lev_cls}">{leverage:.1f}<span class="calc-unit">×</span></div>
 </div>""", unsafe_allow_html=True)
+
+        st.toast("✅ 試算完成 / Calculation complete", icon="🎯")
 
         # Interpretation
         st.markdown("")  # spacer
@@ -441,7 +930,7 @@ def _s53():
   <div class="calc-lbl">CB 市價需高於 100 元</div>
   <div class="calc-val" style="color:rgba(160,176,208,.15);">—.—<span class="calc-unit">×</span></div>
 </div>""", unsafe_allow_html=True)
-        st.info("CB 市價需高於 100 元才能計算 CBAS 權利金。市價 = 100 時無溢價可供槓桿操作。")
+        st.toast("⚠️ CB市價需>100元 / CB price must be >100", icon="⚡")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -456,6 +945,15 @@ def _s54(calendar, df):
     <div class="t5-sec-sub">Upcoming Events · Countdown · Honeymoon / Put / Conversion Windows</div>
   </div>
 </div>""", unsafe_allow_html=True)
+
+    # [DC3] Streaming calendar intro
+    calendar_intro = """
+    **時間套利行事曆:**
+    
+    掃描CB清單中的關鍵時間點：蜜月期、賣回日、轉換窗口等事件。
+    系統自動計算倒數天數，提前預警時間套利機會，確保不錯過任何窗口。
+    """
+    st.write_stream(_stream_text(calendar_intro, speed=0.01))
 
     if df.empty:
         st.markdown("""
@@ -476,6 +974,8 @@ def _s54(calendar, df):
     name_col = next((c for c in df.columns if 'name' in c.lower()), None)
     list_col = next((c for c in df.columns if 'list' in c.lower() or 'issue' in c.lower()), None)
     put_col  = next((c for c in df.columns if 'put' in c.lower() or '賣回' in c.lower()), None)
+
+    st.toast("🚀 掃描事件中 / Scanning events...", icon="⏳")
 
     if code_col and name_col:
         for _, row in df.iterrows():
@@ -499,6 +999,7 @@ def _s54(calendar, df):
 
     if upcoming_events:
         upcoming_events.sort(key=lambda x: x['date'])
+        st.toast(f"✅ 發現{len(upcoming_events)}個事件 / Found {len(upcoming_events)} events", icon="🎯")
 
         # Summary counter
         st.markdown(f"""
@@ -544,14 +1045,21 @@ def _s54(calendar, df):
   <div style="font-size:40px;margin-bottom:16px;opacity:.2;">✅</div>
   <div style="font-family:var(--f-b);font-size:16px;color:rgba(255,255,255,.35);letter-spacing:2px;">未來 {days_ahead} 天內無觸發任何時間套利事件</div>
 </div>""", unsafe_allow_html=True)
+        st.toast("⚠️ 無即將到來的事件 / No upcoming events", icon="⚡")
 
 
 # ═══════════════════════════════════════════════════════════════
 # MAIN ENTRY
 # ═══════════════════════════════════════════════════════════════
 def render():
-    """Tab 5 — 戰略知識法典 (Strategic Knowledge Codex) V300"""
+    """Tab 5 — 戰略知識法典 (Strategic Knowledge Codex) V300 — DIRECTOR'S CUT"""
     _inject_css()
+    
+    # ── [DC1] TACTICAL GUIDE MODAL (First Visit) ──
+    if 't5_guide_shown' not in st.session_state:
+        show_tactical_guide()
+        return
+    
     _render_hero()
     _render_nav()
 
@@ -571,8 +1079,8 @@ def render():
         fn()
     except Exception as exc:
         import traceback
-        st.error(f"❌ Section {active} error: {exc}")
+        st.toast(f"❌ Section {active} 錯誤 / Error: {exc}", icon="⚡")
         with st.expander("Debug"):
             st.code(traceback.format_exc())
 
-    st.markdown(f'<div class="t5-foot">Titan Strategic Codex V300 · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="t5-foot">Titan Strategic Codex V300 — Director\'s Cut · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>', unsafe_allow_html=True)
