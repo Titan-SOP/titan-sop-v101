@@ -1,9 +1,14 @@
 # ui_desktop/tab2_radar.py
-# Titan SOP V100 — 獵殺雷達
-# ╔══════════════════════════════════════════════════════════════════╗
-# ║  GOD-TIER BUILD  —  Bloomberg × Palantir × Titan OS             ║
-# ║  原始 tab2獵殺雷達.py 邏輯 100% 保留，God-Tier UI 全面升級      ║
-# ╚══════════════════════════════════════════════════════════════════╝
+# Titan SOP V300 — 獵殺雷達 (Kill Radar)
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  "DIRECTOR'S CUT V300"  —  Bloomberg × Palantir × Titan OS       ║
+# ║  4 MANDATORY UPGRADES:                                            ║
+# ║    ✅ #1  Tactical Guide Dialog (Onboarding Modal)                ║
+# ║    ✅ #2  Toast Notifications (replace st.success/info/warning)   ║
+# ║    ✅ #3  Valkyrie AI Typewriter (_stream_text)                   ║
+# ║    ✅ #4  Director's Cut Visuals (Fire Control/Pills — preserved) ║
+# ║  Logic: 100% preserved (TitanStrategyEngine/Census/Kelly/TPEX)    ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 #
 # 原版邏輯完整對應：
 #  2.1 自動獵殺  → Fire Control Deck + Strategy Pills
@@ -28,9 +33,48 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import yfinance as yf
+import time
 
 from strategy import TitanStrategyEngine
 from knowledge_base import TitanKnowledgeBase
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [UPGRADE #3] VALKYRIE AI TYPEWRITER — Sci-Fi Terminal Streaming
+# ══════════════════════════════════════════════════════════════════════════════
+def _stream_text(text, speed=0.018):
+    """Character-by-character generator for st.write_stream"""
+    for char in text:
+        yield char
+        time.sleep(speed)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [UPGRADE #1] TACTICAL GUIDE DIALOG — Onboarding Modal
+# ══════════════════════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 — Kill Radar Command Center")
+def _show_tactical_guide():
+    st.markdown("""
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#C8D8E8;line-height:1.8;">
+
+### 🎯 歡迎進入獵殺雷達
+
+本模組是 Titan OS 的**核心狙擊系統**，執行全市場普查與精準打擊：
+
+**📡 2.1 自動獵殺 (AUTO SCAN)**
+全市場雙軌普查 (.TW/.TWO)，自動篩選 SOP 黃金標準標的 (價格<120 + 多頭排列 + 轉換率<30%)。
+含 6 大策略面板：全市場 / SOP菁英 / 新券蜜月 / 滿年沈澱 / 賣回保衛 / 產業風口。
+
+**📈 2.2 核心檢核 (SNIPER SCOPE)**
+輸入 CB 代號即時拉取 K 線 + 87MA/284MA，搭配四大天條檢核卡 (價格/趨勢/轉換率/評分)。
+
+**⚠️ 2.3 風險雷達 / 💰 2.4 資金配置**
+負面表列警示 (籌碼鬆動/高溢價/流動性陷阱) + Top 5 等權重 20% 資金配置試算。
+
+</div>""", unsafe_allow_html=True)
+    if st.button("✅ 收到，開始獵殺 (Roger That)", type="primary", use_container_width=True):
+        st.session_state['tab2_guided'] = True
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -45,11 +89,11 @@ def _load_engines():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  CSS  共用設計語言（與 tab1_macro_cinematic.py 完全一致）
+#  CSS  共用設計語言（與 tab1_macro V300 完全一致）
 # ══════════════════════════════════════════════════════════════════════════════
 def _inject_css():
     st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
     --c-gold:#FFD700; --c-cyan:#00F5FF;
@@ -58,6 +102,7 @@ def _inject_css():
     --f-display:'Bebas Neue',sans-serif;
     --f-body:'Rajdhani',sans-serif;
     --f-mono:'JetBrains Mono',monospace;
+    --f-o:'Orbitron',sans-serif;
 }
 
 /* ── FIRE CONTROL DECK ─────────────────────────────────────────── */
@@ -264,7 +309,8 @@ def _plot_candle_chart(cb_code: str):
         if chart_df.empty:
             chart_df = yf.download(f"{target_code}.TWO", period="2y", progress=False)
         if chart_df.empty:
-            st.error(f"❌ Yahoo Finance 查無此標的 K 線資料: {target_code}"); return
+            st.toast(f"⚠️ Yahoo Finance 查無 {target_code} K 線資料", icon="⚡")
+            return
 
         if isinstance(chart_df.columns, pd.MultiIndex):
             chart_df.columns = chart_df.columns.get_level_values(0)
@@ -300,7 +346,7 @@ def _plot_candle_chart(cb_code: str):
         st.markdown('</div>', unsafe_allow_html=True)
         st.caption(f"📈 標的股票代碼: {target_code}  ·  🔶 橘線: 87MA  ·  🔷 藍線: 284MA")
     except Exception as e:
-        st.warning(f"K 線圖生成失敗: {e}")
+        st.toast(f"⚠️ K 線圖生成失敗: {e}", icon="⚡")
 
 
 # ── TPEX DATA  (原版 get_tpex_data 完整移植，含30大分類chain_map) ─────────
@@ -397,6 +443,7 @@ def _get_tpex_data(df_json: str) -> pd.DataFrame:
 # ══════════════════════════════════════════════════════════════════════════════
 #  CENSUS ENGINE  （原版 spinner 迴圈 100% 保留）
 #  session_state 鍵：scan_results / full_census_data  ← 對齊原版
+#  [UPGRADE #2] Toast notifications for census progress
 # ══════════════════════════════════════════════════════════════════════════════
 def _run_census(df: pd.DataFrame, min_score: int):
     strat, _ = _load_engines()
@@ -433,7 +480,8 @@ def _run_census(df: pd.DataFrame, min_score: int):
         scan_df = strat.scan_entire_portfolio(work_df)
         records = scan_df.to_dict('records')
     except Exception as e:
-        st.error(f"策略掃描失敗: {e}"); return pd.DataFrame(), pd.DataFrame()
+        st.toast(f"⚠️ 策略掃描失敗: {e}", icon="⚡")
+        return pd.DataFrame(), pd.DataFrame()
 
     total = len(records)
     pbar  = st.progress(0)
@@ -491,12 +539,13 @@ def _run_census(df: pd.DataFrame, min_score: int):
     if 'score' in sop_df.columns:
         sop_df = sop_df[sop_df['score'] >= min_score]
 
-    st.success(f"全市場掃描結束。符合「SOP 黃金標準」共 {len(sop_df)} 檔。")
+    # [UPGRADE #2] Toast instead of st.success
+    st.toast(f"✅ 全市場掃描結束，符合 SOP 黃金標準共 {len(sop_df)} 檔", icon="🎯")
     return sop_df, full_df
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  REUSABLE PRIMITIVES
+#  REUSABLE PRIMITIVES (PRESERVED)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _scanner_hud(total: int, sop: int, bull: int, avg_score: float):
@@ -581,7 +630,22 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
 
     with st.expander(title, expanded=False):
         st.markdown(f"## 📊 {cb_name} ({cb_code}) 策略分析")
-        st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+
+        # [UPGRADE #3] Typewriter for analysis summary
+        analysis_summary = (
+            f"【{cb_name} ({cb_code}) 狙擊分析】"
+            f"CB市價 {price:.1f}，87MA {ma87:.2f}，284MA {ma284:.2f}。"
+            f"{'多頭排列 ✅' if is_bull else '整理/空頭 ⚠️'}。"
+            f"已轉換率 {conv_pct:.1f}%，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
+        )
+        stream_key = f"report_{cb_code}"
+        if stream_key not in st.session_state:
+            st.write_stream(_stream_text(analysis_summary, speed=0.010))
+            st.session_state[stream_key] = True
+        else:
+            st.caption(analysis_summary)
+
+        st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
         st.markdown(f"1. 價格天條 (<115): {'✅ 通過' if price < 115 else '⚠️ 警戒'} (目前 **{price:.1f}**)")
         st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
         st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
@@ -589,16 +653,16 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
         st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股。")
         st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股，站在風口上連豬都會飛。")
         st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-        st.success("### 2. 決策輔助 (Decision Support)")
+        st.markdown("#### 2. 決策輔助 (Decision Support)")
         c1, c2, c3 = st.columns(3)
         c1.metric("理論價 (Parity)", f"{parity:.2f}")
         c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
         c3.metric("已轉換比例", f"{conv_pct:.2f}%")
-        st.markdown("### 4. 交易計畫 (Trading Plan)")
-        st.warning("🕒 關鍵時段：09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
+        st.markdown("#### 4. 交易計畫 (Trading Plan)")
+        st.caption("🕒 關鍵時段：09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
         st.markdown("* 🎯 進場佈局: 105~115 元區間")
         st.markdown("* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA")
-        st.markdown("### 5. 出場/風控 (Exit/Risk)")
+        st.markdown("#### 5. 出場/風控 (Exit/Risk)")
         st.markdown("* 🛑 停損: CB 跌破 100 元")
         st.markdown("* 💰 停利: 目標價 152 元以上，嚴守「留魚尾」策略")
         st.divider()
@@ -607,6 +671,7 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  SECTION 2.1  ──  自動獵殺 + 6 Strategy Pills
+#  [UPGRADE #2] Toast  [UPGRADE #3] Typewriter
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_1(df: pd.DataFrame):
     st.markdown('<div class="t2-sec-title">📡 2.1 自動獵殺推薦 — Strategy Matrix</div>',
@@ -618,7 +683,7 @@ def render_2_1(df: pd.DataFrame):
                     unsafe_allow_html=True)
         return
 
-    st.info("此模組執行「全市場雙軌普查 (.TW/.TWO)」，並同步更新全系統連動資料庫。")
+    st.caption("此模組執行「全市場雙軌普查 (.TW/.TWO)」，並同步更新全系統連動資料庫。")
 
     ctrl_l, ctrl_r = st.columns([3, 1])
     with ctrl_l:
@@ -626,6 +691,7 @@ def render_2_1(df: pd.DataFrame):
     with ctrl_r:
         st.markdown('<div class="t2-action" style="margin-top:24px;">', unsafe_allow_html=True)
         if st.button("🚀  LAUNCH CENSUS", key="btn_census"):
+            st.toast("🚀 全市場雙軌普查啟動中…", icon="⏳")
             with st.spinner("執行全市場雙軌普查 (.TW / .TWO)…"):
                 sop_df, full_df = _run_census(df, min_score)
                 # ★ 對齊原版 session_state 鍵名
@@ -643,6 +709,20 @@ def render_2_1(df: pd.DataFrame):
             bull_n = len(full_data[full_data['trend_status'].str.contains('多頭', na=False)])
         avg_sc = float(sop_df['score'].mean()) if (not sop_df.empty and 'score' in sop_df.columns) else 0.0
         _scanner_hud(len(full_data), len(sop_df), bull_n, avg_sc)
+
+        # [UPGRADE #3] Typewriter for census summary
+        census_text = (
+            f"【普查摘要】共掃描 {len(full_data)} 檔 CB，"
+            f"其中 {bull_n} 檔處於多頭排列 (87MA > 284MA)，"
+            f"通過 SOP 黃金標準 {len(sop_df)} 檔"
+            f"{'，平均評分 ' + f'{avg_sc:.0f}' if avg_sc > 0 else ''}。"
+        )
+        if 'census_streamed' not in st.session_state:
+            st.write_stream(_stream_text(census_text, speed=0.012))
+            st.session_state['census_streamed'] = True
+        else:
+            st.caption(census_text)
+
         for dcol in ['issue_date','put_date']:
             if dcol in full_data.columns:
                 full_data[dcol] = pd.to_datetime(full_data[dcol], errors='coerce')
@@ -699,7 +779,7 @@ def render_2_1(df: pd.DataFrame):
                                  'trend_status','conv_rate','score'] if c in sop_df.columns]
             st.dataframe(sop_df[disp].head(30), use_container_width=True)
         else:
-            st.info("執行普查後，全市場 SOP 標的將顯示於此。")
+            st.caption("執行普查後，全市場 SOP 標的將顯示於此。")
 
     # ── 🏆 SOP菁英 (原版 Tab1 邏輯) ────────────────────────────────
     elif pill == "sop":
@@ -710,7 +790,7 @@ def render_2_1(df: pd.DataFrame):
             df_t = full_data[mask].sort_values('score', ascending=False).head(20) \
                    if 'score' in full_data.columns else full_data[mask].head(20)
         if df_t.empty:
-            st.info("無符合 SOP 黃金標準的標的。"); return
+            st.caption("無符合 SOP 黃金標準的標的。"); return
 
         st.caption(f"共 {len(df_t)} 檔通過 SOP 黃金標準")
         for _, row in df_t.iterrows():
@@ -735,7 +815,7 @@ def render_2_1(df: pd.DataFrame):
     # ── 👶 新券蜜月 (原版 Tab2 邏輯) ───────────────────────────────
     elif pill == "honeymoon":
         if 'issue_date' not in full_data.columns:
-            st.warning("普查資料無 issue_date 欄位。"); return
+            st.toast("⚠️ 普查資料無 issue_date 欄位", icon="⚡"); return
         mask = (
             full_data['issue_date'].notna() &
             ((now - full_data['issue_date']).dt.days < 90) &
@@ -744,7 +824,7 @@ def render_2_1(df: pd.DataFrame):
         )
         df_t = full_data[mask].sort_values('issue_date', ascending=False)
         if df_t.empty:
-            st.info("目前無符合「新券蜜月」標準 (上市<90天 · 價格<130 · 轉換率<30%)。"); return
+            st.caption("目前無符合「新券蜜月」標準 (上市<90天 · 價格<130 · 轉換率<30%)。"); return
 
         st.caption(f"共 {len(df_t)} 檔蜜月期新券")
         for _, row in df_t.iterrows():
@@ -773,7 +853,21 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 with st.expander("📄 查看蜜月期深度分析 (Honeymoon Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 蜜月期戰略")
-                    st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+
+                    # [UPGRADE #3] Typewriter for honeymoon analysis
+                    honey_text = (
+                        f"【蜜月期戰略分析】{name} ({cb_code}) 上市 {days} 天。"
+                        f"CB市價 {price:.1f}，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
+                        f"趨勢: {trend_t}。已轉換率 {conv_pct:.1f}%。"
+                    )
+                    hkey = f"honey_{cb_code}"
+                    if hkey not in st.session_state:
+                        st.write_stream(_stream_text(honey_text, speed=0.010))
+                        st.session_state[hkey] = True
+                    else:
+                        st.caption(honey_text)
+
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 蜜月期價格: {'✅ 通過' if price < 115 else '⚠️ 監控'} (新券甜蜜區 105-115，目前 **{price:.1f}**)")
                     st.markdown(f"2. 中期多頭排列: {trend_t}")
                     if ma87 > 0:
@@ -784,16 +878,16 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown("> * 領頭羊: 該族群率先起漲、氣勢最強之標竿。")
                     st.markdown("> * 風口豬: 主流熱門題材風口，站在風口上連豬都會飛。")
                     st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    st.success("### 2. 決策輔助 (Decision Support)")
+                    st.markdown("#### 2. 決策輔助 (Decision Support)")
                     c1,c2,c3 = st.columns(3)
                     c1.metric("理論價 (Parity)", f"{parity:.2f}")
                     c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
                     c3.metric("已轉換比例", f"{conv_pct:.2f}%")
-                    st.markdown("### 4. 交易計畫 (Trading Plan)")
-                    st.warning("🕒 09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
+                    st.markdown("#### 4. 交易計畫 (Trading Plan)")
+                    st.caption("🕒 09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
                     st.markdown("* 🎯 新券上市初期若 ≤110 為極佳安全邊際")
                     st.markdown("* 🚀 加碼: 帶量突破 87MA 或 284MA")
-                    st.markdown("### 5. 出場/風控")
+                    st.markdown("#### 5. 出場/風控")
                     st.markdown("* 🛑 停損: CB 跌破 100 元  · 💰 停利: 152 元以上")
                     st.divider()
                     _plot_candle_chart(cb_code)
@@ -801,7 +895,7 @@ def render_2_1(df: pd.DataFrame):
     # ── ⚓ 滿年沈澱 (原版 Tab3 邏輯，含 check_mask_t3) ────────────
     elif pill == "sediment":
         if 'issue_date' not in full_data.columns:
-            st.warning("普查資料無 issue_date 欄位。"); return
+            st.toast("⚠️ 普查資料無 issue_date 欄位", icon="⚡"); return
         fd = full_data.copy().dropna(subset=['issue_date'])
         fd['days_old'] = (now - fd['issue_date']).dt.days
 
@@ -817,7 +911,7 @@ def render_2_1(df: pd.DataFrame):
 
         df_t = fd[fd.apply(check_mask_t3, axis=1)].sort_values('days_old')
         if df_t.empty:
-            st.info("目前無符合「滿年沈澱」標準 (上市滿一年 · 價格<115 · 轉換率<30%)。"); return
+            st.caption("目前無符合「滿年沈澱」標準 (上市滿一年 · 價格<115 · 轉換率<30%)。"); return
 
         st.caption(f"共 {len(df_t)} 檔滿年沈澱標的")
         for _, row in df_t.iterrows():
@@ -841,7 +935,7 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 with st.expander("📄 查看滿年沈澱深度分析 (Consolidation Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 滿年甦醒評估")
-                    st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 價格天條 (<115): ✅ 通過 (沈澱期最佳成本區，目前 **{price:.1f}**)")
                     check_t = "✅ 通過 (已站上 87MA)" if is_above else "⚠️ 均線整理中"
                     st.markdown(f"2. 中期多頭排列: {check_t}")
@@ -849,7 +943,7 @@ def render_2_1(df: pd.DataFrame):
                         st.markdown(f"> 現價 **{sp:.2f}** {' > ' if is_above else ' < '} 87MA **{ma87:.2f}**")
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
                     st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    st.success("### 2. 決策輔助")
+                    st.markdown("#### 2. 決策輔助")
                     cp = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce')
                     cv = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce')
                     parity  = (sp/cp*100) if cp > 0 else 0.0
@@ -858,10 +952,10 @@ def render_2_1(df: pd.DataFrame):
                     c1.metric("理論價", f"{parity:.2f}")
                     c2.metric("溢價率", f"{premium:.2f}%")
                     c3.metric("已轉換", f"{conv_pct:.2f}%")
-                    st.markdown("### 4. 交易計畫")
+                    st.markdown("#### 4. 交易計畫")
                     st.markdown("* 🎯 站穩 87MA 即為首波觀察進場點")
                     st.markdown("* 🚀 87MA 由平轉上揚時加碼")
-                    st.markdown("### 5. 出場/風控")
+                    st.markdown("#### 5. 出場/風控")
                     st.markdown("* 🛑 停損: CB 跌破 100 元  · 💰 停利: 152 元以上")
                     st.divider()
                     _plot_candle_chart(cb_code)
@@ -869,7 +963,7 @@ def render_2_1(df: pd.DataFrame):
     # ── 🛡️ 賣回保衛 (原版 Tab4，含 check_mask_t4) ─────────────────
     elif pill == "put":
         if 'put_date' not in full_data.columns:
-            st.warning("普查資料無 put_date 欄位。"); return
+            st.toast("⚠️ 普查資料無 put_date 欄位", icon="⚡"); return
         fd = full_data.copy()
         fd['put_date']    = pd.to_datetime(fd['put_date'], errors='coerce')
         fd['days_to_put'] = (fd['put_date'] - now).dt.days
@@ -887,7 +981,7 @@ def render_2_1(df: pd.DataFrame):
 
         df_t = fd[fd.apply(check_mask_t4, axis=1)].sort_values('days_to_put')
         if df_t.empty:
-            st.info("目前無符合「賣回保衛」標準 (距賣回<180天 · 價格 95~105 · 轉換率<30%)。"); return
+            st.caption("目前無符合「賣回保衛」標準 (距賣回<180天 · 價格 95~105 · 轉換率<30%)。"); return
 
         st.caption(f"共 {len(df_t)} 檔賣回套利機會")
         for _, row in df_t.iterrows():
@@ -916,20 +1010,20 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 with st.expander("📄 查看賣回保衛戰術報告 (Put Protection Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 賣回壓力測試")
-                    st.error("### 1. 核心策略檢核 (The 4 Commandments)")
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 價格天條 (95-105): ✅ 通過 (目前 **{price:.1f}**)")
                     st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
                     st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    st.success("### 2. 決策輔助")
+                    st.markdown("#### 2. 決策輔助")
                     c1,c2,c3 = st.columns(3)
                     c1.metric("距離賣回", f"{left} 天")
                     c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
                     c3.metric("目標價", "152+", delta="保本套利")
-                    st.markdown("### 4. 交易計畫")
+                    st.markdown("#### 4. 交易計畫")
                     st.markdown(f"* 🎯 {pd_str} 前買入，下檔風險極低")
                     st.markdown("* 🚀 爆發點: 觀察賣回日前 2-3 個月，股價站上 87MA 且量增")
-                    st.markdown("### 5. 出場/風控")
+                    st.markdown("#### 5. 出場/風控")
                     st.markdown("* 🛑 停損: 原則上不需停損  · 💰 停利: 152 元以上，或賣回當天執行")
                     st.divider()
                     _plot_candle_chart(cb_code)
@@ -937,12 +1031,12 @@ def render_2_1(df: pd.DataFrame):
     # ── 🌪️ 產業風口地圖 (原版 Tab5，含完整 treemap + sector roster) ─
     elif pill == "sector":
         if 'full_census_data' not in st.session_state:
-            st.warning("請先執行普查。"); return
+            st.toast("⚠️ 請先執行普查", icon="⚡"); return
 
         full_json = pd.DataFrame(st.session_state['full_census_data']).to_json()
         df_gal    = _get_tpex_data(full_json)
         if df_gal.empty:
-            st.info("無資料，請先執行普查。"); return
+            st.caption("無資料，請先執行普查。"); return
 
         # ─ Treemap（原版完整設定）
         fig = px.treemap(
@@ -976,7 +1070,7 @@ def render_2_1(df: pd.DataFrame):
             'letter-spacing:2px;margin-bottom:14px;">🏆 全產業戰力排行榜</div>',
             unsafe_allow_html=True
         )
-        st.info("💡 點擊下方官方產業板塊，展開查看「上中下游」兵力部署")
+        st.caption("💡 點擊下方官方產業板塊，展開查看「上中下游」兵力部署")
 
         sector_stats = df_gal.groupby('L1')['bias'].mean().sort_values(ascending=False)
         for sector, avg_bias in sector_stats.items():
@@ -1008,13 +1102,14 @@ def render_2_1(df: pd.DataFrame):
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  SECTION 2.2  ──  核心策略檢核 (Sniper Scope)
+#  [UPGRADE #2] Toast
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_2():
     st.markdown('<div class="t2-sec-title">📈 2.2 核心策略檢核 — Sniper Scope</div>',
                 unsafe_allow_html=True)
 
     if 'full_census_data' not in st.session_state:
-        st.warning("⚠️ 請先至本頁上方執行「SOP 全市場普查」。")
+        st.toast("⚠️ 請先至 2.1 執行 SOP 全市場普查", icon="⚡")
         return
 
     full_data = pd.DataFrame(st.session_state['full_census_data'])
@@ -1065,20 +1160,20 @@ def render_2_2():
 # ══════════════════════════════════════════════════════════════════════════════
 #  SECTION 2.3  ──  風險雷達（原版 required_risk_cols 邏輯保留）
 #  ★ 修正：欄位名稱優先用 converted_ratio，fallback 到 conv_rate
+#  [UPGRADE #2] Toast notifications
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_3():
     st.markdown('<div class="t2-sec-title">⚠️ 2.3 潛在風險雷達 — Negative Screener</div>',
                 unsafe_allow_html=True)
 
     if 'scan_results' not in st.session_state or st.session_state['scan_results'].empty:
-        st.info("請先執行本頁上方的掃描以啟動風險雷達。")
+        st.caption("請先執行本頁上方的掃描以啟動風險雷達。")
         return
 
     scan = st.session_state['scan_results']
-    st.info("此區塊為「負面表列」清單，旨在警示符合特定風險條件的標的，提醒您「避開誰」。")
+    st.caption("此區塊為「負面表列」清單，旨在警示符合特定風險條件的標的，提醒您「避開誰」。")
 
     # ── 欄位名稱解析（對齊原版，支援兩種命名）
-    # conv 欄：converted_ratio（原版）或 conv_rate（普查產出）
     conv_col   = 'converted_ratio' if 'converted_ratio' in scan.columns else \
                  ('conv_rate'       if 'conv_rate'       in scan.columns else None)
     prem_col   = 'premium'    if 'premium'    in scan.columns else None
@@ -1096,7 +1191,7 @@ def render_2_3():
         with tab1_w13:
             loose = scan[scan[conv_col] > 30].sort_values(conv_col, ascending=False)
             if not loose.empty:
-                st.warning(f"發現 {len(loose)} 檔標的「已轉換比例」> 30%，特定人可能已在下車。")
+                st.toast(f"⚠️ 發現 {len(loose)} 檔籌碼鬆動標的", icon="⚡")
                 for _, row in loose.head(20).iterrows():
                     cr    = pd.to_numeric(row.get(conv_col, 0), errors='coerce') or 0.0
                     price = pd.to_numeric(row.get('price', 0),  errors='coerce') or 0.0
@@ -1115,7 +1210,7 @@ def render_2_3():
         with tab2_w13:
             overp = scan[scan[prem_col] > 20].sort_values(prem_col, ascending=False)
             if not overp.empty:
-                st.warning(f"發現 {len(overp)} 檔標的「溢價率」> 20%，潛在報酬空間可能受壓縮。")
+                st.toast(f"⚠️ 發現 {len(overp)} 檔高溢價標的", icon="⚡")
                 for _, row in overp.head(20).iterrows():
                     prm   = pd.to_numeric(row.get(prem_col, 0), errors='coerce') or 0.0
                     price = pd.to_numeric(row.get('price', 0),  errors='coerce') or 0.0
@@ -1135,7 +1230,7 @@ def render_2_3():
         with tab3_w13:
             illiq = scan[scan[vol_col] < 10].sort_values(vol_col)
             if not illiq.empty:
-                st.error(f"發現 {len(illiq)} 檔標的平均成交量 < 10 張，存在嚴峻的流動性風險！")
+                st.toast(f"⚠️ 發現 {len(illiq)} 檔殭屍債 (日均量<10張)", icon="⚡")
                 for _, row in illiq.head(20).iterrows():
                     vol   = pd.to_numeric(row.get(vol_col, 0), errors='coerce') or 0.0
                     price = pd.to_numeric(row.get('price', 0), errors='coerce') or 0.0
@@ -1151,22 +1246,22 @@ def render_2_3():
                             unsafe_allow_html=True)
     else:
         # 原版錯誤訊息（欄位不足時）
-        st.error(
-            "掃描結果缺少風險分析所需欄位 "
-            "(converted_ratio / conv_rate, premium, avg_volume)，"
-            "請檢查上傳的 Excel 檔案或策略引擎輸出。"
+        st.toast(
+            "⚠️ 掃描結果缺少風險分析欄位 (converted_ratio/conv_rate, premium, avg_volume)",
+            icon="⚡"
         )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  SECTION 2.4  ──  資金配置（原版 20% per stock 模型 + God-Tier UI）
+#  [UPGRADE #2] Toast  [UPGRADE #3] Typewriter
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_4():
     st.markdown('<div class="t2-sec-title">💰 2.4 資金配置試算 — Position Sizing</div>',
                 unsafe_allow_html=True)
 
     if 'scan_results' not in st.session_state or st.session_state['scan_results'].empty:
-        st.info("請先執行本頁上方的掃描以獲取買進建議。")
+        st.caption("請先執行本頁上方的掃描以獲取買進建議。")
         return
 
     buy_recs = st.session_state['scan_results']
@@ -1198,6 +1293,18 @@ def render_2_4():
   <div class="t2-kelly-num">{kelly_pct}<span class="t2-kelly-pct">%</span></div>
   <div class="t2-kelly-sub">等權重分散 &nbsp;·&nbsp; 原版 20% / 檔模型</div>
 </div>""", unsafe_allow_html=True)
+
+        # [UPGRADE #3] Typewriter for portfolio summary
+        port_summary = (
+            f"【資金配置建議】總資金 {total_cap:,} 元，"
+            f"Top 5 標的各配置 20% = {int(total_cap * 0.20):,} 元/檔。"
+            f"剩餘 {'0' if len(top5) >= 5 else str(100 - len(top5) * 20)}% 為現金保留。"
+        )
+        if 'port_streamed' not in st.session_state:
+            st.write_stream(_stream_text(port_summary, speed=0.012))
+            st.session_state['port_streamed'] = True
+        else:
+            st.caption(port_summary)
 
         # ── Portfolio lines（原版邏輯：每檔 20%，CB 一張面額10萬）
         port_lines = ""
@@ -1261,11 +1368,17 @@ FIRE_BTNS = [
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN ENTRY  ──  ★ @st.fragment 已補回（對齊原版）
+#  [UPGRADE #1] Tactical Guide Dialog on first visit
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
 def render():
-    """Tab 2 — 獵殺雷達  God-Tier Build  V100"""
+    """Tab 2 — 獵殺雷達  Director's Cut  V300"""
     _inject_css()
+
+    # [UPGRADE #1] Onboarding dialog — show once per session
+    if not st.session_state.get('tab2_guided', False):
+        _show_tactical_guide()
+        return  # dialog blocks rendering; will rerun after close
 
     df = st.session_state.get('df', pd.DataFrame())
 
@@ -1288,7 +1401,7 @@ def render():
                  color:rgba(0,245,255,0.26);letter-spacing:3px;
                  border:1px solid rgba(0,245,255,0.10);border-radius:20px;
                  padding:3px 13px;margin-left:14px;background:rgba(0,245,255,0.022);">
-      KILL RADAR V100
+      KILL RADAR V300
     </span>
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
@@ -1352,7 +1465,7 @@ def render():
             st.code(traceback.format_exc())
 
     st.markdown(
-        f'<div class="t2-foot">Titan Kill Radar V100 &nbsp;·&nbsp; '
+        f'<div class="t2-foot">Titan Kill Radar V300 &nbsp;·&nbsp; '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
