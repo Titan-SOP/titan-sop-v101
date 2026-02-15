@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
+import plotly.express as px
 import altair as alt
 from datetime import datetime, timedelta
 from scipy.stats import linregress
@@ -248,6 +249,83 @@ def _render_monthly_chart(ticker: str, months: int = 120):
 # ═══════════════════════════════════════════════════════════════
 # 主渲染入口
 # ═══════════════════════════════════════════════════════════════
+
+
+# ════════════════════════════════════════════════════════════
+# 宏觀對沖輔助：批次下載多資產收盤價
+# ════════════════════════════════════════════════════════════
+@st.cache_data(ttl=3600)
+def _fetch_prices(tickers, period="1y"):
+    try:
+        raw = yf.download(list(tickers), period=period, progress=False, auto_adjust=True)
+        prices = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw
+        return prices.dropna(how="all")
+    except Exception:
+        return pd.DataFrame()
+
+
+# ════════════════════════════════════════════════════════════
+# 幾何回測引擎：每月底幾何角度信號
+# ════════════════════════════════════════════════════════════
+@st.cache_data(ttl=7200)
+def _geo_backtest(ticker, thresh, period_k, start, capital):
+    try:
+        orig = ticker
+        if ticker.isdigit() and len(ticker) >= 4:
+            ticker = f"{ticker}.TW"
+        df = yf.download(ticker, start=start, progress=False, auto_adjust=True)
+        if df.empty and orig.isdigit():
+            df = yf.download(f"{orig}.TWO", start=start, progress=False, auto_adjust=True)
+        if df.empty or len(df) < 30:
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        if "Close" not in df.columns:
+            return None
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+        monthly = df.resample("ME").agg({"Close": "last"}).dropna()
+        if len(monthly) < 6:
+            return None
+        nm = {"3M": 3, "6M": 6, "1Y": 12, "3Y": 36}.get(period_k, 3)
+        sigs = []
+        for i in range(nm, len(monthly)):
+            sl = monthly.iloc[i - nm:i]
+            lp = np.log(sl["Close"].values)
+            x  = np.arange(len(lp))
+            s, *_ = linregress(x, lp)
+            ang = float(np.arctan(s * 100) * (180 / np.pi))
+            sigs.append({"Date": monthly.index[i], "Sig": 1 if ang > thresh else 0})
+        sg = pd.DataFrame(sigs)
+        if sg.empty:
+            return None
+        dfd = df.copy()
+        dfd["Sig"] = 0
+        for k in range(len(sg) - 1):
+            mask = (dfd.index > sg.iloc[k]["Date"]) & (dfd.index <= sg.iloc[k + 1]["Date"])
+            dfd.loc[mask, "Sig"] = sg.iloc[k]["Sig"]
+        dfd.loc[dfd.index > sg.iloc[-1]["Date"], "Sig"] = sg.iloc[-1]["Sig"]
+        dfd["Pct"]   = dfd["Close"].pct_change()
+        dfd["Strat"] = dfd["Sig"].shift(1) * dfd["Pct"]
+        dfd["BH"]    = dfd["Pct"]
+        dfd["Eq"]    = (1 + dfd["Strat"].fillna(0)).cumprod() * capital
+        dfd["BH_Eq"] = (1 + dfd["BH"].fillna(0)).cumprod()    * capital
+        dfd["DD"]    = (dfd["Eq"] / dfd["Eq"].cummax()) - 1
+        ny      = max(len(dfd) / 252, 0.01)
+        tr      = dfd["Eq"].iloc[-1] / capital - 1
+        cagr    = (1 + tr) ** (1 / ny) - 1
+        dr      = dfd["Strat"].dropna()
+        sharpe  = (dr.mean() * 252 - 0.02) / (dr.std() * np.sqrt(252)) if dr.std() > 0 else 0
+        bh_r    = dfd["BH_Eq"].iloc[-1] / capital - 1
+        bh_cagr = (1 + bh_r) ** (1 / ny) - 1
+        return {
+            "cagr": cagr, "mdd": dfd["DD"].min(), "sharpe": sharpe,
+            "fe": dfd["Eq"].iloc[-1], "bh_cagr": bh_cagr,
+            "eq": dfd["Eq"], "bh": dfd["BH_Eq"], "dd": dfd["DD"]
+        }
+    except Exception:
+        return None
+
 def render():
     """Tab 6: 元趨勢戰法 — 全功能復原版 (V90.3 PROJECT VALKYRIE + V100 外殼)"""
 
@@ -576,21 +654,346 @@ def render():
     # ════════════════════════════════════════════════════════════
     with tab5:
         st.subheader("🛡️ 宏觀對沖 (Macro Hedge)")
-        st.warning("""**功能預覽**：
-- 多資產相關性矩陣
-- Beta 對沖策略建議
-- 全球市場聯動分析
+        st.caption("V100.1 全新實作：全球市場快照 | 相關性矩陣 | Beta 對沖 + 滾動 Beta")
 
-🚧 此功能正在開發中，敬請期待…""")
+        # ── 全球市場快照 HUD ────────────────────────────────────
+        st.markdown("#### 全球市場即時快照 (最近5日)")
+        SNAPS = [
+            ("SPY","S&P500"), ("QQQ","NASDAQ100"), ("GLD","黃金"), ("TLT","美債20Y"),
+            ("BTC-USD","比特幣"), ("^TWII","台灣加權"), ("DX-Y.NYB","美元指數"), ("^VIX","VIX恐慌"),
+        ]
+        with st.spinner("載入快照…"):
+            try:
+                snap_raw = yf.download([s for s, _ in SNAPS], period="5d",
+                                       progress=False, auto_adjust=True)
+                snap_px = (snap_raw["Close"]
+                           if isinstance(snap_raw.columns, pd.MultiIndex)
+                           else snap_raw).dropna(how="all")
+            except Exception:
+                snap_px = pd.DataFrame()
+        if not snap_px.empty and len(snap_px) >= 2:
+            hud_cols = st.columns(len(SNAPS))
+            for idx, (tk, lbl) in enumerate(SNAPS):
+                if tk not in snap_px.columns:
+                    continue
+                s_col = snap_px[tk].dropna()
+                if len(s_col) < 2:
+                    continue
+                cur  = float(s_col.iloc[-1])
+                prev = float(s_col.iloc[-2])
+                chg  = (cur - prev) / prev * 100
+                hud_cols[idx].metric(lbl, f"{cur:,.2f}", f"{chg:+.2f}%",
+                                     delta_color="normal")
+        else:
+            st.warning("市場快照暫時無法取得，請稍後重試。")
 
-    # ════════════════════════════════════════════════════════════
-    # Tab 6: 回測沙盒 (開發預覽)
-    # ════════════════════════════════════════════════════════════
+        st.divider()
+
+        # ── 多資產相關性矩陣 ───────────────────────────────────
+        st.markdown("#### 多資產相關性矩陣")
+        DEF_A = ["SPY","QQQ","GLD","TLT","BTC-USD","DX-Y.NYB"]
+        col_a, col_b = st.columns([3, 1])
+        with col_a:
+            corr_tickers = st.multiselect(
+                "選擇資產（可自由新增）",
+                options=DEF_A + ["IWM","EEM","HYG","SOXX","NVDA","AAPL","TSLA","^VIX"],
+                default=DEF_A, key="corr_tickers_t5")
+        with col_b:
+            corr_period = st.selectbox("計算區間", ["1y","2y","3y","5y"], key="corr_period_t5")
+
+        if st.button("計算相關性矩陣", use_container_width=True, key="run_corr_t5"):
+            if len(corr_tickers) >= 2:
+                with st.spinner("下載價格並計算…"):
+                    px_data = _fetch_prices(tuple(corr_tickers), corr_period)
+                if not px_data.empty:
+                    corr_mat = px_data.pct_change().dropna().corr().round(3)
+                    st.session_state["corr_mat_t5"] = corr_mat
+                    st.toast("相關性矩陣計算完成", icon="ok")
+                else:
+                    st.error("數據不足，請確認代號與網路。")
+
+        if "corr_mat_t5" in st.session_state:
+            cm = st.session_state["corr_mat_t5"]
+            fig_hm = go.Figure(go.Heatmap(
+                z=cm.values, x=cm.columns.tolist(), y=cm.index.tolist(),
+                colorscale=[[0,"#FF3131"],[.5,"#1a1a2e"],[1,"#00FF7F"]],
+                zmin=-1, zmax=1, zmid=0,
+                text=cm.values.round(2), texttemplate="%{text:.2f}",
+                textfont=dict(size=11, family="JetBrains Mono"),
+                colorbar=dict(tickfont=dict(color="#A0B0C0", size=9))
+            ))
+            fig_hm.update_layout(
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)", height=420,
+                margin=dict(t=10, b=40, l=80, r=20),
+                xaxis=dict(tickfont=dict(color="#B0C0D0", size=11)),
+                yaxis=dict(tickfont=dict(color="#B0C0D0", size=11))
+            )
+            st.plotly_chart(fig_hm, use_container_width=True)
+            high_pairs = [
+                f"**{cm.columns[ii]} vs {cm.columns[jj]}**: {cm.iloc[ii,jj]:.2f}"
+                for ii in range(len(cm.columns))
+                for jj in range(ii + 1, len(cm.columns))
+                if abs(cm.iloc[ii, jj]) > 0.75
+            ]
+            if high_pairs:
+                st.info("高度相關對 (|r|>0.75)：" + " | ".join(high_pairs))
+
+        st.divider()
+
+        # ── Beta 對沖分析 + 滾動 Beta ──────────────────────────
+        st.markdown("#### Beta 對沖分析 + 滾動 60 日 Beta")
+        BENCH_MAP = {
+            "SPY (S&P 500)": "SPY",
+            "QQQ (NASDAQ 100)": "QQQ",
+            "^TWII (台灣加權)": "^TWII",
+            "GLD (黃金)": "GLD"
+        }
+        ba, bb, bc = st.columns([2, 1, 1])
+        with ba:
+            bench_name  = st.selectbox("基準指數", list(BENCH_MAP.keys()), key="bench_t5")
+        with bb:
+            beta_period = st.selectbox("計算區間", ["1y","2y","3y"], key="beta_per_t5")
+        with bc:
+            beta_ticker = st.text_input("分析標的", "NVDA", key="beta_tk_t5")
+        bench_tk = BENCH_MAP[bench_name]
+
+        if st.button("計算 Beta", use_container_width=True, key="run_beta_t5"):
+            with st.spinner("計算中…"):
+                beta_px = _fetch_prices(tuple([beta_ticker, bench_tk]), beta_period)
+            if not beta_px.empty and beta_ticker in beta_px.columns and bench_tk in beta_px.columns:
+                beta_ret = beta_px.pct_change().dropna()
+                cov_v    = beta_ret[beta_ticker].cov(beta_ret[bench_tk])
+                var_v    = beta_ret[bench_tk].var()
+                beta_v   = round(cov_v / var_v, 3) if var_v > 0 else 0
+                corr_v   = round(beta_ret[beta_ticker].corr(beta_ret[bench_tk]), 3)
+                avol_v   = round(beta_ret[beta_ticker].std() * np.sqrt(252) * 100, 2)
+                st.session_state["beta_result_t5"] = {
+                    "beta": beta_v, "corr": corr_v, "avol": avol_v,
+                    "ret": beta_ret, "tk": beta_ticker, "bk": bench_tk
+                }
+                st.toast("Beta 計算完成", icon="ok")
+            else:
+                st.error("數據不足，請確認代號。")
+
+        if "beta_result_t5" in st.session_state:
+            br = st.session_state["beta_result_t5"]
+            bv = br["beta"]
+            bk1, bk2, bk3, bk4 = st.columns(4)
+            bk1.metric("Beta (beta)",      f"{bv:.3f}")
+            bk2.metric("與基準相關性",     f"{br['corr']:.3f}")
+            bk3.metric("年化波動率",       f"{br['avol']:.2f}%")
+            bk4.metric("建議對沖比例",     f"{abs(bv):.3f} x")
+            if   bv > 1.5: st.warning(f"Beta {bv}: 高槓桿攻擊型，波動大幅放大市場")
+            elif bv > 1.0: st.info(f"Beta {bv}: 略微放大市場波動，進攻型配置")
+            elif bv > 0.5: st.success(f"Beta {bv}: 溫和跟隨市場，風險可控")
+            elif bv > 0:   st.success(f"Beta {bv}: 防禦型，弱相關大盤")
+            else:          st.info(f"Beta {bv} <= 0: 天然對沖工具，與大盤反向")
+
+            rb_ret = br["ret"]; tk_b = br["tk"]; bk_b = br["bk"]; W = 60
+            if len(rb_ret) > W:
+                roll_b = [
+                    {"Date": rb_ret.index[i],
+                     "Rolling Beta": (rb_ret.iloc[i-W:i][tk_b].cov(rb_ret.iloc[i-W:i][bk_b]) /
+                                      rb_ret.iloc[i-W:i][bk_b].var()
+                                      if rb_ret.iloc[i-W:i][bk_b].var() > 0 else 0)}
+                    for i in range(W, len(rb_ret))
+                ]
+                rb_df = pd.DataFrame(roll_b)
+                fig_rb = px.line(rb_df, x="Date", y="Rolling Beta",
+                                 title=f"{tk_b} - 60日 Rolling Beta vs {bk_b}",
+                                 labels={"Rolling Beta": "Beta", "Date": "日期"})
+                fig_rb.update_traces(line_color="#FF9A3C", line_width=1.8)
+                fig_rb.add_hline(y=1, line_dash="dash", line_color="rgba(255,255,255,.2)",
+                                 annotation_text="Beta=1",
+                                 annotation_font_color="#aaa")
+                fig_rb.add_hline(y=0, line_dash="dash",
+                                 line_color="rgba(255,255,255,.1)")
+                fig_rb.update_layout(
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)", height=270,
+                    margin=dict(t=30, b=40, l=60, r=10)
+                )
+                st.plotly_chart(fig_rb, use_container_width=True)
+
     with tab6:
-        st.subheader("🧪 回測沙盒 (Backtest Sandbox)")
-        st.warning("""**功能預覽**：
-- 基於 7D 幾何信號的自動化回測
-- 動態倉位管理模擬
-- 夏普比率與最大回撤計算
+        st.subheader("🧪 幾何回測沙盒 (Geometry Backtest Sandbox)")
+        st.caption("V100.1 全新實作：幾何角度信號 | 動態倉位 | 權益曲線 | 多門檻掃描 | vs Buy & Hold")
 
-🚧 此功能正在開發中，敬請期待…""")
+        # ── 參數設定 ──────────────────────────────────────────
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            bt_ticker = st.text_input("回測標的", "NVDA", key="bt_ticker")
+            bt_start  = st.date_input("起始日期", value=datetime(2015, 1, 1), key="bt_start")
+            bt_cap    = st.number_input("初始資金", value=1_000_000, step=100_000, key="bt_cap")
+        with col_p2:
+            bt_win    = st.selectbox("幾何計算窗口", ["3M","6M","1Y","3Y"], key="bt_win",
+                                     help="每月底回望此窗口計算幾何角度")
+            bt_thresh = st.slider("進場角度門檻 (°)", -90, 90, 10, key="bt_thresh",
+                                  help="幾何角度 > 此值 → 下月持倉，否則空倉現金")
+            st.info(f"策略：每月底計算 {bt_win} 幾何角度 > {bt_thresh} 度則持倉，否則現金")
+
+        if st.button("啟動幾何回測", type="primary", use_container_width=True, key="run_bt"):
+            with st.spinner(f"回測 {bt_ticker} ({bt_win} > {bt_thresh})…"):
+                r = _geo_backtest(bt_ticker, float(bt_thresh), bt_win,
+                                  bt_start.strftime("%Y-%m-%d"), float(bt_cap))
+            if r:
+                st.session_state["gbt"]     = r
+                st.session_state["gbt_lbl"] = f"{bt_ticker} - {bt_win} - >{bt_thresh} deg"
+                st.success(
+                    f"CAGR {r['cagr']:.2%} | Sharpe {r['sharpe']:.2f} | "
+                    f"MDD {r['mdd']:.2%} | B&H CAGR {r['bh_cagr']:.2%}"
+                )
+            else:
+                st.error("回測失敗，請確認代號或延長起始日期。")
+
+        if "gbt" in st.session_state:
+            r   = st.session_state["gbt"]
+            lbl = st.session_state.get("gbt_lbl", "")
+
+            bm1, bm2, bm3, bm4, bm5 = st.columns(5)
+            bm1.metric("CAGR",      f"{r['cagr']:.2%}")
+            bm2.metric("Sharpe",    f"{r['sharpe']:.2f}")
+            bm3.metric("最大回撤",  f"{r['mdd']:.2%}")
+            bm4.metric("期末資金",  f"{r['fe']:,.0f}")
+            bm5.metric("B&H CAGR", f"{r['bh_cagr']:.2%}")
+
+            alpha = r["cagr"] - r["bh_cagr"]
+            if alpha >= 0:
+                st.success(f"幾何策略 Alpha: +{alpha:.2%} (優於買入持有策略)")
+            else:
+                st.warning(f"幾何策略 Alpha: {alpha:.2%} (落後買入持有策略)")
+
+            st.divider()
+
+            # 權益曲線
+            eq_df = r["eq"].reset_index(); eq_df.columns = ["Date", "Equity"]
+            bh_df = r["bh"].reset_index(); bh_df.columns = ["Date", "BH"]
+            fig_eq = go.Figure()
+            fig_eq.add_trace(go.Scatter(
+                x=eq_df["Date"], y=eq_df["Equity"], name="幾何策略",
+                line=dict(color="#00F5FF", width=2),
+                hovertemplate="幾何策略 $%{y:,.0f}<extra></extra>"))
+            fig_eq.add_trace(go.Scatter(
+                x=bh_df["Date"], y=bh_df["BH"], name="Buy & Hold",
+                line=dict(color="rgba(255,215,0,.6)", width=1.5, dash="dot"),
+                hovertemplate="B&H $%{y:,.0f}<extra></extra>"))
+            fig_eq.update_layout(
+                title=dict(text=f"權益曲線 - {lbl}",
+                           font=dict(color="rgba(0,245,255,.4)", size=11,
+                                     family="JetBrains Mono")),
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)", height=360,
+                legend=dict(font=dict(color="#B0C0D0", size=11)),
+                margin=dict(t=30, b=40, l=70, r=10), hovermode="x unified",
+                yaxis=dict(gridcolor="rgba(255,255,255,.04)"),
+                xaxis=dict(gridcolor="rgba(255,255,255,.04)"))
+            st.plotly_chart(fig_eq, use_container_width=True)
+
+            # Underwater 回撤圖
+            dd_df = r["dd"].reset_index(); dd_df.columns = ["Date", "DD"]
+            dd_df["DD_pct"] = dd_df["DD"] * 100
+            fig_dd = px.area(dd_df, x="Date", y="DD_pct",
+                             labels={"DD_pct": "回撤 (%)", "Date": "日期"},
+                             title="Underwater 回撤曲線")
+            fig_dd.update_traces(fillcolor="rgba(255,49,49,.22)",
+                                 line_color="rgba(255,49,49,.75)")
+            fig_dd.update_layout(
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)", height=230,
+                yaxis=dict(ticksuffix="%", gridcolor="rgba(255,255,255,.04)"),
+                margin=dict(t=30, b=40, l=60, r=10))
+            st.plotly_chart(fig_dd, use_container_width=True)
+
+            st.divider()
+
+            # ── 多門檻掃描 ─────────────────────────────────────
+            st.subheader("多門檻掃描 (Threshold Sweep)")
+            st.caption("自動掃描 -30 到 +50 度（步進 5 度），找出最優 CAGR / Sharpe 組合")
+
+            if st.button("啟動門檻掃描", use_container_width=True, key="run_sweep"):
+                sweep_list = list(range(-30, 55, 5))
+                sweep_rows = []
+                sweep_prog = st.progress(0, "掃描中…")
+                for sw_idx, sw_th in enumerate(sweep_list):
+                    sw_r = _geo_backtest(bt_ticker, float(sw_th), bt_win,
+                                         bt_start.strftime("%Y-%m-%d"), float(bt_cap))
+                    sweep_prog.progress((sw_idx + 1) / len(sweep_list),
+                                        text=f"門檻 {sw_th} 度…")
+                    if sw_r:
+                        sweep_rows.append({
+                            "門檻 (度)": sw_th,
+                            "CAGR":     sw_r["cagr"],
+                            "Sharpe":   sw_r["sharpe"],
+                            "MDD":      sw_r["mdd"]
+                        })
+                sweep_prog.empty()
+                if sweep_rows:
+                    sw_df = pd.DataFrame(sweep_rows)
+                    best  = sw_df.loc[sw_df["CAGR"].idxmax()]
+                    st.success(
+                        f"最優門檻: {int(best['門檻 (度)'])} 度 "
+                        f"-> CAGR {best['CAGR']:.2%} | Sharpe {best['Sharpe']:.2f}")
+                    st.session_state["sweep_df"] = sw_df
+                else:
+                    st.error("掃描失敗，請確認標的代號。")
+
+            if "sweep_df" in st.session_state:
+                sw_df = st.session_state["sweep_df"]
+                best  = sw_df.loc[sw_df["CAGR"].idxmax()]
+
+                fig_sw = go.Figure()
+                fig_sw.add_trace(go.Scatter(
+                    x=sw_df["門檻 (度)"], y=sw_df["CAGR"] * 100,
+                    name="CAGR (%)", mode="lines+markers",
+                    line=dict(color="#00FF7F", width=2),
+                    hovertemplate="%{x} deg -> CAGR %{y:.2f}%<extra></extra>"))
+                fig_sw.add_trace(go.Scatter(
+                    x=sw_df["門檻 (度)"], y=sw_df["Sharpe"],
+                    name="Sharpe", mode="lines+markers",
+                    line=dict(color="#FFD700", width=1.5, dash="dash"),
+                    yaxis="y2",
+                    hovertemplate="Sharpe %{y:.2f}<extra></extra>"))
+                fig_sw.add_vline(
+                    x=int(best["門檻 (度)"]), line_dash="dot",
+                    line_color="rgba(255,215,0,.4)",
+                    annotation_text=f"最優 {int(best['門檻 (度)'])} 度",
+                    annotation_font=dict(color="#FFD700", size=11))
+                fig_sw.update_layout(
+                    title=dict(text=f"門檻掃描 - {bt_ticker} - {bt_win}",
+                               font=dict(color="rgba(255,215,0,.35)", size=11)),
+                    template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)", height=310,
+                    yaxis=dict(title="CAGR (%)", ticksuffix="%",
+                               gridcolor="rgba(255,255,255,.04)",
+                               titlefont=dict(color="#00FF7F"),
+                               tickfont=dict(color="#778899", size=10)),
+                    yaxis2=dict(title="Sharpe", overlaying="y", side="right",
+                                titlefont=dict(color="#FFD700"),
+                                tickfont=dict(color="#778899", size=10)),
+                    xaxis=dict(ticksuffix=" deg",
+                               gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778899", size=10)),
+                    legend=dict(font=dict(color="#B0C0D0", size=11)),
+                    margin=dict(t=30, b=40, l=70, r=70),
+                    hovermode="x unified")
+                st.plotly_chart(fig_sw, use_container_width=True)
+
+                st.dataframe(sw_df.style.format({
+                    "CAGR": "{:.2%}", "Sharpe": "{:.2f}", "MDD": "{:.2%}"
+                }), use_container_width=True)
+
+                buf_xl = io.BytesIO()
+                try:
+                    with pd.ExcelWriter(buf_xl, engine="xlsxwriter") as wr:
+                        sw_df.to_excel(wr, index=False, sheet_name="Threshold_Sweep")
+                    st.download_button(
+                        "下載掃描報表 (Excel)", buf_xl.getvalue(),
+                        f"{bt_ticker}_geo_sweep_{bt_win}.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True)
+                except Exception:
+                    st.download_button(
+                        "下載掃描報表 (CSV)", sw_df.to_csv(index=False).encode(),
+                        f"{bt_ticker}_geo_sweep_{bt_win}.csv", "text/csv",
+                        use_container_width=True)
