@@ -1,10 +1,14 @@
 # ui_desktop/tab1_macro.py
-# Titan SOP V100 — 宏觀風控指揮中心
-# ╔══════════════════════════════════════════════════════╗
-# ║  "THE DIRECTOR'S CUT"  —  Netflix × Palantir × Tesla  ║
-# ╚══════════════════════════════════════════════════════╝
-# Logic: V82.0 fully preserved (MacroRiskEngine / Altair / Plotly)
-# UI:    Cinematic overhaul — Hero Billboard, Poster Rail, Rank Cards
+# Titan SOP V300 — 宏觀風控指揮中心 (Macro Risk Command Center)
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  "DIRECTOR'S CUT V300"  —  Netflix × Palantir × Tesla            ║
+# ║  4 MANDATORY UPGRADES:                                            ║
+# ║    ✅ #1  Tactical Guide Dialog (Onboarding Modal)                ║
+# ║    ✅ #2  Toast Notifications (replace st.success/info/warning)   ║
+# ║    ✅ #3  Valkyrie AI Typewriter (_stream_text)                   ║
+# ║    ✅ #4  Director's Cut Visuals (Hero/Poster/Glass — preserved)  ║
+# ║  Logic: V82.0 fully preserved (MacroRiskEngine/Altair/Plotly)     ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 
 import streamlit as st
 import pandas as pd
@@ -12,10 +16,52 @@ import numpy as np
 import altair as alt
 import plotly.graph_objects as go
 from datetime import datetime
+import time
 
 from macro_risk import MacroRiskEngine
 from knowledge_base import TitanKnowledgeBase
 from config import Config
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [UPGRADE #3] VALKYRIE AI TYPEWRITER — Sci-Fi Terminal Streaming
+# ══════════════════════════════════════════════════════════════════════════════
+def _stream_text(text, speed=0.018):
+    """Character-by-character generator for st.write_stream"""
+    for char in text:
+        yield char
+        time.sleep(speed)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [UPGRADE #1] TACTICAL GUIDE DIALOG — Onboarding Modal
+# ══════════════════════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 — Macro Risk Command Center")
+def _show_tactical_guide():
+    st.markdown("""
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#C8D8E8;line-height:1.8;">
+
+### 🛡️ 歡迎進入宏觀風控指揮中心
+
+本模組是 Titan OS 的**戰略核心**，整合 7 大子系統即時監控市場脈動：
+
+**🚦 1.1 風控儀表 (MACRO HUD)**
+三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。
+
+**🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈 / 🗺️ 1.4 族群熱度**
+高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖 + 族群資金流向，一眼判斷主力資金去向。
+
+**💹 1.5 成交重心 / 👑 1.6 趨勢雷達**
+全市場 TOP 100 成交重心即時掃描 + 高價權值股趨勢追蹤，附帶 87MA 扣抵預測與亞當理論反射路徑。
+
+**🎯 1.7 台指獵殺 (WTX Predator)**
+獨門戰法 — 利用過去 12 個月結算慣性推導本月台指期虛擬 K 棒，精準鎖定 1B/2B/3B/HR 結算目標價。
+
+</div>""", unsafe_allow_html=True)
+    if st.button("✅ 收到，進入戰情室 (Roger That)", type="primary", use_container_width=True):
+        st.session_state['tab1_guided'] = True
+        st.rerun()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONSTANTS
@@ -45,12 +91,12 @@ SUB_MODULES = [
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  CSS — TITAN OS CINEMATIC STYLES
+#  CSS — TITAN OS CINEMATIC STYLES (PRESERVED + ENHANCED)
 # ══════════════════════════════════════════════════════════════════════════════
 def _inject_css():
     st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
 <style>
 /* ══════════════════════════════════════════════════════
@@ -68,6 +114,7 @@ def _inject_css():
     --f-display: 'Bebas Neue', sans-serif;
     --f-body:    'Rajdhani', sans-serif;
     --f-mono:    'JetBrains Mono', monospace;
+    --f-o:       'Orbitron', sans-serif;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -555,7 +602,7 @@ def _get_macro_data(_macro, _df_hash):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  REUSABLE UI PRIMITIVES
+#  REUSABLE UI PRIMITIVES (PRESERVED)
 # ══════════════════════════════════════════════════════════════════════════════
 def _sec_header(icon: str, title: str, pill: str = ""):
     pill_html = f'<span class="sec-pill">{pill}</span>' if pill else ""
@@ -606,6 +653,7 @@ def _rank_card_html(rank: int, name: str, ticker: str, industry: str,
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  LEADER DASHBOARD  (V78.2 complete — logic unchanged)
+#  [UPGRADE #2] Toast notifications  [UPGRADE #3] Typewriter for analysis
 # ══════════════════════════════════════════════════════════════════════════════
 def _render_leader_dashboard(session_state_key: str, fetch_function,
                               top_n: int, sort_key_name: str):
@@ -624,8 +672,10 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
 
     st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
     if st.button(f"▶  SCAN  {sort_key_name}  TOP {top_n}", key=f"btn_{session_state_key}"):
+        st.toast(f"🚀 掃描 {sort_key_name} TOP {top_n} 中…", icon="⏳")
         with st.spinner(f"SCANNING {sort_key_name} TOP {top_n} — PLEASE WAIT…"):
             st.session_state[session_state_key] = fetch_function(top_n=top_n)
+        st.toast(f"✅ {sort_key_name} TOP {top_n} 掃描完成！", icon="🎯")
     st.markdown('</div>', unsafe_allow_html=True)
 
     leaders_df = st.session_state[session_state_key]
@@ -635,7 +685,8 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
                     unsafe_allow_html=True)
         return
     if "error" in leaders_df.columns:
-        st.error(leaders_df.iloc[0]["error"]); return
+        st.toast(f"⚠️ {leaders_df.iloc[0]['error']}", icon="⚡")
+        return
 
     # ── TOP 3 RANK CARDS ──────────────────────────────────────────────────────
     top3 = leaders_df.head(3)
@@ -697,7 +748,7 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
     sel           = leaders_df[leaders_df['rank'] == int(selected_str.split('.')[0])].iloc[0]
     stock_df      = sel['stock_df']
     deduction_df  = sel['deduction_df']
-    adam_df       = sel['adam_df']
+    adam_df        = sel['adam_df']
     current_price = sel['current_price']
     ma87          = sel['ma87']
 
@@ -712,6 +763,20 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
         ("趨勢波段",   sel['trend_status'],     f"持續 {sel['trend_days']} 天",   "#00F5FF"),
         ("扣抵預判",   sel['deduction_signal'], f"斜率 {sel['ma87_slope']:.2f}°", "#FF9A3C"),
     )
+
+    # [UPGRADE #3] Typewriter summary for deep analysis
+    analysis_text = (
+        f"【{sel['name']} ({sel['ticker']}) 深度分析摘要】\n"
+        f"現價 {current_price:.2f}，87MA 生命線 {ma87:.2f}，乖離率 {bias_pct:+.1f}%。\n"
+        f"格蘭碧法則判定：{granville}。"
+        f"趨勢狀態：{sel['trend_status']}（持續 {sel['trend_days']} 天）。\n"
+        f"87MA 扣抵預判：{sel['deduction_signal']}（斜率 {sel['ma87_slope']:.2f}°）。\n"
+    )
+    if f"streamed_{session_state_key}_{sel['ticker']}" not in st.session_state:
+        st.write_stream(_stream_text(analysis_text, speed=0.012))
+        st.session_state[f"streamed_{session_state_key}_{sel['ticker']}"] = True
+    else:
+        st.markdown(f'<div style="font-family:var(--f-mono);font-size:12px;color:rgba(200,215,230,0.6);line-height:1.7;padding:8px 0;">{analysis_text}</div>', unsafe_allow_html=True)
 
     tab_d, tab_a = st.tabs(["📉 87MA 扣抵值預測", "🔄 亞當理論二次反射"])
 
@@ -734,7 +799,7 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.warning("歷史資料不足，無法預測均線扣抵值。")
+            st.toast("⚠️ 歷史資料不足，無法預測均線扣抵值", icon="⚡")
 
     with tab_a:
         if not adam_df.empty:
@@ -759,7 +824,7 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.warning("歷史資料不足，無法進行亞當理論投影。")
+            st.toast("⚠️ 歷史資料不足，無法進行亞當理論投影", icon="⚡")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -855,8 +920,11 @@ def render_1_1_hud():
   </div>
   <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
   <div class="hero-subtitle">{sig_desc}</div>
-  <div class="hero-badge">TITAN SOP V100 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+  <div class="hero-badge">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
 </div>""", unsafe_allow_html=True)
+
+        # [UPGRADE #2] Toast for signal
+        st.toast(f"{sig_main} — {sig_desc}", icon="🚦")
 
         # ── 4-KPI ROW ──────────────────────────────────────────────────────
         vix      = md['vix']
@@ -873,6 +941,19 @@ def render_1_1_hud():
             ("PR90",     f"{pr90:.1f}", ">130 OVERHEATED",        pr90_col),
             ("PTT BEAR", ptt_txt,       ">50% RED SIGNAL",        ptt_col),
         )
+
+        # [UPGRADE #3] Typewriter for HUD summary
+        hud_summary = (
+            f"【戰情總覽】信號燈：{sig_text}。"
+            f"VIX 恐慌指數 {vix:.2f}{'⚠️ 警戒' if vix > 20 else ' 正常'}。"
+            f"PR90 籌碼壓力 {pr90:.1f}{'🔴 過熱' if pr90 > 130 else ' 正常'}。"
+            f"PTT 散戶看空比 {ptt_txt}。"
+        )
+        if 'hud_streamed' not in st.session_state:
+            st.write_stream(_stream_text(hud_summary, speed=0.015))
+            st.session_state['hud_streamed'] = True
+        else:
+            st.caption(hud_summary)
 
         # ── TSE DEEP-DIVE ──────────────────────────────────────────────────
         tse     = md['tse_analysis']
@@ -924,8 +1005,10 @@ def render_1_2_thermometer():
 
     st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
     if st.button("🔄  REFRESH MARKET SENTIMENT", key="btn_sentiment"):
+        st.toast("🚀 掃描高價權值股多空…", icon="⏳")
         with st.spinner("Analyzing high-price weighted stocks…"):
             st.session_state.high_50_sentiment = macro.analyze_high_50_sentiment()
+        st.toast("✅ 多空溫度計更新完成！", icon="🌡️")
     st.markdown('</div>', unsafe_allow_html=True)
 
     sent = st.session_state.high_50_sentiment
@@ -934,7 +1017,8 @@ def render_1_2_thermometer():
                     '<div class="empty-text">CLICK TO FETCH SENTIMENT</div></div>', unsafe_allow_html=True)
         return
     if "error" in sent:
-        st.error(sent["error"]); return
+        st.toast(f"⚠️ {sent['error']}", icon="⚡")
+        return
 
     ratio  = sent['bull_ratio']
     bear_r = sent['bear_ratio']
@@ -986,6 +1070,18 @@ def render_1_2_thermometer():
 
     st.markdown(f'<div class="thermo-verdict" style="--vr:{vr};">{vd}</div>',
                 unsafe_allow_html=True)
+
+    # [UPGRADE #3] Typewriter verdict
+    thermo_text = (
+        f"【多空溫度計判讀】市場情緒: {sent['sentiment']}。"
+        f"多頭佔比 {ratio:.1f}% / 空頭佔比 {bear_r:.1f}% (共 {total} 檔高價股)。"
+        f"結論: {vd.split('—')[1].strip() if '—' in vd else vd}。"
+    )
+    if 'thermo_streamed' not in st.session_state:
+        st.write_stream(_stream_text(thermo_text, speed=0.015))
+        st.session_state['thermo_streamed'] = True
+    else:
+        st.caption(thermo_text)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1053,7 +1149,7 @@ def render_1_3_pr90():
             st.altair_chart(bar, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.warning("無法生成籌碼分佈圖，請檢查 CB 清單中的價格欄位。")
+            st.toast("⚠️ 無法生成籌碼分佈圖，請檢查 CB 清單價格欄位", icon="⚡")
     else:
         st.markdown('<div class="empty-state"><div class="empty-icon">📂</div>'
                     '<div class="empty-text">UPLOAD CB LIST TO ACTIVATE</div></div>',
@@ -1073,8 +1169,10 @@ def render_1_4_heatmap():
 
         st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
         if st.button("🛰️  SCAN SECTOR HEATMAP", key="btn_heatmap"):
+            st.toast("🚀 掃描族群資金流向中…", icon="⏳")
             with st.spinner("Analyzing sector capital flows…"):
                 st.session_state.sector_heatmap = macro.analyze_sector_heatmap(df, kb)
+            st.toast("✅ 族群熱度雷達掃描完成！", icon="🗺️")
         st.markdown('</div>', unsafe_allow_html=True)
 
         if not st.session_state.sector_heatmap.empty:
@@ -1164,8 +1262,10 @@ def render_1_7_predator():
 
     st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
     if st.button("🔮  DERIVE WTX TARGETS", key="btn_futures"):
+        st.toast("🚀 推導台指期目標價中…", icon="⏳")
         with st.spinner("Deriving settlement targets…"):
             st.session_state['futures_result'] = _calculate_futures_targets()
+        st.toast("✅ 台指期目標價推導完成！", icon="🎯")
     st.markdown('</div>', unsafe_allow_html=True)
 
     res = st.session_state.get('futures_result', None)
@@ -1174,7 +1274,8 @@ def render_1_7_predator():
                     '<div class="empty-text">CLICK TO DERIVE TARGETS</div></div>', unsafe_allow_html=True)
         return
     if "error" in res:
-        st.warning(f"⚠️ {res['error']}"); return
+        st.toast(f"⚠️ {res['error']}", icon="⚡")
+        return
 
     is_red    = res['is_red']
     bar_color = "#d62728" if is_red else "#2ca02c"
@@ -1192,6 +1293,20 @@ def render_1_7_predator():
     ctrl = "🔴 多方控盤 — 慣性收長紅" if is_red else "🟢 空方控盤 — 慣性收長黑"
     st.markdown(f'<div class="ctrl-flag" style="--cf-rgb:{cf_rgb};">{ctrl}</div>',
                 unsafe_allow_html=True)
+
+    # [UPGRADE #3] Typewriter for predator verdict
+    pred_text = (
+        f"【台指期獵殺判讀】{res['name']} 本月開盤錨定 {res['anc']:,.0f}，"
+        f"現價 {res['price']:,.0f} ({bias:+.0f} pts)。"
+        f"{'多方控盤，慣性收紅K' if is_red else '空方控盤，慣性收黑K'}。"
+        f"目標推導：1B={res['t']['1B']:,.0f} / 2B={res['t']['2B']:,.0f} / "
+        f"3B={res['t']['3B']:,.0f} / HR={res['t']['HR']:,.0f}。"
+    )
+    if 'pred_streamed' not in st.session_state:
+        st.write_stream(_stream_text(pred_text, speed=0.012))
+        st.session_state['pred_streamed'] = True
+    else:
+        st.caption(pred_text)
 
     # ── Baseball Target Cards ─────────────────────────────────────────────────
     def hit_cls(tg):
@@ -1272,7 +1387,7 @@ def render_1_7_predator():
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="titan-foot">WTX Predator &nbsp;·&nbsp; '
+        f'<div class="titan-foot">WTX Predator V300 &nbsp;·&nbsp; '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
@@ -1305,10 +1420,16 @@ _POSTER_ACCENT = {
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN ENTRY — Netflix Poster Rail + Cinematic Content Frame
+#  [UPGRADE #1] Tactical Guide Dialog on first visit
 # ══════════════════════════════════════════════════════════════════════════════
 def render():
-    """Tab 1 — Cinematic Trading Experience (Director's Cut)"""
+    """Tab 1 — Cinematic Trading Experience (Director's Cut V300)"""
     _inject_css()
+
+    # [UPGRADE #1] Onboarding dialog — show once per session
+    if not st.session_state.get('tab1_guided', False):
+        _show_tactical_guide()
+        return  # dialog blocks rendering; will rerun after close
 
     if 'tab1_active' not in st.session_state:
         st.session_state.tab1_active = "1.1"
@@ -1329,7 +1450,7 @@ def render():
                  color:rgba(255,215,0,0.3);letter-spacing:3px;
                  border:1px solid rgba(255,215,0,0.12);border-radius:20px;
                  padding:3px 13px;margin-left:14px;background:rgba(255,215,0,0.025);">
-      TITAN OS V100
+      TITAN OS V300
     </span>
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
