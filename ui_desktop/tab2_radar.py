@@ -449,12 +449,18 @@ def _run_census(df: pd.DataFrame, min_score: int):
     strat, _ = _load_engines()
     work_df  = df.copy()
 
-    # 欄位對應（原版 rename_map 完整）
+    # 欄位對應（完整版，包含所有Excel欄位）
     rename_map = {
-        '代號':'code', '名稱':'name', '可轉債市價':'price',
-        '轉換價格':'conv_price', '轉換標的':'stock_code',
-        '已轉換比例':'conv_rate', '轉換價值':'conv_value',
-        '發行日':'issue_date', '賣回日':'put_date',
+        '債券代號':'code', '代號':'code', 
+        '標的債券':'name', '名稱':'name',
+        '可轉債市價':'price', 
+        '轉換價格':'conv_price',
+        '轉換標的代碼':'stock_code', '轉換標的':'stock_code',
+        '標的股票市價':'stock_price',
+        '已轉換比例':'conv_rate', 
+        '轉換價值':'conv_value',  # ★ 關鍵：S行，理論價的來源
+        '發行日期':'issue_date', '發行日':'issue_date',
+        '最新賣回日':'put_date', '賣回日':'put_date',
         '餘額比例':'balance_ratio'
     }
     work_df.rename(columns=lambda c: rename_map.get(c.strip(), c.strip()), inplace=True)
@@ -464,10 +470,38 @@ def _run_census(df: pd.DataFrame, min_score: int):
         bal = pd.to_numeric(work_df['balance_ratio'], errors='coerce').fillna(100.0)
         work_df['conv_rate'] = 100.0 - bal
 
-    # 數值欄位型別安全
-    for col in ['price','conv_rate','conv_price','conv_value']:
-        work_df[col] = pd.to_numeric(work_df.get(col, pd.Series(dtype=float)),
-                                     errors='coerce').fillna(0.0)
+    # ★ Index Fallback：檢查關鍵欄位是否存在，若不存在則用 Index 強制讀取
+    required_cols = ['conv_price', 'stock_code', 'price', 'conv_value']
+    missing_cols = [col for col in required_cols if col not in work_df.columns]
+    
+    if missing_cols:
+        st.toast(f"⚠️ 偵測到缺少欄位: {missing_cols}，啟用 Index Fallback...", icon="🔧")
+        # 直接用 Index 讀取原始 df（假設 df 就是原始上傳的資料）
+        if len(df.columns) >= 21:  # 確保有足夠的欄位
+            work_df['code']       = df.iloc[:, 0]   # A行：債券代號
+            work_df['name']       = df.iloc[:, 1]   # B行：標的債券
+            work_df['conv_price'] = pd.to_numeric(df.iloc[:, 9], errors='coerce').fillna(0.0)   # J行：轉換價格
+            work_df['stock_code'] = df.iloc[:, 10]  # K行：轉換標的代碼
+            work_df['stock_price']= pd.to_numeric(df.iloc[:, 11], errors='coerce').fillna(0.0)  # L行：標的股票市價
+            work_df['price']      = pd.to_numeric(df.iloc[:, 13], errors='coerce').fillna(0.0)  # N行：可轉債市價
+            work_df['conv_value'] = pd.to_numeric(df.iloc[:, 18], errors='coerce').fillna(0.0)  # S行：轉換價值 ★
+            work_df['put_date']   = df.iloc[:, 21]  # V行：最新賣回日
+            work_df['issue_date'] = df.iloc[:, 2]   # C行：發行日期
+            # 餘額比例和已轉換率
+            balance_val = pd.to_numeric(df.iloc[:, 6], errors='coerce').fillna(100.0)  # G行：餘額比例
+            work_df['balance_ratio'] = balance_val
+            work_df['conv_rate'] = 100.0 - balance_val
+            st.toast("✅ Index Fallback 完成", icon="✅")
+        else:
+            st.error(f"❌ Excel檔案欄位數不足 (需要至少21欄，實際{len(df.columns)}欄)")
+            return pd.DataFrame(), pd.DataFrame()
+
+    # 數值欄位型別安全（★ 增加 stock_price 確保理論價計算有數據）
+    for col in ['price','conv_rate','conv_price','conv_value','stock_price']:
+        if col in work_df.columns:
+            work_df[col] = pd.to_numeric(work_df[col], errors='coerce').fillna(0.0)
+        else:
+            work_df[col] = 0.0
 
     # 日期欄位處理
     for dcol in ['issue_date','put_date','list_date']:
@@ -493,13 +527,16 @@ def _run_census(df: pd.DataFrame, min_score: int):
         stxt.text(f"普查進行中 ({i+1}/{total}): {name}…")
 
         code = str(row.get('stock_code', '')).strip()
-        # 數據傳遞：確保關鍵數據寫入（使用正確的欄位名稱）
+        # ★ 數據傳遞：確保關鍵數據寫入（特別注意 conv_value）
+        # 從原始 work_df 取得 conv_value，不依賴 strategy 返回值
         row.update({
-            'stock_price_real': 0.0, 'ma87': 0.0, 'ma284': 0.0,
+            'stock_price_real': 0.0, 
+            'ma87': 0.0, 
+            'ma284': 0.0,
             'trend_status': '⚠️ 資料不足',
-            'cb_price':       row.get('price', 0.0),
-            'conv_price_val': row.get('conv_price', 0.0),  # 保留 conv_price 的值
-            'conv_value_val': row.get('conv_value', 0.0),  # 保留 conv_value 的值
+            'cb_price':       float(row.get('price', 0.0)),
+            'conv_price_val': float(row.get('conv_price', 0.0)),
+            'conv_value_val': float(row.get('conv_value', 0.0)),  # ★ 理論價來源
         })
 
         if code:
