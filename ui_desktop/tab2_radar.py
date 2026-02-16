@@ -778,13 +778,41 @@ def render_2_0(df):
         st.warning("⚠️ 無可用數據。請先在首頁載入 CB 資料。")
         return
 
-    # Find required columns (flexible column naming for actual Excel structure)
-    # 債券代號 (A列), 標的債券 (B列), 可轉債市價 (N列), 溢(折)價率 (U列)
-    code_col = next((c for c in df.columns if c == '債券代號' or 'code' in c.lower() or '代號' in c), None)
-    name_col = next((c for c in df.columns if c == '標的債券' or ('標的' in c and '債券' in c)), None)
-    price_col = next((c for c in df.columns if c == '可轉債市價' or ('可轉債' in c and '市價' in c)), None)
-    premium_col = next((c for c in df.columns if c == '溢(折)價率' or ('溢' in c and '價率' in c)), None)
-    balance_col = next((c for c in df.columns if '餘額比例' in c or 'balance' in c.lower()), None)
+    # Find required columns - support both original Chinese and preprocessed English names
+    # 支援原始中文欄位：債券代號, 標的債券, 可轉債市價, 溢(折)價率
+    # 支援預處理英文欄位：code, name, cb_price/price, premium
+    
+    # Code column: 債券代號 or code
+    code_col = next((c for c in df.columns if 
+                     c == '債券代號' or 
+                     c == 'code' or 
+                     '代號' in c), None)
+    
+    # Name column: 標的債券 or name
+    name_col = next((c for c in df.columns if 
+                     c == '標的債券' or 
+                     c == 'name' or
+                     ('標的' in c and '債券' in c)), None)
+    
+    # Price column: 可轉債市價 or cb_price (避免匹配到 stock_price)
+    price_col = next((c for c in df.columns if 
+                      c == '可轉債市價' or 
+                      c == 'cb_price' or
+                      (c == 'price' and 'stock' not in c) or
+                      ('可轉債' in c and '市價' in c)), None)
+    
+    # Premium column: 溢(折)價率 or premium
+    premium_col = next((c for c in df.columns if 
+                        c == '溢(折)價率' or 
+                        c == 'premium' or
+                        ('溢' in c and '價率' in c) or
+                        'premium' in c.lower()), None)
+    
+    # Balance column: 餘額比例 or balance_ratio (優先匹配 ratio，而非 outstanding)
+    balance_col = next((c for c in df.columns if 
+                        '餘額比例' in c or 
+                        c == 'balance_ratio' or
+                        ('balance' in c.lower() and 'ratio' in c.lower())), None)
 
     if not all([code_col, name_col, price_col, premium_col]):
         st.error("❌ 資料欄位不完整。需要：代號、名稱、市價、溢(折)價率")
