@@ -313,8 +313,9 @@ def render_radar():
                                 st.success("### 2. 決策輔助 (Decision Support)")
                                 conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
                                 stock_price = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce')
-                                parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
                                 conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
+                                # ★ 修正：理論價 = 轉換價值（S行, Index 18）
+                                parity = conv_value
                                 premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
                                 
                                 c1, c2, c3 = st.columns(3)
@@ -368,8 +369,9 @@ def render_radar():
                         # 計算決策數據 (理論價與溢價率)
                         conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
                         stock_price = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce')
-                        parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
                         conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
+                        # ★ 修正：理論價 = 轉換價值（S行, Index 18）
+                        parity = conv_value
                         premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
 
                         # [2. UI 顯示 - 新券專用卡片]
@@ -485,8 +487,9 @@ def render_radar():
                                 st.divider()
                                 st.success("### 2. 決策輔助 (Decision Support)")
                                 conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
-                                parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
                                 conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
+                                # ★ 修正：理論價 = 轉換價值（S行, Index 18）
+                                parity = conv_value
                                 premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("理論價 (Parity)", f"{parity:.2f}")
@@ -554,8 +557,9 @@ def render_radar():
                                 st.divider()
                                 st.success("### 2. 決策輔助 (Decision Support)")
                                 conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
-                                parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
                                 conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
+                                # ★ 修正：理論價 = 轉換價值（S行, Index 18）
+                                parity = conv_value
                                 premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("距離賣回", f"{left_days} 天")
