@@ -1,3 +1,12 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import altair as alt
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import yfinance as yf
+
 # --- 🏹 獵殺雷達 (Radar) ---
 @st.fragment
 def render_radar():
@@ -96,8 +105,11 @@ def render_radar():
                         work_df['issue_date'] = work_df['list_date']
 
                     # 2. 普查迴圈
-                    scan_results_df = get_scan_result(strategy, work_df)
-                    records = scan_results_df.to_dict('records')
+                    # ★ 直接使用 work_df，不需要 get_scan_result
+                    # 添加預設評分欄位
+                    if 'score' not in work_df.columns:
+                        work_df['score'] = 50  # 預設評分
+                    records = work_df.to_dict('records')
                     
                     total = len(records)
                     progress_bar = st.progress(0)
