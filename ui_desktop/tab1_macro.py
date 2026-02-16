@@ -21,7 +21,7 @@ import time
 from macro_risk import MacroRiskEngine
 from knowledge_base import TitanKnowledgeBase
 from config import Config
-
+from streamlit_option_menu import option_menu
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  [UPGRADE #3] VALKYRIE AI TYPEWRITER — Sci-Fi Terminal Streaming

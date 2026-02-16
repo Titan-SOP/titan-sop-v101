@@ -622,9 +622,8 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     ma87     = pd.to_numeric(row.get('ma87'),   errors='coerce') or 0.0
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
     
-    # [關鍵修正]: 已轉換率反轉邏輯 (修正 99.99% 錯誤)
+    # [關鍵修正]: 已轉換率反轉邏輯 (對齊原始檔案第278-282行)
     raw_conv = pd.to_numeric(row.get('conv_rate', row.get('balance_rate', 100)), errors='coerce') or 100.0
-    # 若數值 > 50 視為「餘額比率」，執行反轉；否則視為已轉換率
     converted_percentage = (100.0 - raw_conv) if raw_conv > 50 else raw_conv
     if converted_percentage < 0: converted_percentage = 0.0
 
@@ -633,20 +632,15 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
         
         st.info("### 1. 核心策略檢核 (The 4 Commandments)")
         st.markdown(f"1. 價格天條 (<115): {'✅ 通過' if price < 115 else '⚠️ 警戒'} (目前 **{price:.1f}**)")
-        
-        is_bullish = ma87 > ma284
-        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bullish else '⚠️ 整理中'}")
-        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bullish else ' < '} 284MA **{ma284:.2f}**")
-        
-        st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
-        st.markdown("> 💡 鄭思翰辨別準則：")
-        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股(如 2025年底的群聯與PCB族群集體發債)。")
-        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股 (如 旺宏)，站在風口上連豬都會飛。")
-        
+        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
+        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
+        st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
+        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股。")
+        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股，站在風口上連豬都會飛。")
         st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
         
         st.success("### 2. 決策輔助 (Decision Support)")
-        # ★ 關鍵：理論價和溢價率在這裡才計算！
+        # ★ 關鍵：理論價和溢價率在這裡才計算！(對齊原始檔案第314-318行)
         conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
         stock_price = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce')
         parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
@@ -657,18 +651,14 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
         c1.metric("理論價 (Parity)", f"{parity:.2f}")
         c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
         c3.metric("已轉換比例", f"{converted_percentage:.2f}%")
-        
         st.markdown("### 4. 交易計畫 (Trading Plan)")
         st.warning("🕒 關鍵時段：09:00 開盤後30分鐘 (觀察大戶試撮) / 13:25 收盤前25分鐘 (尾盤定勝負)")
         st.markdown(f"* 🎯 進場佈局: 建議於 105~115 元 區間佈局加碼。")
-        st.markdown(f"* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA 時。")
-        
+        st.markdown("* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA")
         st.markdown("### 5. 出場/風控 (Exit/Risk)")
         st.markdown(f"* 🛑 停損: CB 跌破 100 元 (保本天條)。")
         st.markdown(f"* 💰 停利: 目標價 152 元以上，嚴守 「留魚尾」 策略避免過早出場。")
-        
         st.divider()
-        # [修復] 在報告內正確渲染 K 線圖
         _plot_candle_chart(cb_code)
 
 
@@ -859,21 +849,15 @@ def render_2_1(df: pd.DataFrame):
                     
                     # 區塊 1: 核心策略
                     st.info("### 1. 核心策略檢核 (The 4 Commandments)")
-                    st.markdown(f"1. 蜜月期價格: {'✅ 通過' if price < 115 else '⚠️ 監控'} (新券甜蜜區 105-115, 目前 **{price:.1f}**)")
-                    
-                    # 技術面：新券可能資料不足
-                    trend_text = "✅ 多頭排列" if is_bull else ("⚠️ 資料不足或整理中" if ma87 == 0 else "❌ 偏弱")
-                    st.markdown(f"2. 中期多頭排列: {trend_text}")
+                    st.markdown(f"1. 蜜月期價格: {'✅ 通過' if price < 115 else '⚠️ 監控'} (新券甜蜜區 105-115，目前 **{price:.1f}**)")
+                    st.markdown(f"2. 中期多頭排列: {trend_t}")
                     if ma87 > 0:
                         st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
                     else:
                         st.caption("(新券上市天數較短，均線指標僅供參考)")
-                    
-                    st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
-                    st.markdown("> 💡 鄭思翰辨別準則：")
-                    st.markdown("> * 領頭羊 (Bellwether): 該族群中率先起漲、氣勢最強之標竿 (如 2025 年底群聯帶動的 PCB 族群)。")
-                    st.markdown("> * 風口豬 (Wind Pig): 處於主流熱門題材風口 (如 AI、散熱、重電)，站在風口上連豬都會飛。")
-                    
+                    st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
+                    st.markdown("> * 領頭羊: 該族群率先起漲、氣勢最強之標竿。")
+                    st.markdown("> * 風口豬: 主流熱門題材風口，站在風口上連豬都會飛。")
                     st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
                     
                     # 區塊 2: 決策輔助
@@ -941,11 +925,11 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown(f"## 📊 {name} ({cb_code}) 滿年甦醒評估")
                     st.info("### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 價格天條 (<115): ✅ 通過 (沈澱期最佳成本區，目前 **{price:.1f}**)")
-                    check_trend = "✅ 通過 (已站上 87MA)" if is_above else "⚠️ 均線整理中"
-                    st.markdown(f"2. 中期多頭排列: {check_trend}")
+                    check_t = "✅ 通過 (已站上 87MA)" if is_above else "⚠️ 均線整理中"
+                    st.markdown(f"2. 中期多頭排列: {check_t}")
                     if ma87 > 0:
-                        st.markdown(f"> 均線數據: 現價 **{sp:.2f}** {' > ' if is_above else ' < '} 87MA **{ma87:.2f}**")
-                    st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
+                        st.markdown(f"> 現價 **{sp:.2f}** {' > ' if is_above else ' < '} 87MA **{ma87:.2f}**")
+                    st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
                     st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
                     st.divider()
                     st.success("### 2. 決策輔助 (Decision Support)")
@@ -1001,7 +985,7 @@ def render_2_1(df: pd.DataFrame):
             stock_price = pd.to_numeric(row.get('stock_price_real'), errors='coerce') or 0.0
             raw_c = pd.to_numeric(row.get('conv_rate', 100), errors='coerce') or 100.0
             converted_percentage = (100.0 - raw_c) if raw_c > 50 else raw_c
-            pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A'
+            pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A
 
             title = f"🛡️ {name} ({cb_code}) | 賣回倒數 {left} 天 | CB價: {price:.1f}"
             with st.expander(title):
