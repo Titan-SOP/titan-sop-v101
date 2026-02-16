@@ -144,36 +144,60 @@ def normalize_dataframe(df):
     """
     將 Excel 的欄位名稱標準化為程式內部使用的名稱
     
-    Excel 真實欄位 → 內部名稱：
-    - 債券代號 → code
-    - 標的債券 → name  
-    - 可轉債市價 → price
-    - 轉換價格 → conv_price (保持不變)
-    - 轉換標的代碼 → stock_code
-    - 餘額比例 → balance_ratio
-    - 轉換價值 → conv_value (保持不變)
+    關鍵對應：
+    - 可轉債市價 → price (最重要！)
+    - 轉換價值 → conv_value
     - 標的股票市價 → stock_price_real
-    - 發行日期 → issue_date
-    - 最新賣回日 → put_date
     """
     df = df.copy()
     
-    # 欄位對應字典
+    # 完整的欄位對應字典
     rename_dict = {
+        # 基本資訊
         '債券代號': 'code',
         '標的債券': 'name',
-        '可轉債市價': 'price',
-        '轉換標的代碼': 'stock_code',
-        '餘額比例': 'balance_ratio',
-        '標的股票市價': 'stock_price_real',
         '發行日期': 'issue_date',
         '最新賣回日': 'put_date',
-        # 以下保持原名（Excel 已是正確名稱）
+        
+        # 核心價格欄位（最重要！）
+        '可轉債市價': 'price',           # ← 關鍵！
+        '標的股票市價': 'stock_price_real',
         '轉換價格': 'conv_price',
         '轉換價值': 'conv_value',
+        
+        # 其他欄位
+        '轉換標的代碼': 'stock_code',
+        '餘額比例': 'balance_ratio',
+        '流通餘額(張數)': 'outstanding_balance',
+        '可轉債成交量': 'volume',
+        '可轉債日均量(5D)': 'avg_volume_5d',
+        '可轉債日均量(20D)': 'avg_volume_20d',
     }
     
+    # 執行改名
     df.rename(columns=rename_dict, inplace=True)
+    
+    # Debug: 顯示改名後的欄位
+    print("🔍 normalize_dataframe 執行後的欄位:")
+    print(df.columns.tolist())
+    
+    # 檢查關鍵欄位是否存在
+    critical_cols = ['price', 'conv_price', 'conv_value', 'stock_price_real']
+    for col in critical_cols:
+        if col not in df.columns:
+            print(f"⚠️ 警告：關鍵欄位 '{col}' 不存在！")
+            # 嘗試從其他欄位推導
+            if col == 'price':
+                # 可能的替代欄位名稱
+                candidates = ['close', 'Close', '收盤價', '市價', 'underlying_price']
+                for cand in candidates:
+                    if cand in df.columns:
+                        print(f"  → 使用 '{cand}' 作為 'price'")
+                        df['price'] = df[cand]
+                        break
+                else:
+                    print(f"  → 創建空欄位 'price' = 0.0")
+                    df['price'] = 0.0
     
     # 計算已轉換比例（100 - 餘額比例）
     if 'balance_ratio' in df.columns:
