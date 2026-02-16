@@ -802,47 +802,127 @@ def _s41():
     st.write_stream(_stream_text(analysis_text, speed=0.002))
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Portfolio Input
+    # Portfolio Management
     st.markdown("#### 📝 資產組合配置")
+    st.info("💡 台股 1 張請輸入 1000；美股以 1 股為單位；現金請輸入總額。此處可直接編輯您的資產。")
     
-    pf = st.session_state.portfolio_df
+    pf = st.session_state.portfolio_df.copy()
     
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        ticker = st.text_input("資產代號 (Ticker)", placeholder="2330 / TSLA / BTC-USD", key="pf_ticker")
-    
-    with col2:
-        shares = st.number_input("持有數量", min_value=0.0, value=100.0, step=10.0, key="pf_shares")
-    
-    if st.button("➕ 新增資產", key="add_asset"):
-        if ticker and shares > 0:
-            new_row = pd.DataFrame([{
-                '資產代號': ticker.upper(),
-                '持有數量 (股)': shares,
-                '進場價格': 0.0,
-                '目前市值': 0.0,
-                '目標權重 %': 0.0
-            }])
-            st.session_state.portfolio_df = pd.concat([pf, new_row], ignore_index=True)
-            st.toast(f"✅ 已新增 {ticker.upper()} / Asset Added", icon="🎯")
-            st.rerun()
-        else:
-            st.toast("⚠️ 請輸入有效的資產代號和數量 / Invalid Input", icon="⚡")
-    
-    # Display Portfolio
-    if not pf.empty:
-        st.markdown("#### 📊 當前資產組合")
-        st.dataframe(pf, use_container_width=True)
+    # Fetch current prices and calculate metrics
+    ptd = pf.copy()
+    if not ptd.empty:
+        # Get asset tickers (exclude Cash)
+        asset_tickers = ptd[ptd['資產類別'] != 'Cash']['資產代號'].tolist() if '資產類別' in ptd.columns else ptd['資產代號'].tolist()
+        lp_map = {}
         
-        if st.button("🗑️ 清空組合", key="clear_pf"):
-            st.session_state.portfolio_df = pd.DataFrame(columns=[
-                '資產代號', '持有數量 (股)', '進場價格', '目前市值', '目標權重 %'
-            ])
-            st.toast("✅ 資產組合已清空 / Portfolio Cleared", icon="🎯")
-            st.rerun()
-    else:
-        st.toast("ℹ️ 尚未配置任何資產 / No Assets Configured", icon="📊")
+        if asset_tickers:
+            try:
+                pd_data = yf.download(asset_tickers, period="1d", progress=False)['Close']
+                if len(asset_tickers) == 1:
+                    lp_map = {asset_tickers[0]: float(pd_data.iloc[-1])}
+                else:
+                    lp_map = {k: float(v) for k, v in pd_data.iloc[-1].to_dict().items()}
+            except Exception:
+                st.toast("⚠️ 無法獲取即時市價 / Cannot Fetch Prices", icon="⚡")
+        
+        # Add computed columns
+        ptd['現價'] = ptd['資產代號'].map(lp_map).fillna(1.0)
+        ptd['市值'] = ptd['持有數量 (股)'] * ptd['現價']
+        ptd['未實現損益'] = (ptd['現價'] - ptd['買入均價']) * ptd['持有數量 (股)']
+    
+    # Interactive Data Editor with all fields editable
+    edited_df = st.data_editor(
+        ptd,
+        column_config={
+            "資產代號": st.column_config.TextColumn("資產代號", help="台股/美股代號或CASH", width="medium"),
+            "持有數量 (股)": st.column_config.NumberColumn("持有數量 (股)", format="%d", width="small"),
+            "買入均價": st.column_config.NumberColumn("買入均價", format="%.2f", width="small"),
+            "資產類別": st.column_config.SelectboxColumn(
+                "資產類別",
+                options=['Stock', 'ETF', 'US_Stock', 'US_Bond', 'Cash'],
+                width="small"
+            ),
+            "現價": st.column_config.NumberColumn("現價", format="%.2f", disabled=True, width="small"),
+            "市值": st.column_config.NumberColumn("市值", format="%.0f", disabled=True, width="medium"),
+            "未實現損益": st.column_config.NumberColumn("未實現損益", format="%+,.0f", disabled=True, width="medium"),
+        },
+        num_rows="dynamic",
+        key="portfolio_editor_godtier_v200",
+        use_container_width=True,
+        hide_index=True,
+    )
+    
+    # Save only the 4 base columns (preserve original data structure)
+    st.session_state.portfolio_df = edited_df[['資產代號', '持有數量 (股)', '買入均價', '資產類別']].copy()
+    
+    # Portfolio Summary Visualization
+    if not ptd.empty and '市值' in ptd.columns:
+        total_v = ptd['市值'].sum()
+        total_pnl = ptd['未實現損益'].sum()
+        
+        if total_v > 0:
+            st.divider()
+            pie_col, kpi_col = st.columns([1, 1])
+            
+            # Asset Allocation Pie Chart
+            with pie_col:
+                pal = ['#FF3131', '#FFD700', '#00F5FF', '#00FF7F', '#FF9A3C', '#B77DFF', '#FF6BFF', '#4dc8ff']
+                fig = go.Figure(go.Pie(
+                    labels=ptd['資產代號'].tolist(),
+                    values=ptd['市值'].tolist(),
+                    hole=0.55,
+                    marker=dict(
+                        colors=pal[:len(ptd)],
+                        line=dict(color='rgba(0,0,0,0.5)', width=2)
+                    ),
+                    textfont=dict(color='#DDE', size=12, family='Rajdhani'),
+                ))
+                fig.update_layout(
+                    title=dict(
+                        text="ASSET ALLOCATION",
+                        font=dict(color='rgba(0,245,255,.35)', size=11, family='JetBrains Mono')
+                    ),
+                    template="plotly_dark",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    height=300,
+                    margin=dict(t=34, b=0, l=0, r=0),
+                    legend=dict(font=dict(color='#B0C0D0', size=11, family='Rajdhani')),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Portfolio KPI Summary
+            with kpi_col:
+                pnl_c = "#00FF7F" if total_pnl >= 0 else "#FF3131"
+                arr = "▲" if total_pnl >= 0 else "▼"
+                pnl_pct = (total_pnl / total_v * 100) if total_v > 0 else 0
+                
+                st.markdown(f"""
+                <div style="padding:20px 0 8px;">
+                    <div style="font-family:var(--f-m);font-size:9px;color:rgba(0,245,255,.35);
+                        letter-spacing:4px;text-transform:uppercase;margin-bottom:14px;">
+                        Portfolio Summary
+                    </div>
+                    <div style="font-family:var(--f-m);font-size:9px;color:rgba(255,255,255,.2);
+                        letter-spacing:2px;margin-bottom:4px;">
+                        TOTAL VALUE
+                    </div>
+                    <div style="font-family:var(--f-i);font-size:52px;font-weight:800;color:#FFF;
+                        line-height:1;margin-bottom:18px;letter-spacing:-2px;">
+                        {total_v:,.0f}
+                    </div>
+                    <div style="font-family:var(--f-m);font-size:9px;color:rgba(255,255,255,.2);
+                        letter-spacing:2px;margin-bottom:4px;">
+                        UNREALIZED P&L
+                    </div>
+                    <div style="font-family:var(--f-i);font-size:40px;font-weight:800;color:{pnl_c};
+                        line-height:1;margin-bottom:6px;letter-spacing:-1px;">
+                        {arr} {abs(total_pnl):,.0f}
+                    </div>
+                    <div style="font-family:var(--f-b);font-size:15px;color:{pnl_c};font-weight:700;">
+                        {pnl_pct:+.2f}% 報酬率
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════
 # 📊 SECTION 4.2 — 極速回測引擎
@@ -983,13 +1063,13 @@ def _s42():
 # 📊 SECTION 4.3 — 策略實驗室
 # ══════════════════════════════════════════════════════════════════
 def _s43():
-    """Section 4.3: Strategy Laboratory"""
+    """Section 4.3: Strategy Laboratory - 15 MA Strategies with Ranking"""
     st.markdown("""
     <div class="section-header" style="--section-color: #FF9A3C;">
         <div class="section-number">4.3</div>
         <div>
             <div class="section-title">策略實驗室</div>
-            <div class="section-subtitle">MA Strategy Lab · 15 Tactical Algorithms</div>
+            <div class="section-subtitle">MA Strategy Lab · 15 Tactical Algorithms · 10Y Wealth Projection</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1016,13 +1096,14 @@ def _s43():
    • Simple MA filters (20, 43, 60, 87, 284-day)
    • Dual MA crossovers (20/60, 87/284, etc.)
    • Asymmetric entry/exit rules for risk management
+   • Core Strategy: 87MA above 284MA (Bull Market Filter)
    
 🔮 STRATEGY OPTIMIZATION
    Compare all 15 strategies simultaneously to identify the optimal
    algorithm for your target asset. Top performers often show:
-   • CAGR > 15% with Sharpe > 1.5
-   • Max Drawdown < 30%
+   • CAGR > 15% with Max Drawdown < 30%
    • Consistent returns across market cycles
+   • 10-year wealth projection reveals compounding power
    
 ═══════════════════════════════════════════════════════════
 """
@@ -1030,100 +1111,280 @@ def _s43():
     st.write_stream(_stream_text(analysis_text, speed=0.002))
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Strategy Configuration
-    st.markdown("#### ⚙️ 策略配置")
+    # Strategy Selection
+    pf = st.session_state.get('portfolio_df', pd.DataFrame())
     
+    if pf.empty:
+        st.toast("⚠️ 請先在 4.1 配置資產 / Configure Assets in 4.1", icon="⚡")
+        st.warning("請先在 4.1 配置您的戰略資產。")
+        return
+    
+    st.markdown("#### ⚙️ 策略配置")
+    st.info("選擇一檔標的，自動執行 15 種均線策略回測，推演 10 年財富變化。")
+    
+    # Ticker Selection
+    sel_ticker = st.selectbox(
+        "選擇回測標的",
+        options=pf['資產代號'].tolist(),
+        key="ma_lab_ticker_godtier"
+    )
+    
+    # 15 Strategies Definition
     strategies = [
-        "價格 > 20MA", "價格 > 43MA", "價格 > 60MA", "價格 > 87MA", "價格 > 284MA",
-        "20/60 黃金/死亡交叉", "20/87 黃金/死亡交叉", "20/284 黃金/死亡交叉",
-        "43/87 黃金/死亡交叉", "43/284 黃金/死亡交叉", "60/87 黃金/死亡交叉",
-        "60/284 黃金/死亡交叉", "🔥 核心戰法: 87MA ↗ 284MA",
-        "非對稱: P>20進 / P<60出", "雙確認: P>20 & P>60 進 / P<60 出"
+        "價格 > 20MA",
+        "價格 > 43MA",
+        "價格 > 60MA",
+        "價格 > 87MA",
+        "價格 > 284MA",
+        "非對稱: P>20進 / P<60出",
+        "20/60 黃金/死亡交叉",
+        "20/87 黃金/死亡交叉",
+        "20/284 黃金/死亡交叉",
+        "43/87 黃金/死亡交叉",
+        "43/284 黃金/死亡交叉",
+        "60/87 黃金/死亡交叉",
+        "60/284 黃金/死亡交叉",
+        "🔥 核心戰法: 87MA ↗ 284MA",
+        "雙確認: P>20 & P>60 進 / P<60 出",
     ]
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        ticker = st.text_input("標的代號", value="2330", key="st_ticker")
-        strategy = st.selectbox("選擇策略", strategies, key="st_strategy")
-    
-    with col2:
-        start_date = st.date_input("起始日期", value=pd.to_datetime("2015-01-01"), key="st_start")
-        capital = st.number_input("初始資金", value=1000000, step=100000, key="st_capital")
-    
-    if st.button("🧪 執行策略回測", key="run_st"):
-        st.toast("🚀 正在執行策略回測... / Running Strategy Backtest...", icon="⏳")
+    # Execute Button
+    if st.button("🔬 啟動 15 種均線實驗", key="run_15_strategies"):
+        st.toast("🚀 正在執行15種策略回測... / Running 15 Strategy Backtest...", icon="⏳")
         
-        with st.spinner("執行策略回測中..."):
-            result = _run_ma_strategy_backtest(ticker, strategy, start_date.strftime("%Y-%m-%d"), capital)
+        with st.spinner(f"正在對 {sel_ticker} 執行 15 種均線策略回測..."):
+            ma_results = []
+            for strategy_name in strategies:
+                result = _run_ma_strategy_backtest(
+                    sel_ticker,
+                    strategy_name,
+                    start_date="2015-01-01",
+                    initial_capital=1_000_000
+                )
+                if result:
+                    ma_results.append(result)
+            
+            # Save results to session state
+            st.session_state.ma_lab_results = ma_results
+            st.session_state.ma_lab_result_ticker = sel_ticker
         
-        if result:
-            st.session_state.strategy_result = result
-            st.toast("✅ 策略回測完成 / Strategy Backtest Complete", icon="🎯")
+        if ma_results:
+            st.toast("✅ 15種策略回測完成 / 15 Strategies Complete", icon="🎯")
             st.rerun()
         else:
             st.toast("❌ 策略回測失敗 / Strategy Backtest Failed", icon="⚡")
     
     # Display Results
-    if 'strategy_result' in st.session_state:
-        result = st.session_state.strategy_result
-        
-        st.markdown(f"### 📊 策略: {result['strategy_name']}")
-        
-        # KPI Grid
-        st.markdown(f"""
-        <div class="kpi-grid">
-            <div class="kpi-card" style="--accent: #00FF7F;">
-                <div class="kpi-label">CAGR</div>
-                <div class="kpi-value">{result['cagr']*100:.1f}%</div>
-                <div class="kpi-sub">年化報酬率</div>
-            </div>
-            <div class="kpi-card" style="--accent: #FFD700;">
-                <div class="kpi-label">FINAL EQUITY</div>
-                <div class="kpi-value">{result['final_equity']:,.0f}</div>
-                <div class="kpi-sub">最終資產</div>
-            </div>
-            <div class="kpi-card" style="--accent: #FF3131;">
-                <div class="kpi-label">MAX DRAWDOWN</div>
-                <div class="kpi-value">{result['max_drawdown']*100:.1f}%</div>
-                <div class="kpi-sub">最大回撤</div>
-            </div>
-            <div class="kpi-card" style="--accent: #B77DFF;">
-                <div class="kpi-label">10Y PROJECTION</div>
-                <div class="kpi-value">{result['future_10y_capital']:,.0f}</div>
-                <div class="kpi-sub">十年預估</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+    if ('ma_lab_results' not in st.session_state or 
+        st.session_state.get('ma_lab_result_ticker') != sel_ticker):
+        return
+    
+    results = st.session_state.ma_lab_results
+    
+    if not results:
+        st.toast("❌ 無法取得回測數據 / No Backtest Data", icon="⚡")
+        st.error(f"無法取得 {sel_ticker} 的回測數據。")
+        return
+    
+    st.toast(f"✅ {sel_ticker} — 15 種均線策略回測完成", icon="🎯")
+    
+    # Create Results DataFrame
+    results_df = pd.DataFrame([{
+        '策略名稱': r['strategy_name'],
+        '年化報酬 (CAGR)': r['cagr'],
+        '回測期末資金': r['final_equity'],
+        '最大回撤': r['max_drawdown'],
+        '未來 10 年預期資金': r['future_10y_capital'],
+        '回測年數': r['num_years'],
+    } for r in results]).sort_values('年化報酬 (CAGR)', ascending=False)
+    
+    # Performance Table
+    st.markdown("### 📊 策略績效與財富推演")
+    st.dataframe(
+        results_df.style.format({
+            '年化報酬 (CAGR)': '{:.2%}',
+            '回測期末資金': '{:,.0f}',
+            '最大回撤': '{:.2%}',
+            '未來 10 年預期資金': '{:,.0f}',
+            '回測年數': '{:.1f}',
+        }),
+        use_container_width=True
+    )
+    
+    # CAGR Ranking Bar Chart (Horizontal)
+    st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+    st.markdown('<div class="chart-label">▸ CAGR STRATEGY RANKING — PERFORMANCE COMPARISON</div>', unsafe_allow_html=True)
+    
+    # Sort for horizontal bar chart (ascending for bottom-to-top display)
+    bar_df = results_df.sort_values('年化報酬 (CAGR)', ascending=True)
+    
+    # Color coding based on performance
+    colors = []
+    for cagr in bar_df['年化報酬 (CAGR)']:
+        if cagr > 0.15:  # > 15% excellent
+            colors.append('#00FF7F')
+        elif cagr > 0.10:  # > 10% good
+            colors.append('#FFD700')
+        elif cagr > 0:  # positive
+            colors.append('#00F5FF')
+        else:  # negative
+            colors.append('#FF3131')
+    
+    fig_bar = go.Figure(go.Bar(
+        x=bar_df['年化報酬 (CAGR)'] * 100,
+        y=bar_df['策略名稱'],
+        orientation='h',
+        marker_color=colors,
+        text=[f"{v:.1f}%" for v in bar_df['年化報酬 (CAGR)'] * 100],
+        textposition='outside',
+        textfont=dict(color='#DDE', size=11, family='JetBrains Mono'),
+    ))
+    
+    # Add vertical line at 0%
+    fig_bar.add_vline(x=0, line_color='rgba(255,255,255,0.15)', line_width=1)
+    
+    fig_bar.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=500,
+        xaxis=dict(
+            title='年化報酬率 (CAGR %)',
+            ticksuffix="%",
+            gridcolor='rgba(255,255,255,0.04)',
+            titlefont=dict(color='#B0C0D0', size=12)
+        ),
+        yaxis=dict(
+            tickfont=dict(size=11, family='Rajdhani', color='#B0C0D0')
+        ),
+        margin=dict(t=20, b=50, l=250, r=80),
+    )
+    
+    st.plotly_chart(fig_bar, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Excel Download
+    st.markdown("#### 📥 下載報表")
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
+        results_df.to_excel(writer, index=False, sheet_name='MA_Backtest_Report')
+    
+    st.download_button(
+        label="📥 下載戰術回測報表 (Excel)",
+        data=buf.getvalue(),
+        file_name=f"{sel_ticker}_ma_lab_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    st.divider()
+    
+    # Individual Strategy Visualization
+    st.markdown("### 📈 策略視覺化")
+    
+    selected_strategy = st.selectbox(
+        "選擇策略查看詳細圖表",
+        options=results_df['策略名稱'].tolist(),
+        key="strategy_detail_select"
+    )
+    
+    # Find selected strategy result
+    selected_result = next((r for r in results if r['strategy_name'] == selected_strategy), None)
+    
+    if selected_result:
         # Equity Curve
         st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        st.markdown('<div class="chart-label">▸ STRATEGY EQUITY CURVE</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-label">▸ {selected_strategy} — EQUITY CURVE</div>', unsafe_allow_html=True)
         
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=result['equity_curve'].index,
-            y=result['equity_curve'].values,
+        equity_curve = selected_result['equity_curve'].reset_index()
+        equity_curve.columns = ['Date', 'Equity']
+        
+        fig_equity = go.Figure()
+        fig_equity.add_trace(go.Scatter(
+            x=equity_curve['Date'],
+            y=equity_curve['Equity'],
             mode='lines',
-            name='Strategy Equity',
+            name='Equity',
             line=dict(color='#FF9A3C', width=2),
             fill='tozeroy',
             fillcolor='rgba(255,154,60,0.1)'
         ))
         
-        fig.update_layout(
+        fig_equity.update_layout(
             template='plotly_dark',
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             height=400,
             margin=dict(t=20, b=40, l=60, r=20),
-            xaxis=dict(title='Date', gridcolor='rgba(255,255,255,0.05)'),
-            yaxis=dict(title='Equity (TWD)', gridcolor='rgba(255,255,255,0.05)'),
+            xaxis=dict(title='日期', gridcolor='rgba(255,255,255,0.05)'),
+            yaxis=dict(title='資產價值 (TWD)', gridcolor='rgba(255,255,255,0.05)'),
             hovermode='x unified'
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig_equity, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Drawdown Chart
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        st.markdown(f'<div class="chart-label">▸ {selected_strategy} — DRAWDOWN ANALYSIS</div>', unsafe_allow_html=True)
+        
+        drawdown_series = selected_result['drawdown_series'].reset_index()
+        drawdown_series.columns = ['Date', 'Drawdown']
+        drawdown_series['Drawdown_pct'] = drawdown_series['Drawdown'] * 100
+        
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(
+            x=drawdown_series['Date'],
+            y=drawdown_series['Drawdown_pct'],
+            mode='lines',
+            name='Drawdown',
+            line=dict(color='#FF3131', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(255,49,49,0.2)'
+        ))
+        
+        fig_dd.update_layout(
+            template='plotly_dark',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(t=20, b=40, l=60, r=20),
+            xaxis=dict(title='日期', gridcolor='rgba(255,255,255,0.05)'),
+            yaxis=dict(
+                title='回撤幅度 (%)',
+                gridcolor='rgba(255,255,255,0.05)',
+                ticksuffix='%'
+            ),
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_dd, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Strategy Metrics
+        st.markdown(f"""
+        <div class="kpi-grid">
+            <div class="kpi-card" style="--accent: #00FF7F;">
+                <div class="kpi-label">CAGR</div>
+                <div class="kpi-value" style="font-size:48px;">{selected_result['cagr']*100:.1f}%</div>
+                <div class="kpi-sub">年化報酬率</div>
+            </div>
+            <div class="kpi-card" style="--accent: #FFD700;">
+                <div class="kpi-label">FINAL EQUITY</div>
+                <div class="kpi-value" style="font-size:42px;">{selected_result['final_equity']:,.0f}</div>
+                <div class="kpi-sub">期末資產</div>
+            </div>
+            <div class="kpi-card" style="--accent: #FF3131;">
+                <div class="kpi-label">MAX DRAWDOWN</div>
+                <div class="kpi-value" style="font-size:48px;">{selected_result['max_drawdown']*100:.1f}%</div>
+                <div class="kpi-sub">最大回撤</div>
+            </div>
+            <div class="kpi-card" style="--accent: #B77DFF;">
+                <div class="kpi-label">10Y PROJECTION</div>
+                <div class="kpi-value" style="font-size:38px;">{selected_result['future_10y_capital']:,.0f}</div>
+                <div class="kpi-sub">十年預估資產</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════
 # 📊 SECTION 4.4 — 智能再平衡引擎
