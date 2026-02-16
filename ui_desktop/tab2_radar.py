@@ -9,7 +9,7 @@ import yfinance as yf
 
 # --- 🏹 獵殺雷達 (Radar) ---
 @st.fragment
-def render_radar():
+def render():
     if st.button("🏠 返回戰情總部"):
         st.session_state.page = 'home'
         st.rerun()
