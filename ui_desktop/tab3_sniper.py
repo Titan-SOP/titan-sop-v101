@@ -18,6 +18,30 @@ import altair as alt
 import yfinance as yf
 from datetime import datetime
 import time
+from streamlit_option_menu import option_menu
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TITAN DARK THEME — Mobile-Friendly Navigation Style
+# ══════════════════════════════════════════════════════════════════════════════
+TITAN_NAV_STYLE = {
+    "container": {"padding": "0!important", "background-color": "transparent", "margin": "0px"},
+    "icon": {"color": "#00F5FF", "font-size": "14px"}, 
+    "nav-link": {
+        "font-size": "14px", "text-align": "center", "margin": "5px", "color": "#888",
+        "border": "1px solid #333", "border-radius": "8px", "background-color": "#161b22",
+        "height": "45px", "width": "100%",
+    },
+    "nav-link-selected": {
+        "background-color": "#0D1117", "color": "#FFD700", 
+        "border": "1px solid #FFD700", "box-shadow": "0 0 10px rgba(255, 215, 0, 0.2)"
+    },
+}
+
+
+# Menu configuration for tab3_sniper.py
+MENU_OPTIONS = ['3.1 狙擊', '3.2 籌碼', '3.3 瓦爾基里', '3.4 財報', '3.5 新聞']
+MENU_ICONS = ['crosshair2', 'layers', 'cpu', 'file-earmark-bar-graph', 'newspaper']
+
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER (WORD-BASED)
@@ -1416,34 +1440,27 @@ def render():
             unsafe_allow_html=True
         )
         
-        p_cols = st.columns(7)
-        for col, (key, icon, label, tag, accent) in zip(p_cols, POSTERS):
-            is_a = (active == key)
-            brd = f"2px solid {accent}" if is_a else "1px solid #1b2030"
-            bg_c = "rgba(255,154,60,.08)" if is_a else "#090c14"
-            lbl_c = accent if is_a else "rgba(200,215,230,.7)"
-            glow = f"0 0 18px rgba(255,154,60,.10)" if is_a else "none"
-            
-            with col:
-                st.markdown(f"""
-                <div style="height:128px;background:{bg_c};border:{brd};border-radius:14px;
-                    display:flex;flex-direction:column;align-items:center;justify-content:center;
-                    gap:5px;box-shadow:{glow};margin-bottom:-51px;pointer-events:none;
-                    z-index:0;position:relative;">
-                    <div style="font-size:23px">{icon}</div>
-                    <div style="font-family:Rajdhani,sans-serif;font-size:11px;font-weight:700;
-                        color:{lbl_c};text-align:center;padding:0 2px;">{label}</div>
-                    <div style="font-family:JetBrains Mono,monospace;font-size:6px;color:#223;
-                        letter-spacing:1.5px;">{tag}</div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if st.button(f"{icon}", key=f"p3_{key}", use_container_width=True):
-                    st.session_state.t3_active = key
-                    st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        
+        p_    # ── MOBILE-FRIENDLY NAVIGATION ────────────────────────────────────────────
+    MENU_MAP = {"3.1 狙擊": "t1", "3.2 籌碼": "t2", "3.3 瓦爾基里": "t3", "3.4 財報": "t4", "3.5 新聞": "t5"}
+    reverse_map = {v: k for k, v in MENU_MAP.items()}
+    default_idx = MENU_OPTIONS.index(reverse_map.get(active, MENU_OPTIONS[0]))
+    
+    selected = option_menu(
+        menu_title=None,
+        options=MENU_OPTIONS,
+        icons=MENU_ICONS,
+        default_index=default_idx,
+        orientation="horizontal",
+        styles=TITAN_NAV_STYLE
+    )
+    
+    # Map selection to state code
+    new_code = MENU_MAP.get(selected, list(MENU_MAP.values())[0])
+    if new_code != active:
+        st.session_state.t3_active = new_code
+        st.rerun()
+
+
         # Render selected module
         st.markdown('<div class="t3-content">', unsafe_allow_html=True)
         

@@ -40,6 +40,29 @@ from knowledge_base import TitanKnowledgeBase
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  TITAN DARK THEME — Mobile-Friendly Navigation Style
+# ══════════════════════════════════════════════════════════════════════════════
+TITAN_NAV_STYLE = {
+    "container": {"padding": "0!important", "background-color": "transparent", "margin": "0px"},
+    "icon": {"color": "#00F5FF", "font-size": "14px"}, 
+    "nav-link": {
+        "font-size": "14px", "text-align": "center", "margin": "5px", "color": "#888",
+        "border": "1px solid #333", "border-radius": "8px", "background-color": "#161b22",
+        "height": "45px", "width": "100%",
+    },
+    "nav-link-selected": {
+        "background-color": "#0D1117", "color": "#FFD700", 
+        "border": "1px solid #FFD700", "box-shadow": "0 0 10px rgba(255, 215, 0, 0.2)"
+    },
+}
+
+# Menu configuration
+MENU_OPTIONS = ["2.1 自動", "2.2 檢核", "2.3 風險", "2.4 配置"]
+MENU_ICONS = ["crosshair", "check-circle", "shield-exclamation", "pie-chart"]
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  [UPGRADE #3] VALKYRIE AI TYPEWRITER — Sci-Fi Terminal Streaming
 # ══════════════════════════════════════════════════════════════════════════════
 def _stream_text(text, speed=0.018):
@@ -1423,30 +1446,28 @@ def render():
         unsafe_allow_html=True
     )
 
-    fire_cols = st.columns(4)
-    for col, (code, icon, label_zh, label_en, accent, rgb) in zip(fire_cols, FIRE_BTNS):
-        is_a  = (active == code)
-        brd   = f"2px solid {accent}" if is_a else "1px solid #1b2030"
-        bg_c  = f"rgba({rgb},0.08)"   if is_a else "#090c14"
-        lbl_c = accent                 if is_a else "#AABB"
-        glow  = f"0 0 20px rgba({rgb},0.14), 0 8px 26px rgba(0,0,0,0.4)" if is_a else "none"
-        with col:
-            st.markdown(
-                f'<div style="height:108px;background:{bg_c};border:{brd};border-radius:16px;'
-                f'display:flex;flex-direction:column;align-items:center;justify-content:center;'
-                f'gap:6px;box-shadow:{glow};margin-bottom:-56px;pointer-events:none;'
-                f'position:relative;z-index:0;">'
-                f'<div style="font-size:28px">{icon}</div>'
-                f'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:{lbl_c}">{label_zh}</div>'
-                f'<div style="font-family:JetBrains Mono,monospace;font-size:7px;color:#223;letter-spacing:2px">{label_en}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            if st.button(f"{icon} {label_zh}", key=f"fire_{code}", use_container_width=True):
-                st.session_state.t2_active = code
-                st.rerun()
+        # ── MOBILE-FRIENDLY NAVIGATION ────────────────────────────────────────────
+    # Map menu selection back to session_state
+    menu_map = {"2.1 自動": "2.1", "2.2 檢核": "2.2", "2.3 風險": "2.3", "2.4 配置": "2.4"}
+    reverse_map = {v: k for k, v in menu_map.items()}
+    default_idx = MENU_OPTIONS.index(reverse_map.get(active, MENU_OPTIONS[0]))
+    
+    selected = option_menu(
+        menu_title=None,
+        options=MENU_OPTIONS,
+        icons=MENU_ICONS,
+        default_index=default_idx,
+        orientation="horizontal",
+        styles=TITAN_NAV_STYLE
+    )
+    
+    # Extract code and update session_state
+    new_code = menu_map.get(selected, "2.1")
+    if new_code != active:
+        st.session_state.t2_active = new_code
+        st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
+
 
     # ── CONTENT FRAME ─────────────────────────────────────────────
     st.markdown('<div class="t2-content">', unsafe_allow_html=True)
@@ -1462,6 +1483,8 @@ def render():
             render_2_4()
     except Exception as exc:
         import traceback
+
+from streamlit_option_menu import option_menu
         st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
         with st.expander("🔍 Debug Trace"):
             st.code(traceback.format_exc())

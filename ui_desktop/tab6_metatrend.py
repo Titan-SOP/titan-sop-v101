@@ -32,6 +32,30 @@ from datetime import datetime, timedelta
 from scipy.stats import linregress
 import io
 import time
+from streamlit_option_menu import option_menu
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TITAN DARK THEME — Mobile-Friendly Navigation Style
+# ══════════════════════════════════════════════════════════════════════════════
+TITAN_NAV_STYLE = {
+    "container": {"padding": "0!important", "background-color": "transparent", "margin": "0px"},
+    "icon": {"color": "#00F5FF", "font-size": "14px"}, 
+    "nav-link": {
+        "font-size": "14px", "text-align": "center", "margin": "5px", "color": "#888",
+        "border": "1px solid #333", "border-radius": "8px", "background-color": "#161b22",
+        "height": "45px", "width": "100%",
+    },
+    "nav-link-selected": {
+        "background-color": "#0D1117", "color": "#FFD700", 
+        "border": "1px solid #FFD700", "box-shadow": "0 0 10px rgba(255, 215, 0, 0.2)"
+    },
+}
+
+
+# Menu configuration for tab6_metatrend.py
+MENU_OPTIONS = ['6.1 全球', '6.2 深鑽', '6.3 清單', '6.4 全境', '6.5 對沖', '6.6 沙盒']
+MENU_ICONS = ['globe', 'gem', 'list-task', 'radar', 'shield-lock', 'box-seam']
+
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER (st.write_stream)
@@ -807,21 +831,27 @@ def _render_hero():
 
 
 def _render_nav_rail():
+    """Mobile-friendly horizontal navigation with option_menu."""
     if 't6_active' not in st.session_state:
         st.session_state.t6_active = "6.1"
-    cards = [
-        ("6.1", "🌍", "全球視野", "Global View"), ("6.2", "💎", "個股深鑽", "Deep Dive"),
-        ("6.3", "📜", "獵殺清單", "Hunter List"), ("6.4", "⚔️", "全境獵殺", "Full Scan"),
-        ("6.5", "🛡️", "宏觀對沖", "Hedge"), ("6.6", "🧪", "回測沙盒", "Sandbox"),
-    ]
-    cols = st.columns(6)
-    for i, (sid, icon, title, sub) in enumerate(cards):
-        with cols[i]:
-            ac = "active" if st.session_state.t6_active == sid else ""
-            st.markdown(f'<div class="t6-poster {ac}"><div class="t6-poster-icon">{icon}</div><div class="t6-poster-title">{sid} {title}</div><div class="t6-poster-sub">{sub}</div></div>', unsafe_allow_html=True)
-            if st.button(f"Open {sid}", key=f"t6nav_{sid}", use_container_width=True):
-                st.session_state.t6_active = sid
-                st.rerun()
+    
+    active = st.session_state.t6_active
+    default_idx = next((i for i, opt in enumerate(MENU_OPTIONS) if opt.startswith(active)), 0)
+    
+    selected = option_menu(
+        menu_title=None,
+        options=MENU_OPTIONS,
+        icons=MENU_ICONS,
+        default_index=default_idx,
+        orientation="horizontal",
+        styles=TITAN_NAV_STYLE
+    )
+    
+    # Extract code (first 3 chars) and update session_state
+    new_code = selected[:3]
+    if new_code != active:
+        st.session_state.t6_active = new_code
+        st.rerun()
 
 
 def _render_spectrum(geo, ticker):
