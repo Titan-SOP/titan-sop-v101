@@ -729,299 +729,87 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_0(df):
     """
-    🎬 Section 2.0: 籌碼序幕 (Chips Prologue)
-    Market Battlefield Map — Interactive Scatter Plot
-    X-Axis: 轉換溢價率 (Premium Rate)
-    Y-Axis: 收盤價 (Closing Price)
-    Color: 已轉換比例 (Converted Ratio) or Premium heat
+    Section 2.0: Battlefield Map (Price vs Premium)
     """
     st.markdown("""
-<div style="margin-bottom:20px;">
-  <div style="font-family:var(--f-display);font-size:34px;color:#FFD700;
-              letter-spacing:2px;margin-bottom:8px;
-              text-shadow:0 0 30px rgba(255,215,0,.3);">
-    🎬 籌碼序幕
-  </div>
-  <div style="font-family:var(--f-mono);font-size:11px;color:rgba(255,215,0,.4);
-              letter-spacing:3px;text-transform:uppercase;">
-    CHIPS PROLOGUE — MARKET BATTLEFIELD MAP
-  </div>
-</div>""", unsafe_allow_html=True)
+    <div class="hero-container" style="padding:20px; margin-bottom:20px;">
+        <div class="hero-val" style="font-size:40px!important;">🔭 MARKET BATTLEFIELD</div>
+        <div class="hero-lbl">CB 價格與溢價率戰略分佈圖</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Lazy loading mechanism
-    if 'battlefield_loaded' not in st.session_state:
-        st.session_state.battlefield_loaded = False
-
-    if not st.session_state.battlefield_loaded:
-        # Show initialization button
-        if st.button("📡 初始化戰場地圖 (Initialize Battlefield Map)", 
-                     use_container_width=True, type="primary"):
-            st.session_state.battlefield_loaded = True
-            st.rerun()
-        
-        st.markdown("""
-<div style="text-align:center;padding:60px 30px;
-            background:rgba(255,215,0,.02);
-            border:1px solid rgba(255,215,0,.08);
-            border-radius:16px;margin-top:20px;">
-  <div style="font-size:56px;margin-bottom:16px;opacity:.3;">🗺️</div>
-  <div style="font-family:var(--f-body);font-size:16px;color:rgba(255,215,0,.5);
-              letter-spacing:2px;line-height:1.8;">
-    戰場地圖尚未啟動<br>
-    點擊上方按鈕以載入互動式籌碼分佈圖
-  </div>
-</div>""", unsafe_allow_html=True)
+    if df is None or df.empty:
+        st.info("📡 等待 CB 數據上傳... / Waiting for Data Upload")
         return
 
-    # Check if data is available
-    if df.empty:
-        st.warning("⚠️ 無可用數據。請先在首頁載入 CB 資料。")
+    # 1. 智能欄位識別 (Smart Column Mapping)
+    cols = df.columns.tolist()
+    col_price = next((c for c in cols if '價' in c and '收盤' in c), None) or '收盤價'
+    col_prem = next((c for c in cols if '溢價' in c), None) or '轉換溢價率'
+    col_name = next((c for c in cols if '名稱' in c), None) or '名稱'
+    
+    # 2. 數據清洗
+    try:
+        plot_df = df.copy()
+        plot_df[col_price] = pd.to_numeric(plot_df[col_price], errors='coerce')
+        plot_df[col_prem] = pd.to_numeric(plot_df[col_prem], errors='coerce')
+        plot_df = plot_df.dropna(subset=[col_price, col_prem])
+    except Exception as e:
+        st.error(f"數據解析失敗: {e}")
         return
 
-    # Find required columns - support both original Chinese and preprocessed English names
-    # 支援原始中文欄位：債券代號, 標的債券, 可轉債市價, 溢(折)價率
-    # 支援預處理英文欄位：code, name, cb_price/price, premium
-    
-    # Code column: 債券代號 or code
-    code_col = next((c for c in df.columns if 
-                     c == '債券代號' or 
-                     c == 'code' or 
-                     '代號' in c), None)
-    
-    # Name column: 標的債券 or name
-    name_col = next((c for c in df.columns if 
-                     c == '標的債券' or 
-                     c == 'name' or
-                     ('標的' in c and '債券' in c)), None)
-    
-    # Price column: 可轉債市價 or cb_price (避免匹配到 stock_price)
-    price_col = next((c for c in df.columns if 
-                      c == '可轉債市價' or 
-                      c == 'cb_price' or
-                      (c == 'price' and 'stock' not in c) or
-                      ('可轉債' in c and '市價' in c)), None)
-    
-    # Premium column: 溢(折)價率 or premium
-    premium_col = next((c for c in df.columns if 
-                        c == '溢(折)價率' or 
-                        c == 'premium' or
-                        ('溢' in c and '價率' in c) or
-                        'premium' in c.lower()), None)
-    
-    # Balance column: 餘額比例 or balance_ratio (優先匹配 ratio，而非 outstanding)
-    balance_col = next((c for c in df.columns if 
-                        '餘額比例' in c or 
-                        c == 'balance_ratio' or
-                        ('balance' in c.lower() and 'ratio' in c.lower())), None)
-
-    if not all([code_col, name_col, price_col, premium_col]):
-        st.error("❌ 資料欄位不完整。需要：代號、名稱、市價、溢(折)價率")
-        st.info(f"偵測到的欄位: 代號={code_col}, 名稱={name_col}, 市價={price_col}, 溢價={premium_col}")
-        st.info(f"前10個可用欄位：{', '.join(df.columns[:10])}...")
-        return
-
-    # Prepare data for visualization
-    plot_df = df[[code_col, name_col, price_col, premium_col]].copy()
-    plot_df.columns = ['ticker', 'name', 'price', 'premium']
-    
-    # Calculate converted ratio from balance ratio (100% - 餘額比例 = 已轉換比例)
-    if balance_col:
-        balance = pd.to_numeric(df[balance_col], errors='coerce').fillna(100.0)
-        plot_df['converted'] = 100.0 - balance
-    else:
-        plot_df['converted'] = 0  # Default if not available
-
-    # Clean data - handle premium as string with % symbol
-    plot_df = plot_df.dropna(subset=['price', 'premium'])
-    plot_df['price'] = pd.to_numeric(plot_df['price'], errors='coerce')
-    
-    # Handle premium - may contain % symbol or be negative/string
-    def clean_premium(val):
-        if pd.isna(val):
-            return None
-        if isinstance(val, str):
-            # Remove % and other non-numeric characters except . and -
-            val = val.replace('%', '').replace(',', '').strip()
-            try:
-                return float(val)
-            except:
-                return None
-        return float(val)
-    
-    plot_df['premium'] = plot_df['premium'].apply(clean_premium)
-    plot_df['converted'] = pd.to_numeric(plot_df['converted'], errors='coerce').fillna(0)
-    plot_df = plot_df.dropna(subset=['price', 'premium'])
-
-    if plot_df.empty:
-        st.warning("⚠️ 清理後無有效數據可視覺化")
-        return
-
-    # Create zone classifications
-    def classify_zone(row):
-        if row['premium'] < 10 and row['price'] < 120:
-            return '🟩 Sniper Zone (獵殺區)'
-        elif row['premium'] > 30 or row['price'] > 150:
-            return '🟥 Danger Zone (避雷區)'
-        else:
-            return '🟨 Neutral Zone (中性區)'
-    
-    plot_df['zone'] = plot_df.apply(classify_zone, axis=1)
-
-    # Stats summary
-    total = len(plot_df)
-    sniper = len(plot_df[plot_df['zone'].str.contains('Sniper')])
-    danger = len(plot_df[plot_df['zone'].str.contains('Danger')])
-    neutral = total - sniper - danger
-
-    st.markdown(f"""
-<div class="t2-hud-grid">
-  <div class="t2-hud-card" style="--hc:#FFD700;">
-    <div class="t2-hud-lbl">TOTAL CBs</div>
-    <div class="t2-hud-val">{total}</div>
-    <div class="t2-hud-sub">Market Size</div>
-  </div>
-  <div class="t2-hud-card" style="--hc:#00FF7F;">
-    <div class="t2-hud-lbl">SNIPER ZONE</div>
-    <div class="t2-hud-val">{sniper}</div>
-    <div class="t2-hud-sub">{sniper/total*100:.1f}% 優質標的</div>
-  </div>
-  <div class="t2-hud-card" style="--hc:#FF3131;">
-    <div class="t2-hud-lbl">DANGER ZONE</div>
-    <div class="t2-hud-val">{danger}</div>
-    <div class="t2-hud-sub">{danger/total*100:.1f}% 高風險</div>
-  </div>
-  <div class="t2-hud-card" style="--hc:#00F5FF;">
-    <div class="t2-hud-lbl">NEUTRAL ZONE</div>
-    <div class="t2-hud-val">{neutral}</div>
-    <div class="t2-hud-sub">{neutral/total*100:.1f}% 觀察中</div>
-  </div>
-</div>""", unsafe_allow_html=True)
-
-    # Create interactive scatter plot
+    # 3. 繪製神級圖表 (God-Tier Plotly)
     fig = px.scatter(
-        plot_df,
-        x='premium',
-        y='price',
-        color='converted',
-        size='price',
-        hover_data={
-            'ticker': True,
-            'name': True,
-            'price': ':.2f',
-            'premium': ':.2f',
-            'converted': ':.2f',
-            'zone': True
-        },
-        color_continuous_scale='RdYlGn_r',
-        title='Market Battlefield Map — 籌碼分佈圖'
+        plot_df, 
+        x=col_prem, 
+        y=col_price, 
+        color=col_price,
+        hover_data=[col_name, col_price, col_prem],
+        color_continuous_scale="RdYlGn_r", # Green (Low Price) to Red (High Price)
+        title=f"🎯 獵殺範圍分佈 (N={len(plot_df)})"
     )
 
-    # Add zone boundaries
-    fig.add_shape(
-        type="rect",
-        x0=-5, x1=10, y0=0, y1=120,
-        fillcolor="rgba(0,255,127,0.08)",
-        line=dict(color="rgba(0,255,127,0.3)", width=2, dash="dash"),
-        layer="below"
+    # 視覺美化 (Dark Military Style)
+    fig.update_layout(
+        template="plotly_dark",
+        height=600,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Roboto, sans-serif"),
+        xaxis=dict(title="轉換溢價率 (Premium %)", showgrid=True, gridcolor="#333"),
+        yaxis=dict(title="CB 收盤價 (Price)", showgrid=True, gridcolor="#333"),
     )
     
-    fig.add_shape(
-        type="rect",
-        x0=30, x1=plot_df['premium'].max() + 5, y0=0, y1=plot_df['price'].max() + 10,
-        fillcolor="rgba(255,49,49,0.08)",
-        line=dict(color="rgba(255,49,49,0.3)", width=2, dash="dash"),
-        layer="below"
+    # 標示「黃金獵殺區」 (Price < 115, Premium < 10)
+    fig.add_shape(type="rect",
+        x0=plot_df[col_prem].min(), y0=plot_df[col_price].min(),
+        x1=10, y1=115,
+        line=dict(color="#00F5FF", width=2, dash="dot"),
+        fillcolor="rgba(0, 245, 255, 0.1)",
     )
-
-    # Customize layout
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Rajdhani, sans-serif', color='#CCD'),
-        xaxis=dict(
-            title='轉換溢價率 (%) — Premium Rate (Cost Axis)',
-            gridcolor='rgba(255,255,255,0.05)',
-            zeroline=False
-        ),
-        yaxis=dict(
-            title='收盤價 (元) — Closing Price (Value Axis)',
-            gridcolor='rgba(255,255,255,0.05)',
-            zeroline=False
-        ),
-        coloraxis_colorbar=dict(
-            title="已轉換比例 (%)",
-            tickfont=dict(family='JetBrains Mono'),
-            titlefont=dict(family='Rajdhani')
-        ),
-        height=600,
-        hovermode='closest'
-    )
-
-    fig.update_traces(
-        marker=dict(
-            line=dict(width=1, color='rgba(255,255,255,0.3)'),
-            sizemode='diameter',
-            sizemin=4
-        )
-    )
+    fig.add_annotation(x=5, y=105, text="⚡ SNIPER ZONE", showarrow=False, font=dict(color="#00F5FF", size=14, weight="bold"))
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Zone interpretation guide
-    st.markdown("""
-<div style="background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);
-            border-radius:12px;padding:18px 20px;margin-top:20px;">
-  <div style="font-family:var(--f-body);font-size:16px;font-weight:700;
-              color:#00F5FF;margin-bottom:12px;">
-    📊 戰場區域解讀 (Zone Interpretation)
-  </div>
-  <div style="font-family:var(--f-body);font-size:13px;color:#BBC;line-height:1.8;">
-    <strong style="color:#00FF7F;">🟩 Sniper Zone (獵殺區)</strong>: 低溢價 (<10%) + 低價格 (<120) = 高 CP 值標的<br>
-    <strong style="color:#FFD700;">🟨 Neutral Zone (中性區)</strong>: 觀察中標的，需進一步分析趨勢與籌碼<br>
-    <strong style="color:#FF3131;">🟥 Danger Zone (避雷區)</strong>: 高溢價 (>30%) 或高價 (>150) = 風險較高
-  </div>
-</div>""", unsafe_allow_html=True)
-
-    # Top sniper targets
-    if sniper > 0:
-        sniper_df = plot_df[plot_df['zone'].str.contains('Sniper')].copy()
-        sniper_df = sniper_df.sort_values('premium').head(10)
-        
-        st.markdown("""
-<div style="margin-top:24px;margin-bottom:12px;">
-  <div style="font-family:var(--f-body);font-size:18px;font-weight:700;
-              color:#00FF7F;text-shadow:0 0 20px rgba(0,255,127,.2);">
-    🎯 Top 10 Sniper Targets (優質獵殺標的)
-  </div>
-</div>""", unsafe_allow_html=True)
-
-        # Create table HTML
-        table_rows = ""
-        for idx, row in sniper_df.iterrows():
-            table_rows += f"""
-<tr>
-  <td style="font-family:var(--f-mono);color:#00F5FF;">{row['ticker']}</td>
-  <td>{row['name']}</td>
-  <td style="font-family:var(--f-mono);text-align:right;">{row['price']:.2f}</td>
-  <td style="font-family:var(--f-mono);text-align:right;color:#00FF7F;">{row['premium']:.2f}%</td>
-  <td style="font-family:var(--f-mono);text-align:right;">{row['converted']:.2f}%</td>
-</tr>"""
-
-        st.markdown(f"""
-<table class="t2-tbl">
-  <thead>
-    <tr>
-      <th>Ticker</th>
-      <th>Name</th>
-      <th style="text-align:right;">Price</th>
-      <th style="text-align:right;">Premium</th>
-      <th style="text-align:right;">Converted</th>
-    </tr>
-  </thead>
-  <tbody>
-    {table_rows}
-  </tbody>
-</table>""", unsafe_allow_html=True)
+    # 4. 瓦爾基里戰情分析 (Typewriter)
+    # 計算簡單統計
+    low_price_cnt = len(plot_df[plot_df[col_price] < 110])
+    low_prem_cnt = len(plot_df[plot_df[col_prem] < 10])
+    sniper_targets = len(plot_df[(plot_df[col_price] < 115) & (plot_df[col_prem] < 10)])
+    
+    analysis_text = f"""
+    [SYSTEM SCAN COMPLETE]
+    --------------------------------------------------
+    目前市場總目標數： {len(plot_df)} 檔
+    --------------------------------------------------
+    🔍 價格偵測 (Price < 110) : {low_price_cnt} 檔位於低位防禦區。
+    🔍 溢價偵測 (Prem < 10%)  : {low_prem_cnt} 檔具備高連動特性。
+    ⚡ 鎖定獵殺目標 (Sniper)  : {sniper_targets} 檔同時符合 [價格<115 + 溢價<10%]。
+    --------------------------------------------------
+    建議策略：請優先檢視左下角 [青色區域] 標的，該區具備最高風險報酬比。
+    """
+    
+    st.write_stream(stream_generator(analysis_text))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
