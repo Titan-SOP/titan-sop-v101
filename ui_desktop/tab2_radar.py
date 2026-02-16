@@ -318,7 +318,8 @@ def render_radar():
                         
                         code = str(row.get('stock_code', '')).strip()
                         
-                        # 初始化
+                        # 確保保留所有原始欄位
+                        # 初始化新增欄位
                         row['ma87'] = 0.0
                         row['ma284'] = 0.0
                         row['trend_status'] = "⚠️ 資料不足"
@@ -363,11 +364,28 @@ def render_radar():
                     # 3. 資料分流
                     full_df_enriched = pd.DataFrame(enriched_data)
                     
+                    # [Debug] 檢查欄位
+                    st.write("🔍 Debug: DataFrame 欄位", full_df_enriched.columns.tolist())
+                    
+                    # 確保關鍵欄位存在
+                    required_cols = ['price', 'conv_rate', 'trend_status', 'score']
+                    for col in required_cols:
+                        if col not in full_df_enriched.columns:
+                            st.warning(f"⚠️ 缺少欄位 '{col}'，正在創建...")
+                            if col == 'price':
+                                full_df_enriched[col] = 0.0
+                            elif col == 'conv_rate':
+                                full_df_enriched[col] = 0.0
+                            elif col == 'trend_status':
+                                full_df_enriched[col] = "⚠️ 資料不足"
+                            elif col == 'score':
+                                full_df_enriched[col] = 0
+                    
                     # SOP 標準篩選
                     sop_mask = (
-                        (full_df_enriched['price'] < 120) &
-                        (full_df_enriched['trend_status'].str.contains("多頭", na=False)) &
-                        (full_df_enriched['conv_rate'] < 30)
+                        (pd.to_numeric(full_df_enriched['price'], errors='coerce').fillna(999) < 120) &
+                        (full_df_enriched['trend_status'].astype(str).str.contains("多頭", na=False)) &
+                        (pd.to_numeric(full_df_enriched['conv_rate'], errors='coerce').fillna(999) < 30)
                     )
                     sop_results = full_df_enriched[sop_mask].sort_values('score', ascending=False)
                     
