@@ -11,9 +11,49 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import time
 
 from knowledge_base import TitanKnowledgeBase
 from execution import CalendarAgent
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER
+# ══════════════════════════════════════════════════════════════════
+def stream_generator(text):
+    """
+    Valkyrie AI Typewriter: Stream text word-by-word
+    Creates the sensation of live AI transmission.
+    """
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.02)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 1: TACTICAL GUIDE MODAL
+# ══════════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 Mode")
+def show_guide_modal():
+    st.markdown("""
+    ### 指揮官，歡迎進入本戰區
+    
+    **核心功能**：
+    - **戰略知識庫**：集中管理 SOP、技術文件、市場分析等機密情報，支援多格式文件上傳與 AI 深度解析。
+    - **經濟日曆追蹤**：整合全球重要經濟事件、財報發布、央行決策等關鍵時間點，智能提醒避免黑天鵝。
+    - **CBAS 槓桿計算**：可轉債套利策略試算，自動計算轉換價、溢價率、隱含槓桿等關鍵指標。
+    
+    **操作方式**：點擊上方選單切換模式 (5.1 知識庫 → 5.2 SOP → 5.3 事件日曆 → 5.4 CBAS → 5.5 情報)。
+    
+    **狀態監控**：隨時留意畫面中的警示訊號 (文件上傳狀態、API Key 配置、計算結果異常等提示)。
+    
+    ---
+    *建議：先上傳關鍵文件到知識庫 → 配置 Gemini API Key → 執行 AI 分析*
+    """)
+    
+    if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
+        st.session_state["guide_shown_" + __name__] = True
+        st.rerun()
 
 
 # ── Cached Resources (PRESERVED) ──────────────────────────────────
@@ -332,7 +372,7 @@ def _s52(kb, df):
                     intel = IntelligenceEngine()
                     result = intel.analyze_file(file, kb, df)
                     if "error" in result:
-                        st.error(result["error"])
+                        st.toast(f"❌ {result['error']}", icon="💀")
                     else:
                         st.markdown(f'<div class="t5-terminal">{result.get("local_analysis_md", "本地分析失敗。")}</div>', unsafe_allow_html=True)
                         st.divider()
@@ -344,13 +384,14 @@ def _s52(kb, df):
                                     genai.configure(api_key=api_key)
                                     report = intel.analyze_with_gemini(result["full_text"])
                                     st.markdown("### 💎 **Gemini AI 深度解析**")
-                                    st.markdown(report)
+                                    # FEATURE 3: Valkyrie Typewriter for AI report
+                                    st.write_stream(stream_generator(report))
                                 except Exception as e:
-                                    st.error(f"Gemini 失敗: {e}")
+                                    st.toast(f"❌ Gemini 失敗: {e}", icon="💀")
                         else:
-                            st.info("未輸入 Gemini API Key，跳過 AI 深度解析。")
+                            st.toast("ℹ️ 未輸入 Gemini API Key，跳過 AI 深度解析。", icon="📡")
                 except ImportError:
-                    st.info(f"📄 已上傳: **{file.name}**（情報引擎尚未掛載，請確認 intelligence.py）")
+                    st.toast(f"ℹ️ 📄 已上傳: {file.name}（情報引擎尚未掛載，請確認 intelligence.py）", icon="📡")
     else:
         st.markdown("""
 <div style="text-align:center;padding:60px 30px;">
@@ -441,7 +482,7 @@ def _s53():
   <div class="calc-lbl">CB 市價需高於 100 元</div>
   <div class="calc-val" style="color:rgba(160,176,208,.15);">—.—<span class="calc-unit">×</span></div>
 </div>""", unsafe_allow_html=True)
-        st.info("CB 市價需高於 100 元才能計算 CBAS 權利金。市價 = 100 時無溢價可供槓桿操作。")
+        st.toast("ℹ️ CB 市價需高於 100 元才能計算 CBAS 權利金。市價 = 100 時無溢價可供槓桿操作。", icon="📡")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -551,6 +592,14 @@ def _s54(calendar, df):
 # ═══════════════════════════════════════════════════════════════
 def render():
     """Tab 5 — 戰略知識法典 (Strategic Knowledge Codex) V300"""
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 🎯 FEATURE 1: Show tactical guide modal on first visit
+    # ══════════════════════════════════════════════════════════════════
+    if "guide_shown_" + __name__ not in st.session_state:
+        show_guide_modal()
+        st.session_state["guide_shown_" + __name__] = True
+    
     _inject_css()
     _render_hero()
     _render_nav()
@@ -571,6 +620,7 @@ def render():
         fn()
     except Exception as exc:
         import traceback
+        st.toast(f"❌ Section {active} error: {exc}", icon="💀")
         st.error(f"❌ Section {active} error: {exc}")
         with st.expander("Debug"):
             st.code(traceback.format_exc())
