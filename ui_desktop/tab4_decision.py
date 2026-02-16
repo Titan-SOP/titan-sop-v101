@@ -18,30 +18,6 @@ import re
 import io
 from datetime import datetime
 import time
-from streamlit_option_menu import option_menu
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  TITAN DARK THEME — Mobile-Friendly Navigation Style
-# ══════════════════════════════════════════════════════════════════════════════
-TITAN_NAV_STYLE = {
-    "container": {"padding": "0!important", "background-color": "transparent", "margin": "0px"},
-    "icon": {"color": "#00F5FF", "font-size": "14px"}, 
-    "nav-link": {
-        "font-size": "14px", "text-align": "center", "margin": "5px", "color": "#888",
-        "border": "1px solid #333", "border-radius": "8px", "background-color": "#161b22",
-        "height": "45px", "width": "100%",
-    },
-    "nav-link-selected": {
-        "background-color": "#0D1117", "color": "#FFD700", 
-        "border": "1px solid #FFD700", "box-shadow": "0 0 10px rgba(255, 215, 0, 0.2)"
-    },
-}
-
-
-# Menu configuration for tab4_decision.py
-MENU_OPTIONS = ['4.1 配置', '4.2 回測', '4.3 均線', '4.4 再平衡', '4.5 壓力']
-MENU_ICONS = ['pie-chart-fill', 'activity', 'bezier2', 'arrow-repeat', 'heart-pulse']
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -690,27 +666,31 @@ def _render_hero_billboard():
 #  NAVIGATION RAIL — 5 POSTER CARDS
 # ══════════════════════════════════════════════════════════════════
 def _render_nav_rail():
-    """Mobile-friendly horizontal navigation with option_menu."""
+    """Horizontal rail of 5 Movie-Poster-shaped navigation cards."""
     if 'active_section' not in st.session_state:
         st.session_state.active_section = "4.1"
-    
-    active = st.session_state.active_section
-    default_idx = next((i for i, opt in enumerate(MENU_OPTIONS) if opt.startswith(active)), 0)
-    
-    selected = option_menu(
-        menu_title=None,
-        options=MENU_OPTIONS,
-        icons=MENU_ICONS,
-        default_index=default_idx,
-        orientation="horizontal",
-        styles=TITAN_NAV_STYLE
-    )
-    
-    # Extract code (first 3 chars) and update session_state
-    new_code = selected[:3]
-    if new_code != active:
-        st.session_state.active_section = new_code
-        st.rerun()
+
+    cards = [
+        ("4.1", "📊", "資產配置", "Allocation"),
+        ("4.2", "🚀", "回測決策", "Backtest"),
+        ("4.3", "🧪", "均線實驗", "MA Lab"),
+        ("4.4", "⚖️",  "再平衡",   "Rebalance"),
+        ("4.5", "🌪️", "壓力測試", "Stress Test"),
+    ]
+    cols = st.columns(5)
+    for i, (sec_id, icon, title, sub) in enumerate(cards):
+        with cols[i]:
+            is_active = st.session_state.active_section == sec_id
+            active_cls = "active" if is_active else ""
+            st.markdown(f"""
+<div class="nav-poster {active_cls}" style="--poster-accent:{'var(--c-cyan)' if is_active else 'rgba(255,255,255,0.05)'};">
+  <div class="nav-poster-icon">{icon}</div>
+  <div class="nav-poster-title">{sec_id} {title}</div>
+  <div class="nav-poster-sub">{sub}</div>
+</div>""", unsafe_allow_html=True)
+            if st.button(f"Open {sec_id}", key=f"nav_{sec_id}", use_container_width=True):
+                st.session_state.active_section = sec_id
+                st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -15,30 +15,6 @@ import time
 
 from knowledge_base import TitanKnowledgeBase
 from execution import CalendarAgent
-from streamlit_option_menu import option_menu
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  TITAN DARK THEME — Mobile-Friendly Navigation Style
-# ══════════════════════════════════════════════════════════════════════════════
-TITAN_NAV_STYLE = {
-    "container": {"padding": "0!important", "background-color": "transparent", "margin": "0px"},
-    "icon": {"color": "#00F5FF", "font-size": "14px"}, 
-    "nav-link": {
-        "font-size": "14px", "text-align": "center", "margin": "5px", "color": "#888",
-        "border": "1px solid #333", "border-radius": "8px", "background-color": "#161b22",
-        "height": "45px", "width": "100%",
-    },
-    "nav-link-selected": {
-        "background-color": "#0D1117", "color": "#FFD700", 
-        "border": "1px solid #FFD700", "box-shadow": "0 0 10px rgba(255, 215, 0, 0.2)"
-    },
-}
-
-
-# Menu configuration for tab5_wiki.py
-MENU_OPTIONS = ['5.1 法典', '5.2 情報', '5.3 試算', '5.4 日曆']
-MENU_ICONS = ['book-half', 'eye', 'calculator', 'calendar-week']
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -193,27 +169,27 @@ def _render_hero():
 # POSTER RAIL NAVIGATION
 # ═══════════════════════════════════════════════════════════════
 def _render_nav():
-    """Mobile-friendly horizontal navigation with option_menu."""
     if 't5_active' not in st.session_state:
         st.session_state.t5_active = "5.1"
-    
-    active = st.session_state.t5_active
-    default_idx = next((i for i, opt in enumerate(MENU_OPTIONS) if opt.startswith(active)), 0)
-    
-    selected = option_menu(
-        menu_title=None,
-        options=MENU_OPTIONS,
-        icons=MENU_ICONS,
-        default_index=default_idx,
-        orientation="horizontal",
-        styles=TITAN_NAV_STYLE
-    )
-    
-    # Extract code (first 3 chars) and update session_state
-    new_code = selected[:3]
-    if new_code != active:
-        st.session_state.t5_active = new_code
-        st.rerun()
+    cards = [
+        ("5.1", "📖", "戰略法典", "SOP Rules"),
+        ("5.2", "🧠", "情報獵殺", "Intel Analysis"),
+        ("5.3", "⚡", "CBAS試算", "Leverage Calc"),
+        ("5.4", "📅", "戰略日曆", "Calendar"),
+    ]
+    cols = st.columns(4)
+    for i, (sid, icon, title, sub) in enumerate(cards):
+        with cols[i]:
+            ac = "active" if st.session_state.t5_active == sid else ""
+            st.markdown(f"""
+<div class="t5-poster {ac}">
+  <div class="t5-poster-icon">{icon}</div>
+  <div class="t5-poster-title">{sid} {title}</div>
+  <div class="t5-poster-sub">{sub}</div>
+</div>""", unsafe_allow_html=True)
+            if st.button(f"Open {sid}", key=f"t5nav_{sid}", use_container_width=True):
+                st.session_state.t5_active = sid
+                st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════
