@@ -745,15 +745,20 @@ def render_2_0(df):
     # 1. 智能欄位識別 (Smart Column Mapping)
     cols = df.columns.tolist()
     
-    # 價格欄位：優先匹配「可轉債市價」
+    # 價格欄位：優先匹配「可轉債市價」，然後嘗試「close」(Excel N列)
     col_price = next((c for c in cols if '可轉債市價' in c), None)
     if not col_price:
         col_price = next((c for c in cols if '市價' in c and '可轉債' in c), None)
     if not col_price:
         col_price = next((c for c in cols if '市價' in c), None)
+    if not col_price:
+        # 嘗試 'close' 欄位 (Excel N列對應)
+        col_price = next((c for c in cols if c.strip().lower() == 'close'), None)
     
-    # 溢價率欄位：匹配「溢價率」或「溢(折)價率」
-    col_prem = next((c for c in cols if '溢價率' in c or '溢(折)價率' in c), None)
+    # 溢價率欄位：優先匹配「溢(折)價率」(Excel U列)
+    col_prem = next((c for c in cols if '溢(折)價率' in c), None)
+    if not col_prem:
+        col_prem = next((c for c in cols if '溢價率' in c), None)
     if not col_prem:
         col_prem = next((c for c in cols if '溢價' in c), None)
     
@@ -762,12 +767,12 @@ def render_2_0(df):
     
     # 檢查必要欄位是否都找到了
     if not col_price:
-        st.error(f"❌ 找不到價格欄位！請確認 Excel 中是否有「可轉債市價」欄位")
+        st.error(f"❌ 找不到價格欄位！請確認 Excel 中是否有以下任一欄位：「可轉債市價」或「close」(N列)")
         st.info(f"📋 可用欄位列表：{', '.join(cols)}")
         return
     
     if not col_prem:
-        st.error(f"❌ 找不到溢價率欄位！請確認 Excel 中是否有「溢價率」或「溢(折)價率」欄位")
+        st.error(f"❌ 找不到溢價率欄位！請確認 Excel 中是否有以下任一欄位：「溢(折)價率」或「溢價率」(U列)")
         st.info(f"📋 可用欄位列表：{', '.join(cols)}")
         return
     
