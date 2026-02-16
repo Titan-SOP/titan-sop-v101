@@ -564,21 +564,58 @@ def _run_census(df: pd.DataFrame, min_score: int):
     stxt.text("✅ 普查完成！資料已同步至戰情室與全系統。")
 
     full_df = pd.DataFrame(enriched)
-    for col in ['price','conv_rate']:
+    
+    # ★ Debug：顯示實際掃描到的資料統計
+    st.toast(f"📊 掃描完成：共 {len(full_df)} 檔 CB", icon="📊")
+    
+    # 確保必要欄位存在
+    for col in ['price','conv_rate','trend_status','score']:
         if col not in full_df.columns:
-            full_df[col] = 0.0
+            if col == 'score':
+                full_df[col] = 0
+            else:
+                full_df[col] = 0.0 if col != 'trend_status' else '⚠️ 資料不足'
+    
+    # ★ Debug：顯示各條件的通過數量
+    price_ok = len(full_df[full_df['price'] < 120])
+    trend_ok = len(full_df[full_df['trend_status'].str.contains('多頭', na=False)])
+    conv_ok  = len(full_df[full_df['conv_rate'] < 30])
+    
+    st.toast(f"📈 條件統計 | 價格<120: {price_ok}/{len(full_df)} | 多頭: {trend_ok}/{len(full_df)} | 轉換率<30%: {conv_ok}/{len(full_df)}", icon="📈")
 
+    # SOP 篩選（三個條件同時滿足）
     sop_mask = (
         (full_df['price'] < 120) &
         (full_df['trend_status'].str.contains('多頭', na=False)) &
         (full_df['conv_rate'] < 30)
     )
-    sop_df = full_df[sop_mask].sort_values('score', ascending=False)
-    if 'score' in sop_df.columns:
+    sop_df = full_df[sop_mask].copy()
+    
+    # 按評分排序並篩選
+    if 'score' in sop_df.columns and not sop_df.empty:
+        sop_df = sop_df.sort_values('score', ascending=False)
         sop_df = sop_df[sop_df['score'] >= min_score]
 
     # [UPGRADE #2] Toast instead of st.success
-    st.toast(f"✅ 全市場掃描結束，符合 SOP 黃金標準共 {len(sop_df)} 檔", icon="🎯")
+    st.toast(f"✅ SOP 黃金標準：{len(sop_df)} 檔 (評分≥{min_score})", icon="🎯")
+    
+    # ★ 如果 SOP 為空，顯示原因分析
+    if sop_df.empty and not full_df.empty:
+        st.warning(f"""
+        ⚠️ 未找到符合 SOP 黃金標準的標的
+        
+        **可能原因**：
+        - 價格<120：{price_ok} 檔通過
+        - 多頭排列：{trend_ok} 檔通過 (需要87MA > 284MA)
+        - 轉換率<30%：{conv_ok} 檔通過
+        - 評分≥{min_score}：需三個條件同時滿足
+        
+        **建議**：
+        1. 降低評分門檻（目前{min_score}）
+        2. 查看「全市場」tab，檢視所有掃描結果
+        3. 確認Excel資料中是否有股票代碼欄位
+        """)
+    
     return sop_df, full_df
 
 
@@ -811,16 +848,35 @@ def render_2_1(df: pd.DataFrame):
 
     # ── 🌍 全市場 ──────────────────────────────────────────────────
     if pill == "global":
-        if not sop_df.empty:
+        # ★ 優先顯示 full_data（所有掃描結果），而非只顯示 sop_df
+        if not full_data.empty:
             st.markdown(
-                f'<div style="font-family:var(--f-mono);font-size:10px;color:#00FF7F;'
+                f'<div style="font-family:var(--f-mono);font-size:10px;color:#00F5FF;'
                 f'letter-spacing:1.5px;margin:12px 0 10px;text-transform:uppercase;">'
-                f'✅ {len(sop_df)} 檔通過 SOP 黃金標準</div>', unsafe_allow_html=True)
+                f'📊 全市場掃描結果：共 {len(full_data)} 檔</div>', unsafe_allow_html=True)
+            
+            # 顯示統計資訊
+            if 'trend_status' in full_data.columns:
+                bull_count = len(full_data[full_data['trend_status'].str.contains('多頭', na=False)])
+                st.caption(f"多頭排列：{bull_count} 檔 | SOP黃金標準：{len(sop_df)} 檔")
+            
+            # 顯示資料表
             disp = [c for c in ['code','name','price','stock_price_real',
-                                 'trend_status','conv_rate','score'] if c in sop_df.columns]
-            st.dataframe(sop_df[disp].head(30), use_container_width=True)
+                                 'trend_status','conv_rate','score'] if c in full_data.columns]
+            
+            # 按評分排序（如果有的話）
+            display_df = full_data.copy()
+            if 'score' in display_df.columns:
+                display_df = display_df.sort_values('score', ascending=False)
+            
+            st.dataframe(display_df[disp].head(50), use_container_width=True)
+            
+            if not sop_df.empty:
+                st.success(f"✅ 其中 {len(sop_df)} 檔符合 SOP 黃金標準")
+            else:
+                st.info("💡 提示：若要查看符合SOP標準的標的，請點選「SOP菁英」tab")
         else:
-            st.caption("執行普查後，全市場 SOP 標的將顯示於此。")
+            st.caption("執行普查後，全市場掃描結果將顯示於此。")
 
     # ── 🏆 SOP菁英 (原版 Tab1 邏輯) ────────────────────────────────
     elif pill == "sop":
