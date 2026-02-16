@@ -743,42 +743,63 @@ def render_2_0(df):
         return
 
     # 1. 智能欄位識別 (Smart Column Mapping)
+    # 參考 2.1-2.4 的欄位使用習慣，直接查找標準欄位名稱
     cols = df.columns.tolist()
     
-    # 價格欄位：優先匹配「可轉債市價」，然後嘗試「close」(Excel N列)
-    col_price = next((c for c in cols if '可轉債市價' in c), None)
-    if not col_price:
-        col_price = next((c for c in cols if '市價' in c and '可轉債' in c), None)
-    if not col_price:
-        col_price = next((c for c in cols if '市價' in c), None)
-    if not col_price:
-        # 嘗試 'close' 欄位 (Excel N列對應)
-        col_price = next((c for c in cols if c.strip().lower() == 'close'), None)
+    # 價格欄位：優先查找 'close' (Excel N列)，然後嘗試其他可能的名稱
+    col_price = None
+    if 'close' in df.columns:
+        col_price = 'close'
+    else:
+        # 備選方案：查找包含「市價」的欄位
+        for c in cols:
+            if '可轉債市價' in c or ('市價' in c and '可轉債' in c):
+                col_price = c
+                break
+        if not col_price:
+            for c in cols:
+                if '市價' in c or 'price' in c.lower():
+                    col_price = c
+                    break
     
-    # 溢價率欄位：優先匹配「溢(折)價率」(Excel U列)
-    col_prem = next((c for c in cols if '溢(折)價率' in c), None)
-    if not col_prem:
-        col_prem = next((c for c in cols if '溢價率' in c), None)
-    if not col_prem:
-        col_prem = next((c for c in cols if '溢價' in c), None)
+    # 溢價率欄位：優先查找「溢(折)價率」(Excel U列)
+    col_prem = None
+    if '溢(折)價率' in df.columns:
+        col_prem = '溢(折)價率'
+    else:
+        # 備選方案
+        for c in cols:
+            if '溢價率' in c or '溢折價率' in c or 'premium' in c.lower():
+                col_prem = c
+                break
     
-    # 名稱欄位
-    col_name = next((c for c in cols if '名稱' in c or '標的債券' in c), None)
+    # 名稱欄位：優先查找 'name'
+    col_name = None
+    if 'name' in df.columns:
+        col_name = 'name'
+    else:
+        # 備選方案
+        for c in cols:
+            if '名稱' in c or '標的' in c or '債券名稱' in c:
+                col_name = c
+                break
     
-    # 檢查必要欄位是否都找到了
+    # 檢查必要欄位
     if not col_price:
-        st.error(f"❌ 找不到價格欄位！請確認 Excel 中是否有以下任一欄位：「可轉債市價」或「close」(N列)")
+        st.error(f"❌ 找不到價格欄位！")
+        st.info(f"📋 預期欄位：'close' (Excel N列) 或包含「市價」的欄位")
         st.info(f"📋 可用欄位列表：{', '.join(cols)}")
         return
     
     if not col_prem:
-        st.error(f"❌ 找不到溢價率欄位！請確認 Excel 中是否有以下任一欄位：「溢(折)價率」或「溢價率」(U列)")
+        st.error(f"❌ 找不到溢價率欄位！")
+        st.info(f"📋 預期欄位：'溢(折)價率' (Excel U列)")
         st.info(f"📋 可用欄位列表：{', '.join(cols)}")
         return
     
     if not col_name:
-        st.warning("⚠️ 找不到名稱欄位，將使用空白名稱")
-        col_name = cols[0]  # 使用第一個欄位作為後備
+        st.warning("⚠️ 找不到名稱欄位，將使用 code 作為標識")
+        col_name = 'code' if 'code' in df.columns else cols[0]
     
     st.success(f"✅ 成功識別欄位：價格={col_price}, 溢價={col_prem}, 名稱={col_name}")
     
@@ -816,35 +837,95 @@ def render_2_0(df):
         return
 
     # 3. 繪製神級圖表 (God-Tier Plotly)
+    # 檢查是否有已轉換比例欄位 (可選)
+    col_conv = None
+    if 'converted_ratio' in plot_df.columns:
+        col_conv = 'converted_ratio'
+    elif '已轉換比例' in plot_df.columns:
+        col_conv = '已轉換比例'
+    
+    # 準備 hover 數據
+    hover_cols = [col_name, col_price, col_prem]
+    if col_conv:
+        hover_cols.append(col_conv)
+    
+    # 使用價格作為顏色維度（綠色=低價，紅色=高價）
     fig = px.scatter(
         plot_df, 
         x=col_prem, 
         y=col_price, 
         color=col_price,
-        hover_data=[col_name, col_price, col_prem],
-        color_continuous_scale="RdYlGn_r", # Green (Low Price) to Red (High Price)
-        title=f"🎯 獵殺範圍分佈 (N={len(plot_df)})"
+        size=col_price if len(plot_df) > 50 else None,  # 大數據集才用 size
+        hover_data=hover_cols,
+        color_continuous_scale="RdYlGn_r",  # Red (High) to Green (Low)
+        title=f"🎯 獵殺範圍分佈 | 總目標數: {len(plot_df)} 檔"
     )
 
     # 視覺美化 (Dark Military Style)
     fig.update_layout(
         template="plotly_dark",
-        height=600,
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=650,
+        plot_bgcolor="rgba(6,9,14,0.5)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Roboto, sans-serif"),
-        xaxis=dict(title="轉換溢價率 (Premium %)", showgrid=True, gridcolor="#333"),
-        yaxis=dict(title="CB 收盤價 (Price)", showgrid=True, gridcolor="#333"),
+        font=dict(family="Rajdhani, sans-serif", color="#C8D8E8"),
+        xaxis=dict(
+            title="轉換溢價率 (Premium %)", 
+            showgrid=True, 
+            gridcolor="rgba(255,255,255,0.08)",
+            zeroline=True,
+            zerolinecolor="rgba(0,245,255,0.3)",
+            zerolinewidth=2
+        ),
+        yaxis=dict(
+            title="CB 收盤價 (Close Price)", 
+            showgrid=True, 
+            gridcolor="rgba(255,255,255,0.08)"
+        ),
+        coloraxis=dict(
+            colorbar=dict(
+                title="價格",
+                tickfont=dict(size=10),
+                len=0.7
+            )
+        ),
+        hoverlabel=dict(
+            bgcolor="rgba(0,0,0,0.8)",
+            font_size=12,
+            font_family="Rajdhani"
+        )
     )
     
     # 標示「黃金獵殺區」 (Price < 115, Premium < 10)
-    fig.add_shape(type="rect",
-        x0=plot_df[col_prem].min(), y0=plot_df[col_price].min(),
-        x1=10, y1=115,
-        line=dict(color="#00F5FF", width=2, dash="dot"),
-        fillcolor="rgba(0, 245, 255, 0.1)",
-    )
-    fig.add_annotation(x=5, y=105, text="⚡ SNIPER ZONE", showarrow=False, font=dict(color="#00F5FF", size=14, weight="bold"))
+    # 智能計算標註位置
+    prem_min = plot_df[col_prem].min()
+    prem_max = plot_df[col_prem].max()
+    price_min = plot_df[col_price].min()
+    
+    # 只有當數據範圍包含獵殺區時才標註
+    if prem_min < 10 and price_min < 115:
+        x1 = min(10, prem_max)
+        y1 = min(115, plot_df[col_price].max())
+        
+        fig.add_shape(
+            type="rect",
+            x0=prem_min, y0=price_min,
+            x1=x1, y1=y1,
+            line=dict(color="#00F5FF", width=2, dash="dot"),
+            fillcolor="rgba(0, 245, 255, 0.1)",
+        )
+        
+        # 標註位置：如果範圍足夠大才顯示文字
+        if x1 > 3 and y1 > 100:
+            fig.add_annotation(
+                x=min(5, x1/2), 
+                y=min(105, y1-10), 
+                text="⚡ SNIPER ZONE", 
+                showarrow=False, 
+                font=dict(color="#00F5FF", size=14, family="Rajdhani"),
+                bgcolor="rgba(0,0,0,0.5)",
+                bordercolor="#00F5FF",
+                borderwidth=1
+            )
 
     st.plotly_chart(fig, use_container_width=True)
 
