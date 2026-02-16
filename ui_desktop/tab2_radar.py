@@ -1,13 +1,13 @@
 # ui_desktop/tab2_radar.py
-# Titan SOP V300 — 獵殺雷達 (Kill Radar)
+# Titan SOP V300 — 獵殺雷達 (Kill Radar) + 戰略兵工廠 (Strategic Arsenal)
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  "DIRECTOR'S CUT V300"  —  Bloomberg × Palantir × Titan OS       ║
-# ║  4 MANDATORY UPGRADES:                                            ║
-# ║    ✅ #1  Tactical Guide Dialog (Onboarding Modal)                ║
-# ║    ✅ #2  Toast Notifications (replace st.success/info/warning)   ║
-# ║    ✅ #3  Valkyrie AI Typewriter (_stream_text)                   ║
-# ║    ✅ #4  Director's Cut Visuals (Fire Control/Pills — preserved) ║
-# ║  Logic: 100% preserved (TitanStrategyEngine/Census/Kelly/TPEX)    ║
+# ║  "DIRECTOR'S CUT V300" + SURGICAL ARSENAL TRANSPLANT            ║
+# ║  ✅ Sections 2.1-2.4 PRESERVED 100% (NO CASTRATION)              ║
+# ║  ✅ NEW Section 2.5: 戰略兵工廠 (Strategic Arsenal)               ║
+# ║      → Tool A: Intel Hunter (情報獵殺)                            ║
+# ║      → Tool B: CBAS Calculator (試算儀)                           ║
+# ║      → Tool C: Strategy Calendar (行事曆)                         ║
+# ║  SURGICAL TRANSPLANT FROM tab5_wiki.py                           ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # 原版邏輯完整對應：
@@ -15,15 +15,7 @@
 #  2.2 核心檢核  → Sniper Scope (K-line + 4 Commandments)
 #  2.3 風險雷達  → Warning Cards (converted_ratio/premium/avg_volume)
 #  2.4 資金配置  → Kelly Display + Portfolio (原版 20% 等權邏輯)
-#
-# ★ 關鍵修正清單（對比原始 tab2）：
-#  1. @st.fragment 裝飾器已補回
-#  2. session_state 鍵對齊原版：scan_results / full_census_data
-#  3. Risk Radar 欄位名稱：優先 converted_ratio，fallback conv_rate
-#  4. 已轉換率反轉邏輯與原版完全一致（raw > 50 → 反轉）
-#  5. Sector Roster code+name 顯示 & 3 欄佈局對齊原版
-#  6. Portfolio 採原版 20%-per-stock 模型（Top 5）
-#  7. 全域 strategy 物件 → _load_engines() @st.cache_resource 取代
+#  2.5 戰略兵工廠 → Intel/CBAS/Calendar (transplanted from tab5)
 
 import streamlit as st
 import pandas as pd
@@ -31,12 +23,13 @@ import numpy as np
 import altair as alt
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import yfinance as yf
 import time
 
 from strategy import TitanStrategyEngine
 from knowledge_base import TitanKnowledgeBase
+from execution import CalendarAgent
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -47,6 +40,12 @@ def _stream_text(text, speed=0.018):
     for char in text:
         yield char
         time.sleep(speed)
+
+def stream_generator(text):
+    """Word-by-word generator for Section 2.5"""
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.02)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -71,6 +70,9 @@ def _show_tactical_guide():
 **⚠️ 2.3 風險雷達 / 💰 2.4 資金配置**
 負面表列警示 (籌碼鬆動/高溢價/流動性陷阱) + Top 5 等權重 20% 資金配置試算。
 
+**🛠️ 2.5 戰略兵工廠 (NEW!)**
+情報獵殺分析 + CBAS 槓桿試算儀 + 戰略行事曆（整合自 Tab 5）。
+
 </div>""", unsafe_allow_html=True)
     if st.button("✅ 收到，開始獵殺 (Roger That)", type="primary", use_container_width=True):
         st.session_state['tab2_guided'] = True
@@ -87,13 +89,17 @@ def _load_engines():
     strat.kb = kb
     return strat, kb
 
+@st.cache_resource
+def _load_calendar():
+    return CalendarAgent()
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  CSS  共用設計語言（與 tab1_macro V300 完全一致）
+#  CSS  共用設計語言（與 tab1_macro V300 完全一致）+ Arsenal Styles
 # ══════════════════════════════════════════════════════════════════════════════
 def _inject_css():
     st.markdown("""
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
     --c-gold:#FFD700; --c-cyan:#00F5FF;
@@ -103,6 +109,7 @@ def _inject_css():
     --f-body:'Rajdhani',sans-serif;
     --f-mono:'JetBrains Mono',monospace;
     --f-o:'Orbitron',sans-serif;
+    --f-i:'Inter',sans-serif;
 }
 
 /* ── FIRE CONTROL DECK ─────────────────────────────────────────── */
@@ -280,6 +287,56 @@ def _inject_css():
 .t2-empty-icon { font-size:42px; opacity:.22; margin-bottom:14px; }
 .t2-empty-text { font-family:var(--f-mono); font-size:11px; color:#2a3844; letter-spacing:2.5px; text-transform:uppercase; }
 .t2-foot { font-family:var(--f-mono); font-size:9px; color:rgba(70,90,110,.28); letter-spacing:2px; text-align:right; margin-top:18px; text-transform:uppercase; }
+
+/* ══════════════════════════════════════════════════════════════ */
+/* SECTION 2.5 ARSENAL STYLES (Transplanted from tab5_wiki.py)   */
+/* ══════════════════════════════════════════════════════════════ */
+
+/* ARSENAL SECTION HEADER */
+.t5-sec-head{display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.052);margin-bottom:20px;}
+.t5-sec-num{font-family:var(--f-display);font-size:56px;color:rgba(0,245,255,.06);letter-spacing:2px;line-height:1;}
+.t5-sec-title{font-family:var(--f-display);font-size:22px;color:var(--sa,#00F5FF);letter-spacing:2px;}
+.t5-sec-sub{font-family:var(--f-mono);font-size:9px;color:rgba(0,245,255,.28);letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+
+/* CLASSIFIED FILE CARDS */
+.codex-card{background:rgba(255,255,255,.025);border:1px solid rgba(80,90,110,.25);border-left:4px solid #00F5FF;padding:22px 24px 18px;margin-bottom:14px;border-radius:0 10px 10px 0;position:relative;overflow:hidden;}
+.codex-card::before{content:'CLASSIFIED';position:absolute;top:8px;right:12px;font-family:var(--f-o);font-size:7px;color:rgba(255,49,49,.18);letter-spacing:4px;}
+.codex-card.gold{border-left-color:#FFD700;}
+.codex-card.gold::before{content:'PRIORITY';}
+.codex-card.red{border-left-color:#FF3131;}
+.codex-card.red::before{content:'CRITICAL';}
+.codex-card.green{border-left-color:#00FF7F;}
+.codex-card.green::before{content:'ACTIVE';}
+.codex-card-title{font-family:var(--f-body);font-size:18px;font-weight:700;color:#FFF;letter-spacing:1px;margin-bottom:6px;}
+.codex-card-key{font-family:var(--f-i);font-size:15px;font-weight:600;color:rgba(0,245,255,.85);line-height:1.6;margin-bottom:8px;}
+.codex-card-detail{font-family:var(--f-mono);font-size:11px;color:rgba(160,176,208,.5);line-height:1.7;}
+
+/* CALC SCREEN (80px MASSIVE DISPLAY) */
+.calc-screen{background:#000;border:2px solid rgba(80,90,110,.35);border-radius:14px;padding:32px 28px;text-align:center;margin-top:16px;position:relative;overflow:hidden;}
+.calc-screen::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,245,255,.2),transparent);}
+.calc-screen::after{content:'CBAS LEVERAGE ENGINE';position:absolute;top:10px;left:16px;font-family:var(--f-o);font-size:7px;color:rgba(0,245,255,.15);letter-spacing:4px;}
+.calc-val{font-size:80px;font-weight:900;font-family:var(--f-o);line-height:1;letter-spacing:-2px;}
+.calc-val.green{color:#00FF7F;text-shadow:0 0 30px rgba(0,255,127,.35);}
+.calc-val.gold{color:#FFD700;text-shadow:0 0 30px rgba(255,215,0,.35);}
+.calc-val.red{color:#FF6B6B;text-shadow:0 0 30px rgba(255,107,107,.35);}
+.calc-lbl{font-family:var(--f-mono);font-size:11px;color:rgba(160,176,208,.4);text-transform:uppercase;letter-spacing:3px;margin-top:8px;}
+.calc-unit{font-family:var(--f-mono);font-size:14px;color:rgba(255,255,255,.25);margin-left:4px;}
+.calc-divider{width:60%;height:1px;background:rgba(255,255,255,.05);margin:20px auto;}
+
+/* EVENT CARDS */
+.event-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:12px;display:flex;align-items:center;gap:20px;}
+.event-day{font-size:60px;font-weight:900;font-family:var(--f-o);color:#FFD700;text-shadow:0 0 20px rgba(255,215,0,.2);line-height:1;min-width:100px;text-align:center;}
+.event-day-unit{font-family:var(--f-mono);font-size:9px;color:rgba(255,215,0,.4);letter-spacing:2px;text-transform:uppercase;margin-top:4px;text-align:center;}
+.event-body{flex:1;}
+.event-name{font-family:var(--f-body);font-size:17px;font-weight:700;color:#FFF;letter-spacing:1px;}
+.event-type{font-family:var(--f-mono);font-size:11px;color:rgba(0,245,255,.6);letter-spacing:1px;margin-top:3px;}
+.event-date{font-family:var(--f-mono);font-size:10px;color:rgba(160,176,208,.35);margin-top:2px;}
+.event-desc{font-family:var(--f-mono);font-size:10px;color:rgba(160,176,208,.3);margin-top:5px;line-height:1.5;}
+
+/* TERMINAL BOX */
+.t5-terminal{background:#0D1117;border:1px solid #30363d;border-left:4px solid #00F5FF;border-radius:0 10px 10px 0;padding:22px 24px;font-family:var(--f-mono);color:#c9d1d9;font-size:12px;line-height:1.7;margin:12px 0;}
+.t5-terminal::before{content:'> INTEL TERMINAL';display:block;font-size:9px;letter-spacing:3px;color:rgba(0,245,255,.25);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(0,245,255,.06);}
+
 </style>""", unsafe_allow_html=True)
 
 
@@ -442,8 +499,6 @@ def _get_tpex_data(df_json: str) -> pd.DataFrame:
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CENSUS ENGINE  （原版 spinner 迴圈 100% 保留）
-#  session_state 鍵：scan_results / full_census_data  ← 對齊原版
-#  [UPGRADE #2] Toast notifications for census progress
 # ══════════════════════════════════════════════════════════════════════════════
 def _run_census(df: pd.DataFrame, min_score: int):
     strat, _ = _load_engines()
@@ -493,13 +548,12 @@ def _run_census(df: pd.DataFrame, min_score: int):
         stxt.text(f"普查進行中 ({i+1}/{total}): {name}…")
 
         code = str(row.get('stock_code', '')).strip()
-        # 數據傳遞：確保關鍵數據寫入（使用正確的欄位名稱）
         row.update({
             'stock_price_real': 0.0, 'ma87': 0.0, 'ma284': 0.0,
             'trend_status': '⚠️ 資料不足',
             'cb_price':       row.get('price', 0.0),
-            'conv_price_val': row.get('conv_price', 0.0),  # 保留 conv_price 的值
-            'conv_value_val': row.get('conv_value', 0.0),  # 保留 conv_value 的值
+            'conv_price_val': row.get('conv_price', 0.0),
+            'conv_value_val': row.get('conv_value', 0.0),
         })
 
         if code:
@@ -512,7 +566,6 @@ def _run_census(df: pd.DataFrame, min_score: int):
                     ma87  = float(hist['Close'].rolling(87).mean().iloc[-1])
                     ma284 = float(hist['Close'].rolling(284).mean().iloc[-1])
                     row.update({'stock_price_real': curr, 'ma87': ma87, 'ma284': ma284})
-                    # 原版關鍵修正：只要 87MA > 284MA 即判定中期多頭
                     if ma87 > ma284:
                         row['trend_status'] = '✅ 中期多頭'
                         row['score'] = min(100, row.get('score', 0) + 20)
@@ -540,7 +593,6 @@ def _run_census(df: pd.DataFrame, min_score: int):
     if 'score' in sop_df.columns:
         sop_df = sop_df[sop_df['score'] >= min_score]
 
-    # [UPGRADE #2] Toast instead of st.success
     st.toast(f"✅ 全市場掃描結束，符合 SOP 黃金標準共 {len(sop_df)} 檔", icon="🎯")
     return sop_df, full_df
 
@@ -623,7 +675,6 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
     conv_pct = _safe_conv(row)
     is_bull  = ma87 > ma284
-    # 修正：使用普查迴圈中賦值的欄位名稱
     cp       = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce') or 0.01
     sp       = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce') or 0.0
     cv       = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce') or 0.0
@@ -633,7 +684,6 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     with st.expander(title, expanded=False):
         st.markdown(f"## 📊 {cb_name} ({cb_code}) 策略分析")
 
-        # [UPGRADE #3] Typewriter for analysis summary
         analysis_summary = (
             f"【{cb_name} ({cb_code}) 狙擊分析】"
             f"CB市價 {price:.1f}，87MA {ma87:.2f}，284MA {ma284:.2f}。"
@@ -652,8 +702,6 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
         st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
         st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
         st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
-        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股。")
-        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股，站在風口上連豬都會飛。")
         st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
         st.markdown("#### 2. 決策輔助 (Decision Support)")
         c1, c2, c3 = st.columns(3)
@@ -672,8 +720,7 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SECTION 2.1  ──  自動獵殺 + 6 Strategy Pills
-#  [UPGRADE #2] Toast  [UPGRADE #3] Typewriter
+#  SECTION 2.1  ──  自動獵殺 + 6 Strategy Pills  **PRESERVED 100%**
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_1(df: pd.DataFrame):
     st.markdown('<div class="t2-sec-title">📡 2.1 自動獵殺推薦 — Strategy Matrix</div>',
@@ -696,12 +743,10 @@ def render_2_1(df: pd.DataFrame):
             st.toast("🚀 全市場雙軌普查啟動中…", icon="⏳")
             with st.spinner("執行全市場雙軌普查 (.TW / .TWO)…"):
                 sop_df, full_df = _run_census(df, min_score)
-                # ★ 對齊原版 session_state 鍵名
                 st.session_state['scan_results']     = sop_df
                 st.session_state['full_census_data'] = full_df.to_dict('records')
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Scanner HUD ───────────────────────────────────────────────
     full_data = pd.DataFrame(st.session_state.get('full_census_data', []))
     sop_df    = st.session_state.get('scan_results', pd.DataFrame())
 
@@ -712,7 +757,6 @@ def render_2_1(df: pd.DataFrame):
         avg_sc = float(sop_df['score'].mean()) if (not sop_df.empty and 'score' in sop_df.columns) else 0.0
         _scanner_hud(len(full_data), len(sop_df), bull_n, avg_sc)
 
-        # [UPGRADE #3] Typewriter for census summary
         census_text = (
             f"【普查摘要】共掃描 {len(full_data)} 檔 CB，"
             f"其中 {bull_n} 檔處於多頭排列 (87MA > 284MA)，"
@@ -814,7 +858,7 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 _detailed_report(row)
 
-    # ── 👶 新券蜜月 (原版 Tab2 邏輯) ───────────────────────────────
+    # ── 👶 新券蜜月 ───────────────────────────────────────────────────────
     elif pill == "honeymoon":
         if 'issue_date' not in full_data.columns:
             st.toast("⚠️ 普查資料無 issue_date 欄位", icon="⚡"); return
@@ -856,7 +900,6 @@ def render_2_1(df: pd.DataFrame):
                 with st.expander("📄 查看蜜月期深度分析 (Honeymoon Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 蜜月期戰略")
 
-                    # [UPGRADE #3] Typewriter for honeymoon analysis
                     honey_text = (
                         f"【蜜月期戰略分析】{name} ({cb_code}) 上市 {days} 天。"
                         f"CB市價 {price:.1f}，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
@@ -877,8 +920,6 @@ def render_2_1(df: pd.DataFrame):
                     else:
                         st.caption("(新券上市天數較短，均線指標僅供參考)")
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
-                    st.markdown("> * 領頭羊: 該族群率先起漲、氣勢最強之標竿。")
-                    st.markdown("> * 風口豬: 主流熱門題材風口，站在風口上連豬都會飛。")
                     st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
                     st.markdown("#### 2. 決策輔助 (Decision Support)")
                     c1,c2,c3 = st.columns(3)
@@ -894,7 +935,7 @@ def render_2_1(df: pd.DataFrame):
                     st.divider()
                     _plot_candle_chart(cb_code)
 
-    # ── ⚓ 滿年沈澱 (原版 Tab3 邏輯，含 check_mask_t3) ────────────
+    # ── ⚓ 滿年沈澱 ────────────────────────────────────────────────────────
     elif pill == "sediment":
         if 'issue_date' not in full_data.columns:
             st.toast("⚠️ 普查資料無 issue_date 欄位", icon="⚡"); return
@@ -962,7 +1003,7 @@ def render_2_1(df: pd.DataFrame):
                     st.divider()
                     _plot_candle_chart(cb_code)
 
-    # ── 🛡️ 賣回保衛 (原版 Tab4，含 check_mask_t4) ─────────────────
+    # ── 🛡️ 賣回保衛 ─────────────────────────────────────────────────
     elif pill == "put":
         if 'put_date' not in full_data.columns:
             st.toast("⚠️ 普查資料無 put_date 欄位", icon="⚡"); return
@@ -1030,7 +1071,7 @@ def render_2_1(df: pd.DataFrame):
                     st.divider()
                     _plot_candle_chart(cb_code)
 
-    # ── 🌪️ 產業風口地圖 (原版 Tab5，含完整 treemap + sector roster) ─
+    # ── 🌪️ 產業風口地圖 ─────────────────────────────────────────────────
     elif pill == "sector":
         if 'full_census_data' not in st.session_state:
             st.toast("⚠️ 請先執行普查", icon="⚡"); return
@@ -1040,7 +1081,7 @@ def render_2_1(df: pd.DataFrame):
         if df_gal.empty:
             st.caption("無資料，請先執行普查。"); return
 
-        # ─ Treemap（原版完整設定）
+        # ─ Treemap
         fig = px.treemap(
             df_gal, path=['L1','L2','L3','name'], values='size_metric',
             color='bias_clean',
@@ -1066,7 +1107,7 @@ def render_2_1(df: pd.DataFrame):
         st.markdown('</div>', unsafe_allow_html=True)
         st.divider()
 
-        # ─ Sector Roster（原版完整邏輯：上中下游分組 + 3欄 + 紅漲綠跌）
+        # ─ Sector Roster
         st.markdown(
             '<div style="font-family:var(--f-display);font-size:20px;color:#00F5FF;'
             'letter-spacing:2px;margin-bottom:14px;">🏆 全產業戰力排行榜</div>',
@@ -1090,7 +1131,7 @@ def render_2_1(df: pd.DataFrame):
                 for l2 in sorted_l2:
                     sub_df = l2_groups.get_group(l2).sort_values('bias', ascending=False)
                     st.markdown(f"**{l2}**")
-                    cols = st.columns(3)    # 原版 3 欄佈局（與原版保持一致）
+                    cols = st.columns(3)
                     for _, row in sub_df.iterrows():
                         color = "red" if row['bias'] > 0 else "#00FF00"
                         st.markdown(
@@ -1103,8 +1144,7 @@ def render_2_1(df: pd.DataFrame):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SECTION 2.2  ──  核心策略檢核 (Sniper Scope)
-#  [UPGRADE #2] Toast
+#  SECTION 2.2  ──  核心策略檢核 (Sniper Scope)  **PRESERVED 100%**
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_2():
     st.markdown('<div class="t2-sec-title">📈 2.2 核心策略檢核 — Sniper Scope</div>',
@@ -1160,9 +1200,7 @@ def render_2_2():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SECTION 2.3  ──  風險雷達（原版 required_risk_cols 邏輯保留）
-#  ★ 修正：欄位名稱優先用 converted_ratio，fallback 到 conv_rate
-#  [UPGRADE #2] Toast notifications
+#  SECTION 2.3  ──  風險雷達  **PRESERVED 100%**
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_3():
     st.markdown('<div class="t2-sec-title">⚠️ 2.3 潛在風險雷達 — Negative Screener</div>',
@@ -1175,13 +1213,11 @@ def render_2_3():
     scan = st.session_state['scan_results']
     st.caption("此區塊為「負面表列」清單，旨在警示符合特定風險條件的標的，提醒您「避開誰」。")
 
-    # ── 欄位名稱解析（對齊原版，支援兩種命名）
     conv_col   = 'converted_ratio' if 'converted_ratio' in scan.columns else \
                  ('conv_rate'       if 'conv_rate'       in scan.columns else None)
     prem_col   = 'premium'    if 'premium'    in scan.columns else None
     vol_col    = 'avg_volume' if 'avg_volume' in scan.columns else None
 
-    # 若三個關鍵欄位全部存在，走原版流程
     if conv_col and prem_col and vol_col:
         tab1_w13, tab2_w13, tab3_w13 = st.tabs([
             "**☠️ 籌碼鬆動 (主力落跑)**",
@@ -1189,7 +1225,6 @@ def render_2_3():
             "**🧊 流動性陷阱 (殭屍債)**"
         ])
 
-        # ─ 籌碼鬆動
         with tab1_w13:
             loose = scan[scan[conv_col] > 30].sort_values(conv_col, ascending=False)
             if not loose.empty:
@@ -1208,7 +1243,6 @@ def render_2_3():
                 st.markdown('<div class="t2-warn-ok">✅ 目前無標的觸發「籌碼鬆動」警示。</div>',
                             unsafe_allow_html=True)
 
-        # ─ 高溢價
         with tab2_w13:
             overp = scan[scan[prem_col] > 20].sort_values(prem_col, ascending=False)
             if not overp.empty:
@@ -1228,7 +1262,6 @@ def render_2_3():
                 st.markdown('<div class="t2-warn-ok">✅ 目前無標的觸發「高溢價」警示。</div>',
                             unsafe_allow_html=True)
 
-        # ─ 流動性陷阱
         with tab3_w13:
             illiq = scan[scan[vol_col] < 10].sort_values(vol_col)
             if not illiq.empty:
@@ -1247,7 +1280,6 @@ def render_2_3():
                 st.markdown('<div class="t2-warn-ok">✅ 目前無標的觸發「流動性陷阱」警示。</div>',
                             unsafe_allow_html=True)
     else:
-        # 原版錯誤訊息（欄位不足時）
         st.toast(
             "⚠️ 掃描結果缺少風險分析欄位 (converted_ratio/conv_rate, premium, avg_volume)",
             icon="⚡"
@@ -1255,8 +1287,7 @@ def render_2_3():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SECTION 2.4  ──  資金配置（原版 20% per stock 模型 + God-Tier UI）
-#  [UPGRADE #2] Toast  [UPGRADE #3] Typewriter
+#  SECTION 2.4  ──  資金配置  **PRESERVED 100%**
 # ══════════════════════════════════════════════════════════════════════════════
 def render_2_4():
     st.markdown('<div class="t2-sec-title">💰 2.4 資金配置試算 — Position Sizing</div>',
@@ -1280,15 +1311,13 @@ def render_2_4():
         "輸入您的總操作資金 (元)", min_value=100_000, value=2_000_000, step=100_000, key="t24_cap"
     )
 
-    # 原版：每檔固定 20%（Top 5 等權）
     sort_col  = 'score' if 'score' in buy_recs.columns else 'price'
     top5      = buy_recs.sort_values(sort_col, ascending=False).head(5)
-    kelly_pct = 20  # 原版固定值
+    kelly_pct = 20
 
     left_col, right_col = st.columns([1, 1])
 
     with left_col:
-        # ── 96px Kelly Number
         st.markdown(f"""
 <div class="t2-kelly-box">
   <div class="t2-kelly-lbl">建議投資組合 (Top 5) — 每檔配置</div>
@@ -1296,7 +1325,6 @@ def render_2_4():
   <div class="t2-kelly-sub">等權重分散 &nbsp;·&nbsp; 原版 20% / 檔模型</div>
 </div>""", unsafe_allow_html=True)
 
-        # [UPGRADE #3] Typewriter for portfolio summary
         port_summary = (
             f"【資金配置建議】總資金 {total_cap:,} 元，"
             f"Top 5 標的各配置 20% = {int(total_cap * 0.20):,} 元/檔。"
@@ -1308,7 +1336,6 @@ def render_2_4():
         else:
             st.caption(port_summary)
 
-        # ── Portfolio lines（原版邏輯：每檔 20%，CB 一張面額10萬）
         port_lines = ""
         for _, row in top5.iterrows():
             cb_price  = pd.to_numeric(row.get('price', 0), errors='coerce') or 0.0
@@ -1316,7 +1343,7 @@ def render_2_4():
             code      = row.get('code','0000')
             if cb_price > 0:
                 invest        = total_cap * 0.20
-                market_val    = cb_price * 1000        # 原版：一張 = price * 1000
+                market_val    = cb_price * 1000
                 num_lots      = int(invest / market_val)
                 port_lines += (
                     f'<div class="t2-port-row">'
@@ -1329,7 +1356,6 @@ def render_2_4():
         st.markdown(port_lines, unsafe_allow_html=True)
 
     with right_col:
-        # ── Plotly Pie（暗色主題）
         labels = [r.get('name','') for _, r in top5.iterrows()]
         alloc  = [kelly_pct] * len(top5)
         remain = 100 - sum(alloc)
@@ -1358,29 +1384,292 @@ def render_2_4():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FIRE CONTROL DECK CONFIG
+#  SECTION 2.5  ──  戰略兵工廠 (Strategic Arsenal)  **NEW SECTION**
+#  Surgical Transplant from tab5_wiki.py
+# ══════════════════════════════════════════════════════════════════════════════
+def render_2_5():
+    """
+    Section 2.5 — 戰略兵工廠 (Strategic Arsenal)
+    3 Sub-Tools transplanted from tab5_wiki.py:
+      - Tool A: Intel Hunter (情報獵殺)
+      - Tool B: CBAS Calculator (試算儀)
+      - Tool C: Strategy Calendar (行事曆)
+    """
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#FF9A3C;
+            letter-spacing:2px;margin-bottom:18px;
+            text-shadow:0 0 24px rgba(255,154,60,0.26);">
+  🛠️ 戰略兵工廠 — STRATEGIC ARSENAL
+</div>""", unsafe_allow_html=True)
+
+    # Sub-Navigation using tabs
+    tool_a, tool_b, tool_c = st.tabs([
+        "🔍 Intel Hunter (情報)",
+        "🧮 CBAS Calculator (試算)",
+        "📅 Strategy Calendar (日曆)"
+    ])
+
+    with tool_a:
+        _render_intel_hunter()
+
+    with tool_b:
+        _render_cbas_calculator()
+
+    with tool_c:
+        _render_strategy_calendar()
+
+
+def _render_intel_hunter():
+    """Tool A: Intel Hunter — Transplanted from tab5_wiki.py section 5.2"""
+    st.markdown("""
+<div class="t5-sec-head" style="--sa:#FF9A3C">
+  <div class="t5-sec-num">A</div>
+  <div>
+    <div class="t5-sec-title" style="color:#FF9A3C;">情報獵殺 — Intel Analysis Engine</div>
+    <div class="t5-sec-sub">Upload · Parse · Local Analysis · Gemini AI Deep Dive</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    kb = _load_engines()[1]
+    df = st.session_state.get('df', pd.DataFrame())
+
+    intel_files = st.session_state.get('intel_files', [])
+    if intel_files:
+        for file in intel_files:
+            st.markdown(f'<div class="codex-card gold"><div class="codex-card-title">📄 {file.name}</div><div class="codex-card-detail">情報檔案已上傳，展開查看分析結果</div></div>', unsafe_allow_html=True)
+            with st.expander(f"🔍 展開分析報告: {file.name}", expanded=False):
+                try:
+                    from intelligence import IntelligenceEngine
+                    intel = IntelligenceEngine()
+                    result = intel.analyze_file(file, kb, df)
+                    if "error" in result:
+                        st.toast(f"❌ {result['error']}", icon="💀")
+                    else:
+                        st.markdown(f'<div class="t5-terminal">{result.get("local_analysis_md", "本地分析失敗。")}</div>', unsafe_allow_html=True)
+                        st.divider()
+                        api_key = st.session_state.get('api_key', '')
+                        if api_key:
+                            with st.spinner(f"執行 Gemini AI 深度分析: {file.name}…"):
+                                try:
+                                    import google.generativeai as genai
+                                    genai.configure(api_key=api_key)
+                                    report = intel.analyze_with_gemini(result["full_text"])
+                                    st.markdown("### 💎 **Gemini AI 深度解析**")
+                                    st.write_stream(stream_generator(report))
+                                except Exception as e:
+                                    st.toast(f"❌ Gemini 失敗: {e}", icon="💀")
+                        else:
+                            st.toast("ℹ️ 未輸入 Gemini API Key，跳過 AI 深度解析。", icon="📡")
+                except ImportError:
+                    st.toast(f"ℹ️ 📄 已上傳: {file.name}（情報引擎尚未掛載，請確認 intelligence.py）", icon="📡")
+    else:
+        st.markdown("""
+<div style="text-align:center;padding:60px 30px;">
+  <div style="font-size:48px;margin-bottom:16px;opacity:.3;">🕵️</div>
+  <div style="font-family:var(--f-body);font-size:18px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:8px;">NO INTEL FILES DETECTED</div>
+  <div style="font-family:var(--f-mono);font-size:11px;color:rgba(160,176,208,.3);letter-spacing:2px;">請於左側上傳情報文件 (PDF/TXT) 以啟動分析引擎</div>
+</div>""", unsafe_allow_html=True)
+
+
+def _render_cbas_calculator():
+    """Tool B: CBAS Calculator — Transplanted from tab5_wiki.py section 5.3"""
+    st.markdown("""
+<div class="t5-sec-head" style="--sa:#00FF7F">
+  <div class="t5-sec-num">B</div>
+  <div>
+    <div class="t5-sec-title" style="color:#00FF7F;">CBAS 槓桿試算儀</div>
+    <div class="t5-sec-sub">Convertible Bond Arbitrage Simulator · Leverage Engine</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    col_in, col_space = st.columns([2, 1])
+    with col_in:
+        cb_price = st.number_input(
+            "輸入 CB 市價 (元)", min_value=100.0, value=110.0, step=0.5, format="%.2f",
+            key="cbas_price_arsenal"
+        )
+
+    premium_cost = cb_price - 100
+
+    if premium_cost > 0:
+        leverage = cb_price / premium_cost
+        if leverage > 5:
+            lev_cls = "green"
+        elif leverage > 3:
+            lev_cls = "gold"
+        else:
+            lev_cls = "red"
+
+        prem_cls = "green" if premium_cost < 15 else ("gold" if premium_cost < 25 else "red")
+
+        st.markdown(f"""
+<div class="calc-screen">
+  <div class="calc-lbl">Theoretical Premium (理論權利金)</div>
+  <div class="calc-val {prem_cls}">{premium_cost:.2f}<span class="calc-unit">元</span></div>
+  <div class="calc-divider"></div>
+  <div class="calc-lbl">Leverage Ratio (槓桿倍數)</div>
+  <div class="calc-val {lev_cls}">{leverage:.1f}<span class="calc-unit">×</span></div>
+</div>""", unsafe_allow_html=True)
+
+        st.markdown("")
+        if leverage > 3:
+            st.markdown(f"""
+<div class="codex-card green">
+  <div class="codex-card-title">🔥 高槓桿甜蜜點 — 適合以小博大</div>
+  <div class="codex-card-key">CB 市價 {cb_price:.0f} 元 = 以 {premium_cost:.2f} 元「時間價值」控制 100 元股票轉換價值</div>
+  <div class="codex-card-detail">若標的股票上漲 10%，CB 理論增值幅度約 {10 * leverage:.1f}%（{leverage:.2f} 倍槓桿效益）。風險有限，報酬可觀。</div>
+</div>""", unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+<div class="codex-card red">
+  <div class="codex-card-title">⚠️ 肉少湯多 — 槓桿效益偏低</div>
+  <div class="codex-card-key">槓桿 {leverage:.2f}× = 風險報酬比可能不佳</div>
+  <div class="codex-card-detail">CB 溢價過高（{premium_cost:.2f} 元），槓桿效益有限。建議考慮直接買進 CB 現股或等待價格回落。</div>
+</div>""", unsafe_allow_html=True)
+
+        st.markdown("")
+        st.markdown('<div style="font-family:var(--f-mono);font-size:9px;color:rgba(160,176,208,.25);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Quick Reference: Leverage at Different CB Prices</div>', unsafe_allow_html=True)
+        ref_cols = st.columns(5)
+        for i, p in enumerate([103, 105, 110, 115, 120]):
+            prem = p - 100
+            lev = p / prem if prem > 0 else 0
+            color = "#00FF7F" if lev > 5 else ("#FFD700" if lev > 3 else "#FF6B6B")
+            ref_cols[i].markdown(f"""
+<div style="text-align:center;padding:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:8px;">
+  <div style="font-family:var(--f-mono);font-size:9px;color:rgba(160,176,208,.35);letter-spacing:1px;">CB {p}元</div>
+  <div style="font-family:var(--f-i);font-size:26px;font-weight:800;color:{color};line-height:1.2;">{lev:.1f}×</div>
+</div>""", unsafe_allow_html=True)
+    else:
+        st.markdown("""
+<div class="calc-screen">
+  <div class="calc-lbl">CB 市價需高於 100 元</div>
+  <div class="calc-val" style="color:rgba(160,176,208,.15);">—.—<span class="calc-unit">×</span></div>
+</div>""", unsafe_allow_html=True)
+        st.toast("ℹ️ CB 市價需高於 100 元才能計算 CBAS 權利金。市價 = 100 時無溢價可供槓桿操作。", icon="📡")
+
+
+def _render_strategy_calendar():
+    """Tool C: Strategy Calendar — Transplanted from tab5_wiki.py section 5.4"""
+    st.markdown("""
+<div class="t5-sec-head" style="--sa:#FFD700">
+  <div class="t5-sec-num">C</div>
+  <div>
+    <div class="t5-sec-title" style="color:#FFD700;">戰略行事曆 — Time Arbitrage Calendar</div>
+    <div class="t5-sec-sub">Upcoming Events · Countdown · Honeymoon / Put / Conversion Windows</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    calendar = _load_calendar()
+    df = st.session_state.get('df', pd.DataFrame())
+
+    if df.empty:
+        st.markdown("""
+<div style="text-align:center;padding:60px 30px;">
+  <div style="font-size:48px;margin-bottom:16px;opacity:.3;">📅</div>
+  <div style="font-family:var(--f-body);font-size:18px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:8px;">NO CB DATA LOADED</div>
+  <div style="font-family:var(--f-mono);font-size:11px;color:rgba(160,176,208,.3);letter-spacing:2px;">請上傳 CB 清單以掃描時間套利事件</div>
+</div>""", unsafe_allow_html=True)
+        return
+
+    days_ahead = st.slider("掃描未來天數", 7, 90, 30, key="cal_days_arsenal")
+    today = datetime.now().date()
+    future_date = today + timedelta(days=days_ahead)
+    upcoming_events = []
+
+    code_col = next((c for c in df.columns if 'code' in c.lower()), None)
+    name_col = next((c for c in df.columns if 'name' in c.lower()), None)
+    list_col = next((c for c in df.columns if 'list' in c.lower() or 'issue' in c.lower()), None)
+    put_col  = next((c for c in df.columns if 'put' in c.lower() or '賣回' in c.lower()), None)
+
+    if code_col and name_col:
+        for _, row in df.iterrows():
+            try:
+                events = calendar.calculate_time_traps(
+                    str(row.get(code_col, '')),
+                    str(row.get(list_col, '')) if list_col else '',
+                    str(row.get(put_col, ''))  if put_col  else ''
+                )
+                for ev in events:
+                    ev_date = pd.to_datetime(ev['date']).date()
+                    if today <= ev_date <= future_date:
+                        upcoming_events.append({
+                            "name":  row.get(name_col, ''),
+                            "date":  ev_date,
+                            "event": ev['event'],
+                            "desc":  ev.get('desc', '')
+                        })
+            except Exception:
+                pass
+
+    if upcoming_events:
+        upcoming_events.sort(key=lambda x: x['date'])
+
+        st.markdown(f"""
+<div style="display:flex;gap:16px;margin-bottom:20px;">
+  <div style="flex:1;text-align:center;padding:18px;background:rgba(255,215,0,.03);border:1px solid rgba(255,215,0,.1);border-radius:12px;">
+    <div style="font-family:var(--f-o);font-size:42px;font-weight:900;color:#FFD700;line-height:1;">{len(upcoming_events)}</div>
+    <div style="font-family:var(--f-mono);font-size:9px;color:rgba(255,215,0,.4);letter-spacing:2px;margin-top:6px;">UPCOMING EVENTS</div>
+  </div>
+  <div style="flex:1;text-align:center;padding:18px;background:rgba(0,245,255,.02);border:1px solid rgba(0,245,255,.08);border-radius:12px;">
+    <div style="font-family:var(--f-o);font-size:42px;font-weight:900;color:#00F5FF;line-height:1;">{days_ahead}</div>
+    <div style="font-family:var(--f-mono);font-size:9px;color:rgba(0,245,255,.35);letter-spacing:2px;margin-top:6px;">DAY SCAN WINDOW</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+        for ev in upcoming_events:
+            days_left = (ev['date'] - today).days
+            if days_left <= 7:
+                day_color = "#FF3131"
+            elif days_left <= 14:
+                day_color = "#FFD700"
+            else:
+                day_color = "#00F5FF"
+
+            desc_html = f'<div class="event-desc">{ev["desc"]}</div>' if ev.get("desc") else ""
+            st.markdown(f"""
+<div class="event-card">
+  <div style="min-width:100px;text-align:center;">
+    <div class="event-day" style="color:{day_color};text-shadow:0 0 20px {day_color}40;">{days_left}</div>
+    <div class="event-day-unit">days left</div>
+  </div>
+  <div class="event-body">
+    <div class="event-name">{ev['name']}</div>
+    <div class="event-type">{ev['event']}</div>
+    <div class="event-date">{ev['date'].strftime('%Y-%m-%d')}</div>
+    {desc_html}
+  </div>
+</div>""", unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+<div style="text-align:center;padding:50px 30px;">
+  <div style="font-size:40px;margin-bottom:16px;opacity:.2;">✅</div>
+  <div style="font-family:var(--f-body);font-size:16px;color:rgba(255,255,255,.35);letter-spacing:2px;">未來 {days_ahead} 天內無觸發任何時間套利事件</div>
+</div>""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  FIRE CONTROL DECK CONFIG (Updated with 2.5)
 # ══════════════════════════════════════════════════════════════════════════════
 FIRE_BTNS = [
     ("2.1", "📡", "自動獵殺",  "AUTO SCAN",    "#00F5FF", "0,245,255"),
     ("2.2", "📈", "核心檢核",  "SNIPER SCOPE", "#00FF7F", "0,255,127"),
     ("2.3", "⚠️", "風險雷達",  "RISK RADAR",   "#FF3131", "255,49,49"),
     ("2.4", "💰", "資金配置",  "PORTFOLIO",    "#FFD700", "255,215,0"),
+    ("2.5", "🛠️", "戰略兵工廠", "ARSENAL",      "#FF9A3C", "255,154,60"),
 ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN ENTRY  ──  ★ @st.fragment 已補回（對齊原版）
-#  [UPGRADE #1] Tactical Guide Dialog on first visit
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
 def render():
-    """Tab 2 — 獵殺雷達  Director's Cut  V300"""
+    """Tab 2 — 獵殺雷達 + 戰略兵工廠  Director's Cut V300 + Arsenal Transplant"""
     _inject_css()
 
-    # [UPGRADE #1] Onboarding dialog — show once per session
     if not st.session_state.get('tab2_guided', False):
         _show_tactical_guide()
-        return  # dialog blocks rendering; will rerun after close
+        return
 
     df = st.session_state.get('df', pd.DataFrame())
 
@@ -1397,13 +1686,13 @@ def render():
     <span style="font-family:'Bebas Neue',sans-serif;font-size:26px;
                  color:#00F5FF;letter-spacing:3px;
                  text-shadow:0 0 22px rgba(0,245,255,0.32);">
-      🎯 獵殺雷達
+      🎯 獵殺雷達 + 兵工廠
     </span>
     <span style="font-family:'JetBrains Mono',monospace;font-size:9px;
                  color:rgba(0,245,255,0.26);letter-spacing:3px;
                  border:1px solid rgba(0,245,255,0.10);border-radius:20px;
                  padding:3px 13px;margin-left:14px;background:rgba(0,245,255,0.022);">
-      KILL RADAR V300
+      KILL RADAR V300 + ARSENAL
     </span>
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
@@ -1412,18 +1701,18 @@ def render():
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # ── FIRE CONTROL DECK ─────────────────────────────────────────
+    # ── FIRE CONTROL DECK (5 buttons) ─────────────────────────────────────────
     st.markdown(
         '<div style="background:linear-gradient(165deg,#07080f,#0b0c16);'
         'border:1px solid rgba(255,255,255,0.055);border-radius:18px;'
         'padding:16px 14px 13px;margin-bottom:16px;">'
         '<div style="font-family:JetBrains Mono,monospace;font-size:8px;letter-spacing:4px;'
         'color:rgba(0,245,255,0.18);text-transform:uppercase;margin-bottom:12px;padding-left:2px;">'
-        '⬡ fire control deck — select module</div>',
+        '⬡ fire control deck — select module (5 stations)</div>',
         unsafe_allow_html=True
     )
 
-    fire_cols = st.columns(4)
+    fire_cols = st.columns(5)
     for col, (code, icon, label_zh, label_en, accent, rgb) in zip(fire_cols, FIRE_BTNS):
         is_a  = (active == code)
         brd   = f"2px solid {accent}" if is_a else "1px solid #1b2030"
@@ -1460,6 +1749,8 @@ def render():
             render_2_3()
         elif active == "2.4":
             render_2_4()
+        elif active == "2.5":
+            render_2_5()
     except Exception as exc:
         import traceback
         st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
@@ -1467,7 +1758,7 @@ def render():
             st.code(traceback.format_exc())
 
     st.markdown(
-        f'<div class="t2-foot">Titan Kill Radar V300 &nbsp;·&nbsp; '
+        f'<div class="t2-foot">Titan Kill Radar + Arsenal V300 &nbsp;·&nbsp; '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
