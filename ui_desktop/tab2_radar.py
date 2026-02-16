@@ -623,11 +623,11 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
     conv_pct = _safe_conv(row)
     is_bull  = ma87 > ma284
-    # 修正：使用普查迴圈中賦值的欄位名稱
+    # ★ 修正：理論價 = 轉換價值（Excel S行, Index 18）
     cp       = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce') or 0.01
     sp       = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce') or 0.0
     cv       = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce') or 0.0
-    parity   = (sp / cp * 100) if cp > 0 else 0.0
+    parity   = cv  # 理論價 = 轉換價值
     premium  = ((price - cv) / cv * 100) if cv > 0 else 0.0
 
     with st.expander(title, expanded=False):
@@ -841,7 +841,8 @@ def render_2_1(df: pd.DataFrame):
             cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
             sp       = pd.to_numeric(row.get('stock_price_real',0.0), errors='coerce') or 0.0
             cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-            parity   = (sp/cp*100) if cp > 0 else 0.0
+            # ★ 修正：理論價 = 轉換價值（Excel S行）
+            parity   = cv
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
             trend_t  = "✅ 多頭排列" if is_bull else ("⚠️ 資料不足或整理中" if ma87 == 0 else "❌ 偏弱")
 
@@ -948,7 +949,8 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown("#### 2. 決策輔助")
                     cp = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
                     cv = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-                    parity  = (sp/cp*100) if cp > 0 else 0.0
+                    # ★ 修正：理論價 = 轉換價值（Excel S行）
+                    parity  = cv
                     premium = ((price-cv)/cv*100) if cv > 0 else 0.0
                     c1,c2,c3 = st.columns(3)
                     c1.metric("理論價", f"{parity:.2f}")
@@ -999,7 +1001,8 @@ def render_2_1(df: pd.DataFrame):
             is_bull  = ma87 > ma284
             cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
             cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-            parity   = (sp/cp*100) if cp > 0 else 0.0
+            # ★ 修正：理論價 = 轉換價值（Excel S行）
+            parity   = cv
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
 
             title = f"🛡️ {name} ({cb_code}) | 賣回倒數 {left} 天 | CB價: {price:.1f}"
