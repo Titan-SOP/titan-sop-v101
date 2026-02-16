@@ -778,34 +778,51 @@ def render_2_0(df):
         st.warning("⚠️ 無可用數據。請先在首頁載入 CB 資料。")
         return
 
-    # Find required columns (flexible column naming)
-    code_col = next((c for c in df.columns if 'code' in c.lower() or '代號' in c), None)
-    name_col = next((c for c in df.columns if 'name' in c.lower() or '名稱' in c), None)
-    price_col = next((c for c in df.columns if 'close' in c.lower() or '收盤' in c or '成交價' in c or 'price' in c.lower()), None)
-    premium_col = next((c for c in df.columns if 'premium' in c.lower() or '溢價' in c), None)
-    converted_col = next((c for c in df.columns if 'convert' in c.lower() or '轉換' in c), None)
+    # Find required columns (flexible column naming for actual Excel structure)
+    # 債券代號 (A列), 標的債券 (B列), 可轉債市價 (N列), 溢(折)價率 (U列)
+    code_col = next((c for c in df.columns if c == '債券代號' or 'code' in c.lower() or '代號' in c), None)
+    name_col = next((c for c in df.columns if c == '標的債券' or ('標的' in c and '債券' in c)), None)
+    price_col = next((c for c in df.columns if c == '可轉債市價' or ('可轉債' in c and '市價' in c)), None)
+    premium_col = next((c for c in df.columns if c == '溢(折)價率' or ('溢' in c and '價率' in c)), None)
+    balance_col = next((c for c in df.columns if '餘額比例' in c or 'balance' in c.lower()), None)
 
     if not all([code_col, name_col, price_col, premium_col]):
-        st.error("❌ 資料欄位不完整。需要：代號、名稱、收盤價、轉換溢價率")
-        st.info(f"可用欄位：{', '.join(df.columns[:10])}...")
+        st.error("❌ 資料欄位不完整。需要：代號、名稱、市價、溢(折)價率")
+        st.info(f"偵測到的欄位: 代號={code_col}, 名稱={name_col}, 市價={price_col}, 溢價={premium_col}")
+        st.info(f"前10個可用欄位：{', '.join(df.columns[:10])}...")
         return
 
     # Prepare data for visualization
     plot_df = df[[code_col, name_col, price_col, premium_col]].copy()
     plot_df.columns = ['ticker', 'name', 'price', 'premium']
     
-    # Add converted ratio if available
-    if converted_col:
-        plot_df['converted'] = df[converted_col]
+    # Calculate converted ratio from balance ratio (100% - 餘額比例 = 已轉換比例)
+    if balance_col:
+        balance = pd.to_numeric(df[balance_col], errors='coerce').fillna(100.0)
+        plot_df['converted'] = 100.0 - balance
     else:
         plot_df['converted'] = 0  # Default if not available
 
-    # Clean data
+    # Clean data - handle premium as string with % symbol
     plot_df = plot_df.dropna(subset=['price', 'premium'])
     plot_df['price'] = pd.to_numeric(plot_df['price'], errors='coerce')
-    plot_df['premium'] = pd.to_numeric(plot_df['premium'], errors='coerce')
+    
+    # Handle premium - may contain % symbol or be negative/string
+    def clean_premium(val):
+        if pd.isna(val):
+            return None
+        if isinstance(val, str):
+            # Remove % and other non-numeric characters except . and -
+            val = val.replace('%', '').replace(',', '').strip()
+            try:
+                return float(val)
+            except:
+                return None
+        return float(val)
+    
+    plot_df['premium'] = plot_df['premium'].apply(clean_premium)
     plot_df['converted'] = pd.to_numeric(plot_df['converted'], errors='coerce').fillna(0)
-    plot_df = plot_df.dropna()
+    plot_df = plot_df.dropna(subset=['price', 'premium'])
 
     if plot_df.empty:
         st.warning("⚠️ 清理後無有效數據可視覺化")
