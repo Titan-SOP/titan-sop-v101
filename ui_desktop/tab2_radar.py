@@ -261,8 +261,28 @@ def render_radar():
                     if 'issue_date' not in work_df.columns and 'list_date' in work_df.columns:
                         work_df['issue_date'] = work_df['list_date']
 
-                    # 2. 普查迴圈
-                    scan_results_df = get_scan_result(strategy, work_df)
+                    # 2. 普查迴圈（使用 TitanStrategyEngine）
+                    try:
+                        # 初始化策略引擎
+                        from strategy import TitanStrategyEngine
+                        from knowledge_base import TitanKnowledgeBase
+                        
+                        kb = TitanKnowledgeBase()
+                        strat = TitanStrategyEngine()
+                        strat.kb = kb
+                        
+                        # 執行策略掃描
+                        scan_results_df = strat.scan_entire_portfolio(work_df)
+                    except ImportError:
+                        # 如果沒有 strategy 模組，使用簡化版本
+                        st.warning("⚠️ 策略引擎模組不可用，使用簡化掃描模式")
+                        scan_results_df = work_df.copy()
+                        scan_results_df['score'] = 50  # 預設評分
+                    except Exception as e:
+                        st.error(f"策略掃描失敗: {e}")
+                        scan_results_df = work_df.copy()
+                        scan_results_df['score'] = 0
+                    
                     records = scan_results_df.to_dict('records')
                     
                     total = len(records)
