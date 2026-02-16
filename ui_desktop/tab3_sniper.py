@@ -20,7 +20,44 @@ from datetime import datetime
 import time
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 SOUL UPGRADE #2: VALKYRIE AI TYPEWRITER ENGINE
+# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER (WORD-BASED)
+# ══════════════════════════════════════════════════════════════
+def stream_generator(text):
+    """
+    Valkyrie AI Typewriter: Stream text word-by-word
+    Creates the sensation of live AI transmission.
+    """
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.02)
+
+# ══════════════════════════════════════════════════════════════
+# 🎯 FEATURE 1: TACTICAL GUIDE MODAL
+# ══════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 Mode")
+def show_guide_modal():
+    st.markdown("""
+    ### 指揮官，歡迎進入本戰區
+    
+    **核心功能**：
+    - **均線戰術分析**：87MA (季線) × 284MA (年線) 交叉策略，搭配格蘭碧 6 大買賣點智能識別。
+    - **技術指標庫**：內建亞當理論、艾略特波浪、波動率分析、ARK 情境模型等 7 大分析模組。
+    - **全球市場支援**：美股、台股、ETF、加密貨幣一站式分析，自動適配 .TW/.TWO 標的。
+    
+    **操作方式**：點擊上方選單切換模式 (Poster Rail 導航卡片)。
+    
+    **狀態監控**：隨時留意畫面中的警示訊號 (乖離率、趨勢持續天數、格蘭碧訊號)。
+    
+    ---
+    *建議：先輸入股票代碼 → 執行搜尋 → 查看戰情報告 → 切換分析模組*
+    """)
+    
+    if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
+        st.session_state["guide_shown_" + __name__] = True
+        st.rerun()
+
+# ══════════════════════════════════════════════════════════════
+# 🎯 SOUL UPGRADE #2: VALKYRIE AI TYPEWRITER ENGINE (ORIGINAL)
 # ══════════════════════════════════════════════════════════════
 def _stream_text(text, speed=0.005):
     """
@@ -516,7 +553,7 @@ def _t1(sdf, ticker, cp, m87, m87p5, m284):
     # Calculate deduction scenarios
     if len(sdf) < 300:
         st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
-        st.warning("歷史數據不足 300 天，無法精確計算年線扣抵。")
+        st.toast("⚠️ 歷史數據不足 300 天，無法精確計算年線扣抵。", icon="⚡")
         return
     
     # AI Analysis with Typewriter Effect
@@ -668,7 +705,7 @@ def _t2(sdf, ticker):
     # Calculate swings
     if len(sdf) < 60:
         st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
-        st.warning("歷史數據不足，無法計算亞當雙擺。")
+        st.toast("⚠️ 歷史數據不足，無法計算亞當雙擺。", icon="⚡")
         return
     
     tail_df = sdf[['Close']].tail(120).reset_index()
@@ -817,7 +854,7 @@ def _t4(sdf, ticker):
     
     if len(monthly) < 12:
         st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
-        st.warning("歷史數據不足 12 個月。")
+        st.toast("⚠️ 歷史數據不足 12 個月。", icon="⚡")
         return
     
     plot_df = monthly[['Open', 'High', 'Low', 'Close']].tail(36).reset_index()
@@ -935,7 +972,7 @@ def _t5(ticker, cp):
             st.toast("✅ ARK情境推演完成 / ARK Scenarios Complete", icon="🎯")
         else:
             st.toast("⚠️ 計算失敗 / Calculation Failed", icon="⚡")
-            st.warning("參數設定有誤，請檢查輸入值。")
+            st.toast("⚠️ 參數設定有誤，請檢查輸入值。", icon="⚡")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 6: SMART VALUATION (智能估值)
@@ -1025,7 +1062,7 @@ def _t6(ticker, cp):
             st.toast("✅ 估值計算完成 / Valuation Complete", icon="🎯")
         else:
             st.toast("⚠️ 計算失敗 / Calculation Failed", icon="⚡")
-            st.warning("參數設定有誤，請檢查輸入值。")
+            st.toast("⚠️ 參數設定有誤，請檢查輸入值。", icon="⚡")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 7: ELLIOTT 5-WAVE (艾略特五波)
@@ -1075,7 +1112,7 @@ def _t7(sdf):
     
     if len(zz) < 3:
         st.toast("⚠️ 波動過小 / Volatility Too Low", icon="⚡")
-        st.warning("波動過小，無法計算艾略特波浪。")
+        st.toast("⚠️ 波動過小，無法計算艾略特波浪。", icon="⚡")
         return
     
     # Calculate 5-Wave projection
@@ -1174,6 +1211,14 @@ RENDER = {
 @st.fragment
 def render():
     """Main Render Function - Titan OS God-Tier Edition"""
+    
+    # ══════════════════════════════════════════════════════════════
+    # 🎯 FEATURE 1: Show tactical guide modal on first visit
+    # ══════════════════════════════════════════════════════════════
+    if "guide_shown_" + __name__ not in st.session_state:
+        show_guide_modal()
+        st.session_state["guide_shown_" + __name__] = True
+    
     _inject_css()
     
     # Initialize session state
@@ -1257,7 +1302,7 @@ def render():
         
         if sdf.empty:
             st.toast("❌ 查無數據 / No Data Found", icon="⚡")
-            st.error("❌ 查無數據，或歷史數據不足 300 天無法計算年線扣抵。")
+            st.toast("❌ 查無數據，或歷史數據不足 300 天無法計算年線扣抵。", icon="💀")
             return
         
         # Data preprocessing
@@ -1296,7 +1341,7 @@ def render():
         
         except Exception as e:
             st.toast("❌ 資料格式錯誤 / Data Format Error", icon="⚡")
-            st.error(f"資料格式錯誤: {e}")
+            st.toast(f"❌ 資料格式錯誤: {e}", icon="💀")
             return
         
         # Calculate MAs
@@ -1354,6 +1399,11 @@ def render():
         </div>
         """, unsafe_allow_html=True)
         
+        # FEATURE 3: Valkyrie Typewriter for tactical summary
+        st.markdown("**🎯 戰術總結 (Tactical Summary)**")
+        tactical_summary = f"基於當前技術指標分析，{v_ticker} 目前處於 {trend_str.replace('🔥', '').replace('❄️', '').strip()} 狀態，已持續 {trend_days} 個交易日。格蘭碧信號顯示 {g_title}，{g_desc}。乖離率為 {bias:.1f}%，{'建議謹慎操作' if abs(bias) > 15 else '處於正常範圍' if abs(bias) < 7 else '需要關注'}。請結合下方各項技術指標進行綜合判斷。"
+        st.write_stream(stream_generator(tactical_summary))
+        
         # Render badges
         _render_badges(sdf, cp, m87, m284, bias)
         
@@ -1410,6 +1460,7 @@ def render():
         except Exception as exc:
             import traceback
             st.toast("❌ 子模組渲染失敗 / Module Render Failed", icon="⚡")
+            st.toast(f"❌ 子模組 {active} 渲染失敗: {exc}", icon="💀")
             st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
             with st.expander("🔍 Debug"):
                 st.code(traceback.format_exc())
