@@ -31,6 +31,44 @@ import altair as alt
 from datetime import datetime, timedelta
 from scipy.stats import linregress
 import io
+import time
+
+# ══════════════════════════════════════════════════════════════
+# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER (st.write_stream)
+# ══════════════════════════════════════════════════════════════
+def stream_generator(text):
+    """
+    Valkyrie AI Typewriter: Stream text word-by-word
+    Creates the sensation of live AI transmission.
+    """
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.02)
+
+# ══════════════════════════════════════════════════════════════
+# 🎯 FEATURE 1: TACTICAL GUIDE MODAL (st.dialog)
+# ══════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 Mode")
+def show_guide_modal():
+    st.markdown("""
+    ### 指揮官，歡迎進入本戰區
+    
+    **核心功能**：
+    - **7 維度幾何掃描**：從 35 年到 3 個月，全時間尺度角度分析，識別長期趨勢與短期動能。
+    - **22 階泰坦信評系統**：SSS/AAA/Phoenix 等智能評級，精準定位標的當前位置與潛力。
+    - **AI 議會戰略工廠**：整合瓦爾基里情報 + 20 條第一性原則，生成 800+ 字深度分析提示詞。
+    
+    **操作方式**：點擊上方選單切換模式 (6.1 掃描 → 6.2 深鑽 → 6.3 獵殺清單 → 6.4 智能工具)。
+    
+    **狀態監控**：隨時留意畫面中的警示訊號 (乖離過大、Phoenix 信號、加速度異常)。
+    
+    ---
+    *建議：先執行 6.1 全局掃描，再針對目標標的進入 6.2 深度分析*
+    """)
+    
+    if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
+        st.session_state["guide_shown_" + __name__] = True
+        st.rerun()
 
 # ── 可選依賴 ──
 try:
@@ -310,7 +348,7 @@ class TitanAgentCouncil:
                 except:
                     self.model = genai.GenerativeModel('gemini-1.5-flash')
             except Exception as e:
-                st.warning(f"AI 模型初始化失敗: {e}")
+                st.toast(f"⚠️ AI 模型初始化失敗: {e}", icon="⚡")
 
     def generate_battle_prompt(self, ticker, price, geo_data, rating_info,
                                intel_text="", commander_note="", selected_principles=None):
@@ -539,7 +577,7 @@ def _render_radar(geo, ticker):
 def _render_monthly_chart(ticker, months=120):
     df = st.session_state.get('daily_price_data', {}).get(ticker)
     if df is None:
-        st.warning("無日K數據")
+        st.toast("⚠️ 無日K數據", icon="⚡")
         return
     dfc = df.copy()
     if isinstance(dfc.columns, pd.MultiIndex):
@@ -570,7 +608,7 @@ def _render_god_orbit(ticker):
     """[FIX #4] 上帝軌道 — 全歷史對數線性回歸 (RESTORED)"""
     df_daily = st.session_state.get('daily_price_data', {}).get(ticker)
     if df_daily is None or df_daily.empty:
-        st.warning("⚠️ 請先執行掃描以載入數據。")
+        st.toast("⚠️ 請先執行掃描以載入數據。", icon="⚡")
         return
     df_c = df_daily.copy()
     if isinstance(df_c.columns, pd.MultiIndex):
@@ -596,7 +634,7 @@ def _render_god_orbit(ticker):
     c2.metric("當前價格", f"${cur_p:.2f}")
     c3.metric("趨勢線乖離", f"{deviation:+.1f}%")
 
-    st.info("💡 Y軸為對數座標，可更清楚觀察長期幾何趨勢。藍色虛線為全歷史回歸軌道。")
+    st.toast("ℹ️ Y軸為對數座標，可更清楚觀察長期幾何趨勢。藍色虛線為全歷史回歸軌道。", icon="📡")
     price_line = alt.Chart(df_c).mark_line(color='#00FF00', strokeWidth=2).encode(
         x=alt.X('Date:T', title='時間', axis=alt.Axis(format='%Y')),
         y=alt.Y('Close:Q', title='收盤價 (對數座標)', scale=alt.Scale(type='log'),
@@ -617,13 +655,13 @@ def _render_god_orbit(ticker):
 
     st.subheader("📊 幾何解讀")
     if abs(deviation) < 10:
-        st.success(f"✅ 價格貼近趨勢線 (乖離 {deviation:+.1f}%)，處於健康軌道。")
+        st.toast(f"✅ 價格貼近趨勢線 (乖離 {deviation:+.1f}%)，處於健康軌道。", icon="🎯")
     elif deviation > 30:
-        st.warning(f"⚠️ 價格遠高於趨勢線 (乖離 +{deviation:.1f}%)，可能過熱，注意回調風險。")
+        st.toast(f"⚠️ 價格遠高於趨勢線 (乖離 +{deviation:.1f}%)，可能過熱，注意回調風險。", icon="⚡")
     elif deviation < -30:
-        st.info(f"💎 價格遠低於趨勢線 (乖離 {deviation:.1f}%)，若基本面無虞，可能是逢低機會。")
+        st.toast(f"ℹ️ 價格遠低於趨勢線 (乖離 {deviation:.1f}%)，若基本面無虞，可能是逢低機會。", icon="📡")
     else:
-        st.info(f"ℹ️ 價格略偏離趨勢線 (乖離 {deviation:+.1f}%)，屬正常波動範圍。")
+        st.toast(f"ℹ️ 價格略偏離趨勢線 (乖離 {deviation:+.1f}%)，屬正常波動範圍。", icon="📡")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -856,7 +894,7 @@ def _s62():
         st.session_state['deep_ticker'] = ticker_in
 
     if 'deep_geo' not in st.session_state or st.session_state.get('deep_ticker') != ticker_in:
-        st.info("👆 請輸入代號並啟動分析。")
+        st.toast("ℹ️ 請輸入代號並啟動分析。", icon="📡")
         return
     geo = st.session_state['deep_geo']
     rating = st.session_state['deep_rating']
@@ -919,7 +957,7 @@ def _s62():
                 with st.spinner("🤖 瓦爾基里正在抓取情報..."):
                     agency = TitanIntelAgency()
                     st.session_state['valkyrie_report_v300'] = agency.fetch_full_report(ticker_in)
-                st.success("✅ 瓦爾基里情報抓取完成！")
+                st.toast("✅ 瓦爾基里情報抓取完成！", icon="🎯")
             if 'valkyrie_report_v300' in st.session_state:
                 intel_text = st.text_area("📝 瓦爾基里情報 (可編輯)", value=st.session_state['valkyrie_report_v300'], height=250, key="intel_v300_valk")
             else:
@@ -949,7 +987,7 @@ def _s62():
             dp = st.session_state.daily_price_data[ticker_in]
             if dp is not None and not dp.empty:
                 price = float(dp['Close'].iloc[-1])
-        st.info(f"**當前標的**: {ticker_in} | **現價**: ${price:.2f} | **信評**: {lvl} - {name} | **已選原則**: {len(sel_p)} 條")
+        st.toast(f"ℹ️ 當前標的: {ticker_in} | 現價: ${price:.2f} | 信評: {lvl} - {name} | 已選原則: {len(sel_p)} 條", icon="📡")
         st.markdown("---")
         if st.button("🚀 生成戰略提示詞", type="primary", use_container_width=True, key="gen_prompt_v300"):
             combined = intel_text
@@ -958,13 +996,15 @@ def _s62():
             council = TitanAgentCouncil()
             prompt = council.generate_battle_prompt(ticker_in, price, geo or {}, rating, combined, commander_note, sel_p)
             st.session_state['battle_prompt_v300'] = prompt
-            st.success("✅ 史詩級戰略提示詞已生成！")
+            st.toast("✅ 史詩級戰略提示詞已生成！", icon="🎯")
         if 'battle_prompt_v300' in st.session_state:
             pt = st.session_state['battle_prompt_v300']
             st.markdown(f'<div class="terminal-box"><pre style="white-space:pre-wrap;margin:0;color:#c9d1d9;font-size:11px;">{pt[:2000]}{"…" if len(pt) > 2000 else ""}</pre></div>', unsafe_allow_html=True)
             st.text_area("📋 複製此提示詞 (Ctrl+A, Ctrl+C)", value=pt, height=350, key="prompt_out_v300")
             st.download_button("💾 下載戰略提示詞 (.txt)", pt, file_name=f"TITAN_VALKYRIE_{ticker_in}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt", mime="text/plain", use_container_width=True)
-            st.info("**📌 使用方法**：複製提示詞 → 貼到 Gemini/Claude → 獲得五大角鬥士完整辯論")
+            # FEATURE 3: Valkyrie Typewriter for prompt display
+            st.markdown("**📌 使用方法**")
+            st.write_stream(stream_generator("複製提示詞 → 貼到 Gemini/Claude → 獲得五大角鬥士完整辯論"))
             st.caption(f"📊 提示詞統計：{len(pt)} 字元")
 
 
@@ -985,7 +1025,7 @@ def _s63():
             submitted = st.form_submit_button("💾 存入戰情室", type="primary")
             if submitted:
                 if not log_ticker or log_entry <= 0:
-                    st.warning("請輸入有效的代號與進場價。")
+                    st.toast("⚠️ 請輸入有效的代號與進場價。", icon="⚡")
                 else:
                     if 'watchlist' not in st.session_state:
                         st.session_state.watchlist = pd.DataFrame(columns=[
@@ -1007,7 +1047,7 @@ def _s63():
                     st.session_state.watchlist = pd.concat(
                         [st.session_state.watchlist, new_row], ignore_index=True
                     ).drop_duplicates(subset=['Ticker', 'Entry Price'], keep='last')
-                    st.success(f"✅ {log_ticker} 已成功存入戰情室！")
+                    st.toast(f"✅ {log_ticker} 已成功存入戰情室！", icon="🎯")
 
     st.markdown("---")
 
@@ -1054,13 +1094,13 @@ def _s63():
                     st.session_state.watchlist = pd.DataFrame(rows)
                     st.toast("戰況已更新！", icon="🔄")
                 except Exception as e:
-                    st.error(f"更新失敗: {e}")
+                    st.toast(f"❌ 更新失敗: {e}", icon="💀")
         else:
-            st.info("清單為空，無可更新的戰況。")
+            st.toast("ℹ️ 清單為空，無可更新的戰況。", icon="📡")
 
     # Scoreboard
     if 'watchlist' not in st.session_state or st.session_state.watchlist.empty:
-        st.info("戰情室目前無獵殺目標。")
+        st.toast("ℹ️ 戰情室目前無獵殺目標。", icon="📡")
     else:
         wl = st.session_state.watchlist.copy()
         holding = len(wl[wl['Status'] == '⏳ Holding'])
@@ -1157,7 +1197,7 @@ def _s64():
                     st.session_state['hunt_target_name'] = target
                     st.success(f"✅ 目標已鎖定！信評: **{tr[0]} - {tr[1]}**")
                 else:
-                    st.error(f"❌ 無法載入 {target} 的數據")
+                    st.toast(f"❌ 無法載入 {target} 的數據", icon="💀")
 
             if 'hunt_tgeo' in st.session_state and st.session_state.get('hunt_target_name') == target:
                 tgeo = st.session_state['hunt_tgeo']
@@ -1322,7 +1362,7 @@ def _s66():
             st.session_state["gbt_lbl"] = f"{bt_ticker}-{bt_win}->{bt_thresh}°"
             st.success(f"CAGR {r['cagr']:.2%} | Sharpe {r['sharpe']:.2f} | MDD {r['mdd']:.2%}")
         else:
-            st.error("回測失敗")
+            st.toast("❌ 回測失敗", icon="💀")
 
     if "gbt" in st.session_state:
         r = st.session_state["gbt"]
@@ -1397,6 +1437,14 @@ def _s66():
 # ═══════════════════════════════════════════════════════════════
 def render():
     """Tab 6 — 元趨勢戰法 Global Market Hologram V300"""
+    
+    # ══════════════════════════════════════════════════════════════
+    # 🎯 FEATURE 1: Show tactical guide modal on first visit
+    # ══════════════════════════════════════════════════════════════
+    if "guide_shown_" + __name__ not in st.session_state:
+        show_guide_modal()
+        st.session_state["guide_shown_" + __name__] = True
+    
     _inject_css()
     _render_hero()
     _render_nav_rail()
@@ -1408,6 +1456,7 @@ def render():
         fn()
     except Exception as exc:
         import traceback
+        st.toast(f"❌ Section {active} error: {exc}", icon="💀")
         st.error(f"❌ Section {active} error: {exc}")
         with st.expander("Debug"):
             st.code(traceback.format_exc())
