@@ -622,52 +622,48 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     ma87     = pd.to_numeric(row.get('ma87'),   errors='coerce') or 0.0
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
     conv_pct = _safe_conv(row)
-    is_bull  = ma87 > ma284
-    # 修正：使用普查迴圈中賦值的欄位名稱
-    cp       = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce') or 0.01
-    sp       = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce') or 0.0
-    cv       = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce') or 0.0
-    parity   = (sp / cp * 100) if cp > 0 else 0.0
-    premium  = ((price - cv) / cv * 100) if cv > 0 else 0.0
 
     with st.expander(title, expanded=False):
         st.markdown(f"## 📊 {cb_name} ({cb_code}) 策略分析")
 
-        # [UPGRADE #3] Typewriter for analysis summary
-        analysis_summary = (
-            f"【{cb_name} ({cb_code}) 狙擊分析】"
-            f"CB市價 {price:.1f}，87MA {ma87:.2f}，284MA {ma284:.2f}。"
-            f"{'多頭排列 ✅' if is_bull else '整理/空頭 ⚠️'}。"
-            f"已轉換率 {conv_pct:.1f}%，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
-        )
-        stream_key = f"report_{cb_code}"
-        if stream_key not in st.session_state:
-            st.write_stream(_stream_text(analysis_summary, speed=0.010))
-            st.session_state[stream_key] = True
-        else:
-            st.caption(analysis_summary)
-
-        st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
+        st.info("### 1. 核心策略檢核 (The 4 Commandments)")
         st.markdown(f"1. 價格天條 (<115): {'✅ 通過' if price < 115 else '⚠️ 警戒'} (目前 **{price:.1f}**)")
-        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
-        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
-        st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
-        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股。")
-        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股，站在風口上連豬都會飛。")
-        st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-        st.markdown("#### 2. 決策輔助 (Decision Support)")
+        
+        is_bullish = ma87 > ma284
+        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bullish else '⚠️ 整理中'}")
+        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bullish else ' < '} 284MA **{ma284:.2f}**")
+        
+        st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
+        st.markdown("> 💡 鄭思翰辨別準則：")
+        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股(如 2025年底的群聯與PCB族群集體發債)。")
+        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股 (如 旺宏)，站在風口上連豬都會飛。")
+        
+        st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
+        
+        st.success("### 2. 決策輔助 (Decision Support)")
+        # 在 expander 內部才計算理論價和溢價率
+        conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
+        stock_price = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce')
+        parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
+        conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
+        premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
+        
         c1, c2, c3 = st.columns(3)
         c1.metric("理論價 (Parity)", f"{parity:.2f}")
         c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
         c3.metric("已轉換比例", f"{conv_pct:.2f}%")
-        st.markdown("#### 4. 交易計畫 (Trading Plan)")
-        st.caption("🕒 關鍵時段：09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
-        st.markdown("* 🎯 進場佈局: 105~115 元區間")
-        st.markdown("* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA")
-        st.markdown("#### 5. 出場/風控 (Exit/Risk)")
-        st.markdown("* 🛑 停損: CB 跌破 100 元")
-        st.markdown("* 💰 停利: 目標價 152 元以上，嚴守「留魚尾」策略")
+        
+        st.markdown("### 4. 交易計畫 (Trading Plan)")
+        st.warning("🕒 關鍵時段：09:00 開盤後30分鐘 (觀察大戶試撮) / 13:25 收盤前25分鐘 (尾盤定勝負)")
+        st.markdown(f"* 🎯 進場佈局: 建議於 105~115 元 區間佈局加碼。")
+        st.markdown(f"* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA 時。")
+        
+        st.markdown("### 5. 出場/風控 (Exit/Risk)")
+        st.markdown(f"* 🛑 停損: CB 跌破 100 元 (保本天條)。")
+        st.markdown(f"* 💰 停利: 目標價 152 元以上，嚴守 「留魚尾」 策略避免過早出場。")
+        
         st.divider()
+        # [修復] 在報告內正確渲染 K 線圖
         _plot_candle_chart(cb_code)
 
 
