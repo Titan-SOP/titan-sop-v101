@@ -478,10 +478,10 @@ def _run_census(df: pd.DataFrame, min_score: int):
         st.toast(f"⚠️ 偵測到缺少欄位: {missing_cols}，啟用 Index Fallback...", icon="🔧")
         # 直接用 Index 讀取原始 df（假設 df 就是原始上傳的資料）
         if len(df.columns) >= 21:  # 確保有足夠的欄位
-            work_df['code']       = df.iloc[:, 0]   # A行：債券代號
-            work_df['name']       = df.iloc[:, 1]   # B行：標的債券
+            work_df['code']       = df.iloc[:, 0].astype(str)   # A行：債券代號
+            work_df['name']       = df.iloc[:, 1].astype(str)   # B行：標的債券
             work_df['conv_price'] = pd.to_numeric(df.iloc[:, 9], errors='coerce').fillna(0.0)   # J行：轉換價格
-            work_df['stock_code'] = df.iloc[:, 10]  # K行：轉換標的代碼
+            work_df['stock_code'] = df.iloc[:, 10].astype(str)  # K行：轉換標的代碼 ★ 轉為字串
             work_df['stock_price']= pd.to_numeric(df.iloc[:, 11], errors='coerce').fillna(0.0)  # L行：標的股票市價
             work_df['price']      = pd.to_numeric(df.iloc[:, 13], errors='coerce').fillna(0.0)  # N行：可轉債市價
             work_df['conv_value'] = pd.to_numeric(df.iloc[:, 18], errors='coerce').fillna(0.0)  # S行：轉換價值 ★
@@ -510,17 +510,48 @@ def _run_census(df: pd.DataFrame, min_score: int):
     if 'issue_date' not in work_df.columns and 'list_date' in work_df.columns:
         work_df['issue_date'] = work_df['list_date']
 
+    # ★ 關鍵修正：直接使用 work_df，不通過策略引擎
+    # 因為策略引擎可能會過濾掉或遺失 stock_code 欄位
     try:
-        scan_df = strat.scan_entire_portfolio(work_df)
-        records = scan_df.to_dict('records')
+        # 嘗試使用策略引擎評分
+        try:
+            scan_df = strat.scan_entire_portfolio(work_df)
+            # 合併策略引擎的評分到 work_df
+            if 'score' in scan_df.columns and 'code' in scan_df.columns:
+                work_df = work_df.merge(
+                    scan_df[['code', 'score']], 
+                    on='code', 
+                    how='left',
+                    suffixes=('', '_from_strat')
+                )
+                if 'score_from_strat' in work_df.columns:
+                    work_df['score'] = work_df['score_from_strat'].fillna(0)
+                    work_df.drop('score_from_strat', axis=1, inplace=True)
+        except Exception as e:
+            st.toast(f"⚠️ 策略評分失敗: {e}，使用預設評分", icon="⚠️")
+            work_df['score'] = 50  # 預設評分
+        
+        # 確保 score 欄位存在
+        if 'score' not in work_df.columns:
+            work_df['score'] = 50
+            
+        records = work_df.to_dict('records')
     except Exception as e:
-        st.toast(f"⚠️ 策略掃描失敗: {e}", icon="⚡")
+        st.toast(f"⚠️ 資料處理失敗: {e}", icon="⚡")
         return pd.DataFrame(), pd.DataFrame()
 
     total = len(records)
     pbar  = st.progress(0)
     stxt  = st.empty()
     enriched = []
+    
+    # ★ Debug: 檢查前5筆的 stock_code
+    if total > 0:
+        debug_info = []
+        for i in range(min(5, total)):
+            r = records[i]
+            debug_info.append(f"{r.get('name', '?')}: code={r.get('stock_code', 'MISSING')}")
+        st.toast(f"🔍 Debug - 前5筆股票代碼: {' | '.join(debug_info)}", icon="🔍")
 
     for i, row in enumerate(records):
         name = row.get('name', '')
