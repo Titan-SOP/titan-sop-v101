@@ -2,6 +2,7 @@
 # Titan SOP V300 — 獵殺雷達 (Kill Radar) + 戰略兵工廠 (Strategic Arsenal)
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  "DIRECTOR'S CUT V300" + SURGICAL ARSENAL TRANSPLANT            ║
+# ║  ✅ NEW Section 2.0: 籌碼序幕 (Chips Prologue)                    ║
 # ║  ✅ Sections 2.1-2.4 PRESERVED 100% (NO CASTRATION)              ║
 # ║  ✅ NEW Section 2.5: 戰略兵工廠 (Strategic Arsenal)               ║
 # ║      → Tool A: Intel Hunter (情報獵殺)                            ║
@@ -11,6 +12,7 @@
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # 原版邏輯完整對應：
+#  2.0 籌碼序幕  → Market Battlefield Map (Interactive Scatter + Lazy Load)
 #  2.1 自動獵殺  → Fire Control Deck + Strategy Pills
 #  2.2 核心檢核  → Sniper Scope (K-line + 4 Commandments)
 #  2.3 風險雷達  → Warning Cards (converted_ratio/premium/avg_volume)
@@ -59,6 +61,9 @@ def _show_tactical_guide():
 ### 🎯 歡迎進入獵殺雷達
 
 本模組是 Titan OS 的**核心狙擊系統**，執行全市場普查與精準打擊：
+
+**🎬 2.0 籌碼序幕 (CHIPS PROLOGUE)**
+市場戰場地圖 — 互動式散點圖，X軸為轉換溢價率（成本），Y軸為收盤價（價值），顏色顯示已轉換比例熱度。快速鎖定狙擊區與避雷區。
 
 **📡 2.1 自動獵殺 (AUTO SCAN)**
 全市場雙軌普查 (.TW/.TWO)，自動篩選 SOP 黃金標準標的 (價格<120 + 多頭排列 + 轉換率<30%)。
@@ -717,6 +722,261 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
         st.markdown("* 💰 停利: 目標價 152 元以上，嚴守「留魚尾」策略")
         st.divider()
         _plot_candle_chart(cb_code)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SECTION 2.0 — 籌碼序幕 (CHIPS PROLOGUE) — Market Battlefield Map
+# ══════════════════════════════════════════════════════════════════════════════
+def render_2_0(df):
+    """
+    🎬 Section 2.0: 籌碼序幕 (Chips Prologue)
+    Market Battlefield Map — Interactive Scatter Plot
+    X-Axis: 轉換溢價率 (Premium Rate)
+    Y-Axis: 收盤價 (Closing Price)
+    Color: 已轉換比例 (Converted Ratio) or Premium heat
+    """
+    st.markdown("""
+<div style="margin-bottom:20px;">
+  <div style="font-family:var(--f-display);font-size:34px;color:#FFD700;
+              letter-spacing:2px;margin-bottom:8px;
+              text-shadow:0 0 30px rgba(255,215,0,.3);">
+    🎬 籌碼序幕
+  </div>
+  <div style="font-family:var(--f-mono);font-size:11px;color:rgba(255,215,0,.4);
+              letter-spacing:3px;text-transform:uppercase;">
+    CHIPS PROLOGUE — MARKET BATTLEFIELD MAP
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # Lazy loading mechanism
+    if 'battlefield_loaded' not in st.session_state:
+        st.session_state.battlefield_loaded = False
+
+    if not st.session_state.battlefield_loaded:
+        # Show initialization button
+        if st.button("📡 初始化戰場地圖 (Initialize Battlefield Map)", 
+                     use_container_width=True, type="primary"):
+            st.session_state.battlefield_loaded = True
+            st.rerun()
+        
+        st.markdown("""
+<div style="text-align:center;padding:60px 30px;
+            background:rgba(255,215,0,.02);
+            border:1px solid rgba(255,215,0,.08);
+            border-radius:16px;margin-top:20px;">
+  <div style="font-size:56px;margin-bottom:16px;opacity:.3;">🗺️</div>
+  <div style="font-family:var(--f-body);font-size:16px;color:rgba(255,215,0,.5);
+              letter-spacing:2px;line-height:1.8;">
+    戰場地圖尚未啟動<br>
+    點擊上方按鈕以載入互動式籌碼分佈圖
+  </div>
+</div>""", unsafe_allow_html=True)
+        return
+
+    # Check if data is available
+    if df.empty:
+        st.warning("⚠️ 無可用數據。請先在首頁載入 CB 資料。")
+        return
+
+    # Find required columns (flexible column naming)
+    code_col = next((c for c in df.columns if 'code' in c.lower() or '代號' in c), None)
+    name_col = next((c for c in df.columns if 'name' in c.lower() or '名稱' in c), None)
+    price_col = next((c for c in df.columns if 'close' in c.lower() or '收盤' in c or '成交價' in c or 'price' in c.lower()), None)
+    premium_col = next((c for c in df.columns if 'premium' in c.lower() or '溢價' in c), None)
+    converted_col = next((c for c in df.columns if 'convert' in c.lower() or '轉換' in c), None)
+
+    if not all([code_col, name_col, price_col, premium_col]):
+        st.error("❌ 資料欄位不完整。需要：代號、名稱、收盤價、轉換溢價率")
+        st.info(f"可用欄位：{', '.join(df.columns[:10])}...")
+        return
+
+    # Prepare data for visualization
+    plot_df = df[[code_col, name_col, price_col, premium_col]].copy()
+    plot_df.columns = ['ticker', 'name', 'price', 'premium']
+    
+    # Add converted ratio if available
+    if converted_col:
+        plot_df['converted'] = df[converted_col]
+    else:
+        plot_df['converted'] = 0  # Default if not available
+
+    # Clean data
+    plot_df = plot_df.dropna(subset=['price', 'premium'])
+    plot_df['price'] = pd.to_numeric(plot_df['price'], errors='coerce')
+    plot_df['premium'] = pd.to_numeric(plot_df['premium'], errors='coerce')
+    plot_df['converted'] = pd.to_numeric(plot_df['converted'], errors='coerce').fillna(0)
+    plot_df = plot_df.dropna()
+
+    if plot_df.empty:
+        st.warning("⚠️ 清理後無有效數據可視覺化")
+        return
+
+    # Create zone classifications
+    def classify_zone(row):
+        if row['premium'] < 10 and row['price'] < 120:
+            return '🟩 Sniper Zone (獵殺區)'
+        elif row['premium'] > 30 or row['price'] > 150:
+            return '🟥 Danger Zone (避雷區)'
+        else:
+            return '🟨 Neutral Zone (中性區)'
+    
+    plot_df['zone'] = plot_df.apply(classify_zone, axis=1)
+
+    # Stats summary
+    total = len(plot_df)
+    sniper = len(plot_df[plot_df['zone'].str.contains('Sniper')])
+    danger = len(plot_df[plot_df['zone'].str.contains('Danger')])
+    neutral = total - sniper - danger
+
+    st.markdown(f"""
+<div class="t2-hud-grid">
+  <div class="t2-hud-card" style="--hc:#FFD700;">
+    <div class="t2-hud-lbl">TOTAL CBs</div>
+    <div class="t2-hud-val">{total}</div>
+    <div class="t2-hud-sub">Market Size</div>
+  </div>
+  <div class="t2-hud-card" style="--hc:#00FF7F;">
+    <div class="t2-hud-lbl">SNIPER ZONE</div>
+    <div class="t2-hud-val">{sniper}</div>
+    <div class="t2-hud-sub">{sniper/total*100:.1f}% 優質標的</div>
+  </div>
+  <div class="t2-hud-card" style="--hc:#FF3131;">
+    <div class="t2-hud-lbl">DANGER ZONE</div>
+    <div class="t2-hud-val">{danger}</div>
+    <div class="t2-hud-sub">{danger/total*100:.1f}% 高風險</div>
+  </div>
+  <div class="t2-hud-card" style="--hc:#00F5FF;">
+    <div class="t2-hud-lbl">NEUTRAL ZONE</div>
+    <div class="t2-hud-val">{neutral}</div>
+    <div class="t2-hud-sub">{neutral/total*100:.1f}% 觀察中</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # Create interactive scatter plot
+    fig = px.scatter(
+        plot_df,
+        x='premium',
+        y='price',
+        color='converted',
+        size='price',
+        hover_data={
+            'ticker': True,
+            'name': True,
+            'price': ':.2f',
+            'premium': ':.2f',
+            'converted': ':.2f',
+            'zone': True
+        },
+        color_continuous_scale='RdYlGn_r',
+        title='Market Battlefield Map — 籌碼分佈圖'
+    )
+
+    # Add zone boundaries
+    fig.add_shape(
+        type="rect",
+        x0=-5, x1=10, y0=0, y1=120,
+        fillcolor="rgba(0,255,127,0.08)",
+        line=dict(color="rgba(0,255,127,0.3)", width=2, dash="dash"),
+        layer="below"
+    )
+    
+    fig.add_shape(
+        type="rect",
+        x0=30, x1=plot_df['premium'].max() + 5, y0=0, y1=plot_df['price'].max() + 10,
+        fillcolor="rgba(255,49,49,0.08)",
+        line=dict(color="rgba(255,49,49,0.3)", width=2, dash="dash"),
+        layer="below"
+    )
+
+    # Customize layout
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='Rajdhani, sans-serif', color='#CCD'),
+        xaxis=dict(
+            title='轉換溢價率 (%) — Premium Rate (Cost Axis)',
+            gridcolor='rgba(255,255,255,0.05)',
+            zeroline=False
+        ),
+        yaxis=dict(
+            title='收盤價 (元) — Closing Price (Value Axis)',
+            gridcolor='rgba(255,255,255,0.05)',
+            zeroline=False
+        ),
+        coloraxis_colorbar=dict(
+            title="已轉換比例 (%)",
+            tickfont=dict(family='JetBrains Mono'),
+            titlefont=dict(family='Rajdhani')
+        ),
+        height=600,
+        hovermode='closest'
+    )
+
+    fig.update_traces(
+        marker=dict(
+            line=dict(width=1, color='rgba(255,255,255,0.3)'),
+            sizemode='diameter',
+            sizemin=4
+        )
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Zone interpretation guide
+    st.markdown("""
+<div style="background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05);
+            border-radius:12px;padding:18px 20px;margin-top:20px;">
+  <div style="font-family:var(--f-body);font-size:16px;font-weight:700;
+              color:#00F5FF;margin-bottom:12px;">
+    📊 戰場區域解讀 (Zone Interpretation)
+  </div>
+  <div style="font-family:var(--f-body);font-size:13px;color:#BBC;line-height:1.8;">
+    <strong style="color:#00FF7F;">🟩 Sniper Zone (獵殺區)</strong>: 低溢價 (<10%) + 低價格 (<120) = 高 CP 值標的<br>
+    <strong style="color:#FFD700;">🟨 Neutral Zone (中性區)</strong>: 觀察中標的，需進一步分析趨勢與籌碼<br>
+    <strong style="color:#FF3131;">🟥 Danger Zone (避雷區)</strong>: 高溢價 (>30%) 或高價 (>150) = 風險較高
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # Top sniper targets
+    if sniper > 0:
+        sniper_df = plot_df[plot_df['zone'].str.contains('Sniper')].copy()
+        sniper_df = sniper_df.sort_values('premium').head(10)
+        
+        st.markdown("""
+<div style="margin-top:24px;margin-bottom:12px;">
+  <div style="font-family:var(--f-body);font-size:18px;font-weight:700;
+              color:#00FF7F;text-shadow:0 0 20px rgba(0,255,127,.2);">
+    🎯 Top 10 Sniper Targets (優質獵殺標的)
+  </div>
+</div>""", unsafe_allow_html=True)
+
+        # Create table HTML
+        table_rows = ""
+        for idx, row in sniper_df.iterrows():
+            table_rows += f"""
+<tr>
+  <td style="font-family:var(--f-mono);color:#00F5FF;">{row['ticker']}</td>
+  <td>{row['name']}</td>
+  <td style="font-family:var(--f-mono);text-align:right;">{row['price']:.2f}</td>
+  <td style="font-family:var(--f-mono);text-align:right;color:#00FF7F;">{row['premium']:.2f}%</td>
+  <td style="font-family:var(--f-mono);text-align:right;">{row['converted']:.2f}%</td>
+</tr>"""
+
+        st.markdown(f"""
+<table class="t2-tbl">
+  <thead>
+    <tr>
+      <th>Ticker</th>
+      <th>Name</th>
+      <th style="text-align:right;">Price</th>
+      <th style="text-align:right;">Premium</th>
+      <th style="text-align:right;">Converted</th>
+    </tr>
+  </thead>
+  <tbody>
+    {table_rows}
+  </tbody>
+</table>""", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1648,14 +1908,15 @@ def _render_strategy_calendar():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  FIRE CONTROL DECK CONFIG (Updated with 2.5)
+#  FIRE CONTROL DECK CONFIG (Updated with 2.0 + 2.5)
 # ══════════════════════════════════════════════════════════════════════════════
 FIRE_BTNS = [
-    ("2.1", "📡", "自動獵殺",  "AUTO SCAN",    "#00F5FF", "0,245,255"),
-    ("2.2", "📈", "核心檢核",  "SNIPER SCOPE", "#00FF7F", "0,255,127"),
-    ("2.3", "⚠️", "風險雷達",  "RISK RADAR",   "#FF3131", "255,49,49"),
-    ("2.4", "💰", "資金配置",  "PORTFOLIO",    "#FFD700", "255,215,0"),
-    ("2.5", "🛠️", "戰略兵工廠", "ARSENAL",      "#FF9A3C", "255,154,60"),
+    ("2.0", "🎬", "籌碼序幕",  "CHIPS PROLOGUE", "#9370DB", "147,112,219"),
+    ("2.1", "📡", "自動獵殺",  "AUTO SCAN",      "#00F5FF", "0,245,255"),
+    ("2.2", "📈", "核心檢核",  "SNIPER SCOPE",   "#00FF7F", "0,255,127"),
+    ("2.3", "⚠️", "風險雷達",  "RISK RADAR",     "#FF3131", "255,49,49"),
+    ("2.4", "💰", "資金配置",  "PORTFOLIO",      "#FFD700", "255,215,0"),
+    ("2.5", "🛠️", "戰略兵工廠", "ARSENAL",        "#FF9A3C", "255,154,60"),
 ]
 
 
@@ -1664,7 +1925,7 @@ FIRE_BTNS = [
 # ══════════════════════════════════════════════════════════════════════════════
 @st.fragment
 def render():
-    """Tab 2 — 獵殺雷達 + 戰略兵工廠  Director's Cut V300 + Arsenal Transplant"""
+    """Tab 2 — 獵殺雷達 + 戰略兵工廠  Director's Cut V300 + Arsenal Transplant + Chips Prologue"""
     _inject_css()
 
     if not st.session_state.get('tab2_guided', False):
@@ -1674,7 +1935,7 @@ def render():
     df = st.session_state.get('df', pd.DataFrame())
 
     if 't2_active' not in st.session_state:
-        st.session_state.t2_active = "2.1"
+        st.session_state.t2_active = "2.0"  # Default to new Section 2.0
     active = st.session_state.t2_active
 
     # ── SYSTEM BAR ────────────────────────────────────────────────
@@ -1692,7 +1953,7 @@ def render():
                  color:rgba(0,245,255,0.26);letter-spacing:3px;
                  border:1px solid rgba(0,245,255,0.10);border-radius:20px;
                  padding:3px 13px;margin-left:14px;background:rgba(0,245,255,0.022);">
-      KILL RADAR V300 + ARSENAL
+      KILL RADAR V300 + ARSENAL + PROLOGUE
     </span>
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
@@ -1701,18 +1962,18 @@ def render():
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # ── FIRE CONTROL DECK (5 buttons) ─────────────────────────────────────────
+    # ── FIRE CONTROL DECK (6 buttons) ─────────────────────────────────────────
     st.markdown(
         '<div style="background:linear-gradient(165deg,#07080f,#0b0c16);'
         'border:1px solid rgba(255,255,255,0.055);border-radius:18px;'
         'padding:16px 14px 13px;margin-bottom:16px;">'
         '<div style="font-family:JetBrains Mono,monospace;font-size:8px;letter-spacing:4px;'
         'color:rgba(0,245,255,0.18);text-transform:uppercase;margin-bottom:12px;padding-left:2px;">'
-        '⬡ fire control deck — select module (5 stations)</div>',
+        '⬡ fire control deck — select module (6 stations)</div>',
         unsafe_allow_html=True
     )
 
-    fire_cols = st.columns(5)
+    fire_cols = st.columns(6)
     for col, (code, icon, label_zh, label_en, accent, rgb) in zip(fire_cols, FIRE_BTNS):
         is_a  = (active == code)
         brd   = f"2px solid {accent}" if is_a else "1px solid #1b2030"
@@ -1741,7 +2002,9 @@ def render():
     st.markdown('<div class="t2-content">', unsafe_allow_html=True)
 
     try:
-        if active == "2.1":
+        if active == "2.0":
+            render_2_0(df)
+        elif active == "2.1":
             render_2_1(df)
         elif active == "2.2":
             render_2_2()
@@ -1758,7 +2021,7 @@ def render():
             st.code(traceback.format_exc())
 
     st.markdown(
-        f'<div class="t2-foot">Titan Kill Radar + Arsenal V300 &nbsp;·&nbsp; '
+        f'<div class="t2-foot">Titan Kill Radar + Arsenal V300 + Chips Prologue &nbsp;·&nbsp; '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
