@@ -449,25 +449,58 @@ def _run_census(df: pd.DataFrame, min_score: int):
     strat, _ = _load_engines()
     work_df  = df.copy()
 
-    # 欄位對應（原版 rename_map 完整）
+    # 欄位對應（修正：使用完整欄位名稱）
     rename_map = {
-        '代號':'code', '名稱':'name', '可轉債市價':'price',
-        '轉換價格':'conv_price', '轉換標的':'stock_code',
-        '已轉換比例':'conv_rate', '轉換價值':'conv_value',
-        '發行日':'issue_date', '賣回日':'put_date',
+        '債券代號':'code', '代號':'code',
+        '標的債券':'name', '名稱':'name',
+        '可轉債市價':'price',
+        '轉換價格':'conv_price',
+        '轉換標的代碼':'stock_code', '轉換標的':'stock_code',  # ★ 修正：Excel是「轉換標的代碼」
+        '已轉換比例':'conv_rate',
+        '轉換價值':'conv_value',  # ★ 關鍵：S行，理論價來源
+        '發行日期':'issue_date', '發行日':'issue_date',
+        '最新賣回日':'put_date', '賣回日':'put_date',
         '餘額比例':'balance_ratio'
     }
     work_df.rename(columns=lambda c: rename_map.get(c.strip(), c.strip()), inplace=True)
 
-    # 餘額比例優先計算已轉換率（原版修正2）
+    # 餘額比例優先計算已轉換率
     if 'balance_ratio' in work_df.columns:
         bal = pd.to_numeric(work_df['balance_ratio'], errors='coerce').fillna(100.0)
         work_df['conv_rate'] = 100.0 - bal
 
-    # 數值欄位型別安全
-    for col in ['price','conv_rate','conv_price','conv_value']:
-        work_df[col] = pd.to_numeric(work_df.get(col, pd.Series(dtype=float)),
-                                     errors='coerce').fillna(0.0)
+    # ★★★ Index Fallback：強制用 Index 讀取關鍵欄位 ★★★
+    required_cols = ['conv_price', 'stock_code', 'price', 'conv_value']
+    missing_cols = [c for c in required_cols if c not in work_df.columns]
+    
+    if missing_cols:
+        st.toast(f"⚠️ 啟用 Index Fallback：{missing_cols}", icon="🔧")
+        # 直接用 Index 從原始 df 讀取（df 就是從 session_state 來的原始資料）
+        if len(df.columns) >= 21:
+            work_df['code']       = df.iloc[:, 0].astype(str)   # A行：債券代號
+            work_df['name']       = df.iloc[:, 1].astype(str)   # B行：標的債券
+            work_df['conv_price'] = pd.to_numeric(df.iloc[:, 9], errors='coerce').fillna(0.0)   # J行：轉換價格
+            work_df['stock_code'] = df.iloc[:, 10].astype(str)  # K行：轉換標的代碼 ★
+            work_df['price']      = pd.to_numeric(df.iloc[:, 13], errors='coerce').fillna(0.0)  # N行：可轉債市價
+            work_df['conv_value'] = pd.to_numeric(df.iloc[:, 18], errors='coerce').fillna(0.0)  # S行：轉換價值 ★★★
+            work_df['put_date']   = df.iloc[:, 21]  # V行：最新賣回日
+            work_df['issue_date'] = df.iloc[:, 2]   # C行：發行日期
+            # 餘額比例和已轉換率
+            balance_val = pd.to_numeric(df.iloc[:, 6], errors='coerce').fillna(100.0)  # G行：餘額比例
+            work_df['balance_ratio'] = balance_val
+            work_df['conv_rate'] = 100.0 - balance_val
+            st.toast("✅ Index Fallback 完成", icon="✅")
+        else:
+            st.error(f"❌ Excel檔案欄位不足（需要至少21欄，實際{len(df.columns)}欄）")
+            return pd.DataFrame(), pd.DataFrame()
+
+    # 型別安全：確保數值欄位為 float
+    numeric_cols = ['price', 'conv_rate', 'conv_price', 'conv_value']
+    for col in numeric_cols:
+        if col in work_df.columns:
+            work_df[col] = pd.to_numeric(work_df[col], errors='coerce').fillna(0.0)
+        else:
+            work_df[col] = 0.0
 
     # 日期欄位處理
     for dcol in ['issue_date','put_date','list_date']:
@@ -841,7 +874,7 @@ def render_2_1(df: pd.DataFrame):
             cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
             sp       = pd.to_numeric(row.get('stock_price_real',0.0), errors='coerce') or 0.0
             cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-            # ★ 修正：理論價 = 轉換價值（Excel S行）
+            # ★ 修正：理論價 = 轉換價值
             parity   = cv
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
             trend_t  = "✅ 多頭排列" if is_bull else ("⚠️ 資料不足或整理中" if ma87 == 0 else "❌ 偏弱")
@@ -949,7 +982,7 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown("#### 2. 決策輔助")
                     cp = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
                     cv = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-                    # ★ 修正：理論價 = 轉換價值（Excel S行）
+                    # ★ 修正：理論價 = 轉換價值
                     parity  = cv
                     premium = ((price-cv)/cv*100) if cv > 0 else 0.0
                     c1,c2,c3 = st.columns(3)
@@ -1001,7 +1034,7 @@ def render_2_1(df: pd.DataFrame):
             is_bull  = ma87 > ma284
             cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
             cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
-            # ★ 修正：理論價 = 轉換價值（Excel S行）
+            # ★ 修正：理論價 = 轉換價值
             parity   = cv
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
 
