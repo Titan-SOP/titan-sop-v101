@@ -493,12 +493,13 @@ def _run_census(df: pd.DataFrame, min_score: int):
         stxt.text(f"普查進行中 ({i+1}/{total}): {name}…")
 
         code = str(row.get('stock_code', '')).strip()
+        # 數據傳遞：確保關鍵數據寫入（使用正確的欄位名稱）
         row.update({
             'stock_price_real': 0.0, 'ma87': 0.0, 'ma284': 0.0,
             'trend_status': '⚠️ 資料不足',
             'cb_price':       row.get('price', 0.0),
-            'conv_price_val': row.get('conv_price', 0.0),
-            'conv_value_val': row.get('conv_value', 0.0),
+            'conv_price_val': row.get('conv_price', 0.0),  # 保留 conv_price 的值
+            'conv_value_val': row.get('conv_value', 0.0),  # 保留 conv_value 的值
         })
 
         if code:
@@ -614,55 +615,58 @@ def _four_commandments(row):
 
 
 def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)"):
-    """原版詳細報告內容（4 Commandments + 決策輔助 + 交易計畫 + K 線）
-    完全對齊原始檔案第296-336行的邏輯"""
+    """原版詳細報告內容（4 Commandments + 決策輔助 + 交易計畫 + K 線）"""
     cb_code  = str(row.get('code', row.get('stock_code','0000'))).strip()
     cb_name  = row.get('name','未知')
     price    = pd.to_numeric(row.get('price'),  errors='coerce') or 0.0
     ma87     = pd.to_numeric(row.get('ma87'),   errors='coerce') or 0.0
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
-    
-    # [關鍵修正]: 已轉換率反轉邏輯 (對齊原始檔案第278-282行)
-    raw_conv = pd.to_numeric(row.get('conv_rate', row.get('balance_rate', 100)), errors='coerce') or 100.0
-    converted_percentage = (100.0 - raw_conv) if raw_conv > 50 else raw_conv
-    if converted_percentage < 0: converted_percentage = 0.0
+    conv_pct = _safe_conv(row)
+    is_bull  = ma87 > ma284
+    # 修正：使用普查迴圈中賦值的欄位名稱
+    cp       = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce') or 0.01
+    sp       = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce') or 0.0
+    cv       = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce') or 0.0
+    parity   = (sp / cp * 100) if cp > 0 else 0.0
+    premium  = ((price - cv) / cv * 100) if cv > 0 else 0.0
 
     with st.expander(title, expanded=False):
         st.markdown(f"## 📊 {cb_name} ({cb_code}) 策略分析")
-        
-        st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+
+        # [UPGRADE #3] Typewriter for analysis summary
+        analysis_summary = (
+            f"【{cb_name} ({cb_code}) 狙擊分析】"
+            f"CB市價 {price:.1f}，87MA {ma87:.2f}，284MA {ma284:.2f}。"
+            f"{'多頭排列 ✅' if is_bull else '整理/空頭 ⚠️'}。"
+            f"已轉換率 {conv_pct:.1f}%，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
+        )
+        stream_key = f"report_{cb_code}"
+        if stream_key not in st.session_state:
+            st.write_stream(_stream_text(analysis_summary, speed=0.010))
+            st.session_state[stream_key] = True
+        else:
+            st.caption(analysis_summary)
+
+        st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
         st.markdown(f"1. 價格天條 (<115): {'✅ 通過' if price < 115 else '⚠️ 警戒'} (目前 **{price:.1f}**)")
-        
-        is_bullish = ma87 > ma284
-        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bullish else '⚠️ 整理中'}")
-        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bullish else ' < '} 284MA **{ma284:.2f}**")
-        
-        st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
-        st.markdown("> 💡 鄭思翰辨別準則：")
-        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股(如 2025年底的群聯與PCB族群集體發債)。")
-        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股 (如 旺宏)，站在風口上連豬都會飛。")
-        
-        st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-        
-        st.success("### 2. 決策輔助 (Decision Support)")
-        # ★ 關鍵：理論價和溢價率在這裡才計算！(對齊原始檔案第314-318行)
-        conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
-        stock_price = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce')
-        parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
-        conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
-        premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
-        
+        st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
+        st.markdown(f"> 均線數據: 87MA **{ma87:.2f}** {' > ' if is_bull else ' < '} 284MA **{ma284:.2f}**")
+        st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
+        st.markdown("> * 領頭羊: 產業族群中率先領漲、最強勢的高價指標股。")
+        st.markdown("> * 風口豬: 處於主流題材風口的二軍低價股，站在風口上連豬都會飛。")
+        st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
+        st.markdown("#### 2. 決策輔助 (Decision Support)")
         c1, c2, c3 = st.columns(3)
         c1.metric("理論價 (Parity)", f"{parity:.2f}")
         c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
-        c3.metric("已轉換比例", f"{converted_percentage:.2f}%")
-        st.markdown("### 4. 交易計畫 (Trading Plan)")
-        st.warning("🕒 關鍵時段：09:00 開盤後30分鐘 (觀察大戶試撮) / 13:25 收盤前25分鐘 (尾盤定勝負)")
-        st.markdown(f"* 🎯 進場佈局: 建議於 105~115 元 區間佈局加碼。")
+        c3.metric("已轉換比例", f"{conv_pct:.2f}%")
+        st.markdown("#### 4. 交易計畫 (Trading Plan)")
+        st.caption("🕒 關鍵時段：09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
+        st.markdown("* 🎯 進場佈局: 105~115 元區間")
         st.markdown("* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA")
-        st.markdown("### 5. 出場/風控 (Exit/Risk)")
-        st.markdown(f"* 🛑 停損: CB 跌破 100 元 (保本天條)。")
-        st.markdown(f"* 💰 停利: 目標價 152 元以上，嚴守 「留魚尾」 策略避免過早出場。")
+        st.markdown("#### 5. 出場/風控 (Exit/Risk)")
+        st.markdown("* 🛑 停損: CB 跌破 100 元")
+        st.markdown("* 💰 停利: 目標價 152 元以上，嚴守「留魚尾」策略")
         st.divider()
         _plot_candle_chart(cb_code)
 
@@ -834,9 +838,9 @@ def render_2_1(df: pd.DataFrame):
             ma87     = pd.to_numeric(row.get('ma87'),  errors='coerce') or 0.0
             ma284    = pd.to_numeric(row.get('ma284'), errors='coerce') or 0.0
             is_bull  = ma87 > ma284
-            cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce')
-            sp       = pd.to_numeric(row.get('stock_price_real',0.0), errors='coerce')
-            cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce')
+            cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
+            sp       = pd.to_numeric(row.get('stock_price_real',0.0), errors='coerce') or 0.0
+            cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
             parity   = (sp/cp*100) if cp > 0 else 0.0
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
             trend_t  = "✅ 多頭排列" if is_bull else ("⚠️ 資料不足或整理中" if ma87 == 0 else "❌ 偏弱")
@@ -851,9 +855,21 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 with st.expander("📄 查看蜜月期深度分析 (Honeymoon Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 蜜月期戰略")
-                    
-                    # 區塊 1: 核心策略
-                    st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+
+                    # [UPGRADE #3] Typewriter for honeymoon analysis
+                    honey_text = (
+                        f"【蜜月期戰略分析】{name} ({cb_code}) 上市 {days} 天。"
+                        f"CB市價 {price:.1f}，理論價 {parity:.2f}，溢價率 {premium:.1f}%。"
+                        f"趨勢: {trend_t}。已轉換率 {conv_pct:.1f}%。"
+                    )
+                    hkey = f"honey_{cb_code}"
+                    if hkey not in st.session_state:
+                        st.write_stream(_stream_text(honey_text, speed=0.010))
+                        st.session_state[hkey] = True
+                    else:
+                        st.caption(honey_text)
+
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 蜜月期價格: {'✅ 通過' if price < 115 else '⚠️ 監控'} (新券甜蜜區 105-115，目前 **{price:.1f}**)")
                     st.markdown(f"2. 中期多頭排列: {trend_t}")
                     if ma87 > 0:
@@ -863,25 +879,18 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
                     st.markdown("> * 領頭羊: 該族群率先起漲、氣勢最強之標竿。")
                     st.markdown("> * 風口豬: 主流熱門題材風口，站在風口上連豬都會飛。")
-                    st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    
-                    # 區塊 2: 決策輔助
-                    st.success("### 2. 決策輔助 (Decision Support)")
-                    c1, c2, c3 = st.columns(3)
+                    st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
+                    st.markdown("#### 2. 決策輔助 (Decision Support)")
+                    c1,c2,c3 = st.columns(3)
                     c1.metric("理論價 (Parity)", f"{parity:.2f}")
                     c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
                     c3.metric("已轉換比例", f"{conv_pct:.2f}%")
-                    
-                    # 區塊 4: 交易計畫
-                    st.markdown("### 4. 交易計畫 (Trading Plan)")
-                    st.warning("🕒 關鍵時段：09:00 開盤 (觀察大戶試撮氣勢) / 13:25 收盤前 (尾盤定勝負)")
-                    st.markdown(f"* 🎯 蜜月期佈局: 新券上市初期若價格在 110 元以下 為極佳安全邊際。")
-                    st.markdown(f"* 🚀 加碼時機: 股價帶量突破 87MA 或 284MA。")
-                    
-                    # 區塊 5: 出場風控
-                    st.markdown("### 5. 出場/風控 (Exit/Risk)")
-                    st.markdown(f"* 🛑 停損: CB 跌破 100 元 (保本天條，新券下檔有限)。")
-                    st.markdown(f"* 💰 停利: 目標價 152 元以上，嚴守 「留魚尾」 策略。")
+                    st.markdown("#### 4. 交易計畫 (Trading Plan)")
+                    st.caption("🕒 09:00 開盤後30分鐘 / 13:25 收盤前25分鐘")
+                    st.markdown("* 🎯 新券上市初期若 ≤110 為極佳安全邊際")
+                    st.markdown("* 🚀 加碼: 帶量突破 87MA 或 284MA")
+                    st.markdown("#### 5. 出場/風控")
+                    st.markdown("* 🛑 停損: CB 跌破 100 元  · 💰 停利: 152 元以上")
                     st.divider()
                     _plot_candle_chart(cb_code)
 
@@ -928,31 +937,28 @@ def render_2_1(df: pd.DataFrame):
                 _four_commandments(row)
                 with st.expander("📄 查看滿年沈澱深度分析 (Consolidation Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 滿年甦醒評估")
-                    st.info("### 1. 核心策略檢核 (The 4 Commandments)")
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 價格天條 (<115): ✅ 通過 (沈澱期最佳成本區，目前 **{price:.1f}**)")
                     check_t = "✅ 通過 (已站上 87MA)" if is_above else "⚠️ 均線整理中"
                     st.markdown(f"2. 中期多頭排列: {check_t}")
                     if ma87 > 0:
                         st.markdown(f"> 現價 **{sp:.2f}** {' > ' if is_above else ' < '} 87MA **{ma87:.2f}**")
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
-                    st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    st.divider()
-                    st.success("### 2. 決策輔助 (Decision Support)")
-                    # ★ 關鍵：理論價和溢價率在這裡才計算！
-                    conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
-                    parity = (sp / conv_price * 100) if conv_price > 0 else 0.0
-                    conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
-                    premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
+                    st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
+                    st.markdown("#### 2. 決策輔助")
+                    cp = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
+                    cv = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
+                    parity  = (sp/cp*100) if cp > 0 else 0.0
+                    premium = ((price-cv)/cv*100) if cv > 0 else 0.0
                     c1,c2,c3 = st.columns(3)
-                    c1.metric("理論價 (Parity)", f"{parity:.2f}")
-                    c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
-                    c3.metric("已轉換比例", f"{conv_pct:.2f}%")
-                    st.markdown("### 4. 交易計畫 (Trading Plan)")
-                    st.markdown(f"* 🎯 沈澱期佈局: 滿一年後，股價只要「站穩 87MA」即為首波觀察進場點。")
-                    st.markdown(f"* 🚀 加碼時機: 當 87MA 正式由平轉上揚，且股價帶量突破橫盤區間。")
-                    st.markdown("### 5. 出場/風控 (Exit/Risk)")
-                    st.markdown(f"* 🛑 停損: CB 跌破 100 元 (保本天條)。")
-                    st.markdown(f"* 💰 停利: 目標價 152 元以上。")
+                    c1.metric("理論價", f"{parity:.2f}")
+                    c2.metric("溢價率", f"{premium:.2f}%")
+                    c3.metric("已轉換", f"{conv_pct:.2f}%")
+                    st.markdown("#### 4. 交易計畫")
+                    st.markdown("* 🎯 站穩 87MA 即為首波觀察進場點")
+                    st.markdown("* 🚀 87MA 由平轉上揚時加碼")
+                    st.markdown("#### 5. 出場/風控")
+                    st.markdown("* 🛑 停損: CB 跌破 100 元  · 💰 停利: 152 元以上")
                     st.divider()
                     _plot_candle_chart(cb_code)
 
@@ -987,44 +993,40 @@ def render_2_1(df: pd.DataFrame):
             price    = pd.to_numeric(row.get('price'),  errors='coerce') or 0.0
             ma87     = pd.to_numeric(row.get('ma87'),   errors='coerce') or 0.0
             ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
-            stock_price = pd.to_numeric(row.get('stock_price_real'), errors='coerce') or 0.0
-            raw_c = pd.to_numeric(row.get('conv_rate', 100), errors='coerce') or 100.0
-            converted_percentage = (100.0 - raw_c) if raw_c > 50 else raw_c
+            sp       = pd.to_numeric(row.get('stock_price_real'), errors='coerce') or 0.0
+            conv_pct = _safe_conv(row)
             pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A'
+            is_bull  = ma87 > ma284
+            cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
+            cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
+            parity   = (sp/cp*100) if cp > 0 else 0.0
+            premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
 
             title = f"🛡️ {name} ({cb_code}) | 賣回倒數 {left} 天 | CB價: {price:.1f}"
             with st.expander(title):
                 st.markdown(
                     f"### 🚨 保衛警告: `📅 賣回日: {pd_str}` | "
-                    f"`✅ 價格甜甜圈區間` | `✅ 已轉換 {converted_percentage:.2f}%`"
+                    f"`✅ 價格甜甜圈區間` | `✅ 已轉換 {conv_pct:.2f}%`"
                 )
                 st.divider()
                 _four_commandments(row)
                 with st.expander("📄 查看賣回保衛戰術報告 (Put Protection Report)", expanded=False):
                     st.markdown(f"## 📊 {name} ({cb_code}) 賣回壓力測試")
-                    st.error("### 1. 核心策略檢核 (The 4 Commandments)")
+                    st.markdown("#### 1. 核心策略檢核 (The 4 Commandments)")
                     st.markdown(f"1. 價格天條 (95-105): ✅ 通過 (目前 **{price:.1f}**)")
-                    is_bullish = ma87 > ma284
-                    st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bullish else '⚠️ 整理中'}")
-                    st.markdown("3. 身分認證 (Identity): ☐ 領頭羊 / ☐ 風口豬")
-                    st.markdown("4. 發債故事 (Story): ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
-                    st.divider()
-                    st.success("### 2. 決策輔助 (Decision Support)")
-                    # ★ 關鍵：理論價和溢價率在這裡才計算！
-                    conv_price = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce')
-                    parity = (stock_price / conv_price * 100) if conv_price > 0 else 0.0
-                    conv_value = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce')
-                    premium = ((price - conv_value) / conv_value * 100) if conv_value > 0 else 0.0
+                    st.markdown(f"2. 中期多頭排列: {'✅ 通過' if is_bull else '⚠️ 整理中'}")
+                    st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
+                    st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
+                    st.markdown("#### 2. 決策輔助")
                     c1,c2,c3 = st.columns(3)
                     c1.metric("距離賣回", f"{left} 天")
                     c2.metric("溢價率 (Premium)", f"{premium:.2f}%")
                     c3.metric("目標價", "152+", delta="保本套利")
-                    st.markdown("### 4. 交易計畫 (Trading Plan)")
-                    st.markdown(f"* 🎯 進場佈局: 此區間 (95-105) 買入，下檔風險極低。")
-                    st.markdown(f"* 🚀 爆發點: 觀察賣回日前 2-3 個月，股價站上 87MA 且量增。")
-                    st.markdown("### 5. 出場/風控 (Exit/Risk)")
-                    st.markdown(f"* 🛑 停損: 原則上不需停損。")
-                    st.markdown(f"* 💰 停利: 目標價 152 元以上，或賣回當天執行。")
+                    st.markdown("#### 4. 交易計畫")
+                    st.markdown(f"* 🎯 {pd_str} 前買入，下檔風險極低")
+                    st.markdown("* 🚀 爆發點: 觀察賣回日前 2-3 個月，股價站上 87MA 且量增")
+                    st.markdown("#### 5. 出場/風控")
+                    st.markdown("* 🛑 停損: 原則上不需停損  · 💰 停利: 152 元以上，或賣回當天執行")
                     st.divider()
                     _plot_candle_chart(cb_code)
 
