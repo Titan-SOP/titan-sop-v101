@@ -744,18 +744,70 @@ def render_2_0(df):
 
     # 1. 智能欄位識別 (Smart Column Mapping)
     cols = df.columns.tolist()
-    col_price = next((c for c in cols if '價' in c and '收盤' in c), None) or '收盤價'
-    col_prem = next((c for c in cols if '溢價' in c), None) or '轉換溢價率'
-    col_name = next((c for c in cols if '名稱' in c), None) or '名稱'
+    
+    # 價格欄位：優先匹配「可轉債市價」
+    col_price = next((c for c in cols if '可轉債市價' in c), None)
+    if not col_price:
+        col_price = next((c for c in cols if '市價' in c and '可轉債' in c), None)
+    if not col_price:
+        col_price = next((c for c in cols if '市價' in c), None)
+    
+    # 溢價率欄位：匹配「溢價率」或「溢(折)價率」
+    col_prem = next((c for c in cols if '溢價率' in c or '溢(折)價率' in c), None)
+    if not col_prem:
+        col_prem = next((c for c in cols if '溢價' in c), None)
+    
+    # 名稱欄位
+    col_name = next((c for c in cols if '名稱' in c or '標的債券' in c), None)
+    
+    # 檢查必要欄位是否都找到了
+    if not col_price:
+        st.error(f"❌ 找不到價格欄位！請確認 Excel 中是否有「可轉債市價」欄位")
+        st.info(f"📋 可用欄位列表：{', '.join(cols)}")
+        return
+    
+    if not col_prem:
+        st.error(f"❌ 找不到溢價率欄位！請確認 Excel 中是否有「溢價率」或「溢(折)價率」欄位")
+        st.info(f"📋 可用欄位列表：{', '.join(cols)}")
+        return
+    
+    if not col_name:
+        st.warning("⚠️ 找不到名稱欄位，將使用空白名稱")
+        col_name = cols[0]  # 使用第一個欄位作為後備
+    
+    st.success(f"✅ 成功識別欄位：價格={col_price}, 溢價={col_prem}, 名稱={col_name}")
     
     # 2. 數據清洗
     try:
         plot_df = df.copy()
+        
+        # 清理價格欄位
         plot_df[col_price] = pd.to_numeric(plot_df[col_price], errors='coerce')
-        plot_df[col_prem] = pd.to_numeric(plot_df[col_prem], errors='coerce')
+        
+        # 清理溢價率欄位（可能包含 % 符號）
+        def clean_premium(val):
+            if pd.isna(val):
+                return None
+            if isinstance(val, str):
+                # 移除 % 和逗號
+                val = val.replace('%', '').replace(',', '').strip()
+            try:
+                return float(val)
+            except:
+                return None
+        
+        plot_df[col_prem] = plot_df[col_prem].apply(clean_premium)
+        
+        # 移除無效數據
         plot_df = plot_df.dropna(subset=[col_price, col_prem])
+        
+        if plot_df.empty:
+            st.error("❌ 清洗後無有效數據。請檢查價格和溢價率欄位是否包含數值。")
+            return
+            
     except Exception as e:
-        st.error(f"數據解析失敗: {e}")
+        st.error(f"❌ 數據解析失敗: {e}")
+        st.info(f"問題欄位：價格欄={col_price}, 溢價欄={col_prem}")
         return
 
     # 3. 繪製神級圖表 (God-Tier Plotly)
