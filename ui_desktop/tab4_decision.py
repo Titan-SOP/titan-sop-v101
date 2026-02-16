@@ -17,6 +17,46 @@ import yfinance as yf
 import re
 import io
 from datetime import datetime
+import time
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER
+# ══════════════════════════════════════════════════════════════════
+def stream_generator(text):
+    """
+    Valkyrie AI Typewriter: Stream text word-by-word
+    Creates the sensation of live AI transmission.
+    """
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.02)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 1: TACTICAL GUIDE MODAL
+# ══════════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 Mode")
+def show_guide_modal():
+    st.markdown("""
+    ### 指揮官，歡迎進入本戰區
+    
+    **核心功能**：
+    - **全球資產配置**：支援美股、台股、ETF、現金等多元資產，一鍵完成投資組合建構與即時市值追蹤。
+    - **戰略回測引擎**：內建 15 種均線策略、Kelly 公式、風險平價等智能模型，10 年歷史數據驗證。
+    - **壓力測試模擬**：模擬全球金融危機 (2008/2020/2022) 等系統性風險，評估投資組合韌性與最大回撤。
+    
+    **操作方式**：點擊上方選單切換模式 (4.1 配置 → 4.2 回測 → 4.3 策略 → 4.4 優化 → 4.5 壓測)。
+    
+    **狀態監控**：隨時留意畫面中的警示訊號 (權重總和、回測失敗、市價異常等提示)。
+    
+    ---
+    *建議：先在 4.1 配置資產 → 執行 4.2 回測 → 根據結果調整權重或策略*
+    """)
+    
+    if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
+        st.session_state["guide_shown_" + __name__] = True
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -658,7 +698,7 @@ def _render_nav_rail():
 # ══════════════════════════════════════════════════════════════════
 def _s41():
     st.markdown('<div class="t4-sec-head" style="--sa:#00F5FF"><div class="t4-sec-num">4.1</div><div><div class="t4-sec-title">戰略資產配置</div><div class="t4-sec-sub">Strategic Asset Allocation</div></div></div>', unsafe_allow_html=True)
-    st.info("💡 台股 1 張請輸入 1000；美股以 1 股為單位；現金請輸入總額。此處可直接編輯您的資產。")
+    st.toast("ℹ️ 台股 1 張請輸入 1000；美股以 1 股為單位；現金請輸入總額。此處可直接編輯您的資產。", icon="📡")
 
     ptd = st.session_state.get('_hero_pf', st.session_state.portfolio_df.copy())
 
@@ -674,7 +714,7 @@ def _s41():
                 else:
                     lp_map = {k: float(v) for k, v in pd_.iloc[-1].to_dict().items()}
             except Exception:
-                st.warning("⚠️ 無法獲取即時市價，部分計算欄位將不顯示。")
+                st.toast("⚠️ 無法獲取即時市價，部分計算欄位將不顯示。", icon="⚡")
         ptd['現價']       = ptd['資產代號'].map(lp_map).fillna(1.0)
         ptd['市值']       = ptd['持有數量 (股)'] * ptd['現價']
         ptd['未實現損益'] = (ptd['現價'] - ptd['買入均價']) * ptd['持有數量 (股)']
@@ -745,7 +785,7 @@ def _s42():
     if run_bt:
         pf = st.session_state.get('portfolio_df', pd.DataFrame())
         if pf.empty:
-            st.warning("請先在 4.1 配置您的戰略資產。")
+            st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡")
         else:
             with st.spinner("正在對全球資產執行回測…"):
                 bt_list = []
@@ -759,7 +799,7 @@ def _s42():
     if 'backtest_results' not in st.session_state: return
     results = st.session_state.backtest_results
     if not results:
-        st.error("所有資產回測失敗，請檢查代號是否正確。"); return
+        st.toast("❌ 所有資產回測失敗，請檢查代號是否正確。", icon="💀"); return
 
     # ── TACTICAL CHIPS (not a table!) ──
     summary_data = []
@@ -855,11 +895,11 @@ def _s42():
 # ══════════════════════════════════════════════════════════════════
 def _s43():
     st.markdown('<div class="t4-sec-head" style="--sa:#FF9A3C"><div class="t4-sec-num">4.3</div><div><div class="t4-sec-title" style="color:#FF9A3C;">均線戰法實驗室</div><div class="t4-sec-sub">15 MA Strategies · 10-Year Wealth Projection</div></div></div>', unsafe_allow_html=True)
-    st.info("選擇一檔標的，自動執行 15 種均線策略回測，推演 10 年財富變化。")
+    st.toast("ℹ️ 選擇一檔標的，自動執行 15 種均線策略回測，推演 10 年財富變化。", icon="📡")
 
     pf = st.session_state.get('portfolio_df', pd.DataFrame())
     if pf.empty:
-        st.warning("請先在 4.1 配置您的戰略資產。"); return
+        st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡"); return
 
     sel_t = st.selectbox("選擇回測標的", options=pf['資產代號'].tolist(), key="ma_lab_ticker_v200")
     strategies = [
@@ -892,9 +932,9 @@ def _s43():
 
     results = st.session_state.ma_lab_results
     if not results:
-        st.error(f"無法取得 {sel_t} 的回測數據。"); return
+        st.toast(f"❌ 無法取得 {sel_t} 的回測數據。", icon="💀"); return
 
-    st.success(f"✅ {sel_t} — 15 種均線策略回測完成")
+    st.toast(f"✅ {sel_t} — 15 種均線策略回測完成", icon="🎯")
     wd = pd.DataFrame([{
         '策略名稱':           r['strategy_name'],
         '年化報酬 (CAGR)':   r['cagr'],
@@ -910,6 +950,13 @@ def _s43():
         '最大回撤':           '{:.2%}', '未來 10 年預期資金': '{:,.0f}',
         '回測年數':           '{:.1f}',
     }), use_container_width=True)
+    
+    # FEATURE 3: Valkyrie Typewriter for strategy summary
+    st.markdown("**🎯 策略分析總結**")
+    best_strategy = wd.iloc[0]
+    worst_strategy = wd.iloc[-1]
+    strategy_summary = f"針對 {sel_t} 執行的 15 種均線策略回測已完成。最佳策略為「{best_strategy['策略名稱']}」，年化報酬率達 {best_strategy['年化報酬 (CAGR)']:.2%}，10 年後預期資金可達 {best_strategy['未來 10 年預期資金']:,.0f} 元。最差策略為「{worst_strategy['策略名稱']}」，年化報酬率為 {worst_strategy['年化報酬 (CAGR)']:.2%}。建議根據風險承受度選擇適合的策略進行實盤操作。"
+    st.write_stream(stream_generator(strategy_summary))
 
     # CAGR Ranking Bar Chart
     st.markdown('<div class="t4-chart-panel"><div class="t4-chart-lbl">▸ CAGR strategy ranking</div>', unsafe_allow_html=True)
@@ -978,7 +1025,7 @@ def _s44():
 
     pf = st.session_state.get('portfolio_df', pd.DataFrame()).copy()
     if pf.empty or '資產代號' not in pf.columns:
-        st.warning("請先在 4.1 配置您的戰略資產。"); return
+        st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡"); return
 
     tickers = pf['資產代號'].tolist()
     with st.spinner("正在獲取最新市價…"):
@@ -1014,7 +1061,7 @@ def _s44():
 
             total_w = sum(target_weights)
             if not (99 <= total_w <= 101):
-                st.warning(f"⚠️ 目標權重總和 {total_w:.1f}%，建議調整至接近 100%。")
+                st.toast(f"⚠️ 目標權重總和 {total_w:.1f}%，建議調整至接近 100%。", icon="⚡")
 
             pf['目標權重 %'] = target_weights
             pf['目標市值']   = (pf['目標權重 %'] / 100) * total_v
@@ -1055,7 +1102,7 @@ def _s44():
             _mini_pie(pf['資產代號'].tolist(), pf['目標市值'].tolist(), "AFTER ➡", a_col)
 
         except Exception as e:
-            st.error(f"獲取市價或計算失敗: {e}")
+            st.toast(f"❌ 獲取市價或計算失敗: {e}", icon="💀")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1063,11 +1110,11 @@ def _s44():
 # ══════════════════════════════════════════════════════════════════
 def _s45():
     st.markdown('<div class="t4-sec-head" style="--sa:#FF3131"><div class="t4-sec-num">4.5</div><div><div class="t4-sec-title" style="color:#FF3131;">黑天鵝壓力測試</div><div class="t4-sec-sub">Global Systemic Shock Simulation · 4 Scenarios</div></div></div>', unsafe_allow_html=True)
-    st.info("此功能將讀取您在 4.1 配置的資產，模擬全球系統性風險下的投資組合衝擊。")
+    st.toast("ℹ️ 此功能將讀取您在 4.1 配置的資產，模擬全球系統性風險下的投資組合衝擊。", icon="📡")
 
     pf = st.session_state.get('portfolio_df', pd.DataFrame())
     if pf.empty:
-        st.warning("請先在 4.1 配置您的戰略資產。"); return
+        st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡"); return
 
     st.markdown('<div class="t4-action t4-action-r">', unsafe_allow_html=True)
     run_stress = st.button("💥 啟動壓力測試", key="btn_stress_v200")
@@ -1079,11 +1126,11 @@ def _s45():
         with st.spinner("執行全球壓力測試…"):
             results_df, summary = _run_stress_test(portfolio_text)
         if "error" in summary:
-            st.error(summary["error"])
+            st.toast(f"❌ {summary['error']}", icon="💀")
         elif not results_df.empty:
             st.session_state.stress_test_results = (results_df, summary)
         else:
-            st.error("壓力測試失敗，未返回任何結果。")
+            st.toast("❌ 壓力測試失敗，未返回任何結果。", icon="💀")
 
     if 'stress_test_results' not in st.session_state: return
     results_df, summary = st.session_state.stress_test_results
@@ -1148,7 +1195,7 @@ def _s45():
         )
         st.plotly_chart(fig_h, use_container_width=True)
     except Exception as e:
-        st.warning(f"熱力圖無法生成: {e}")
+        st.toast(f"⚠️ 熱力圖無法生成: {e}", icon="⚡")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # [FIX] Build format dict dynamically from actual column names
@@ -1163,6 +1210,14 @@ def _s45():
 # ══════════════════════════════════════════════════════════════════
 def render():
     """Tab 4 — 全球決策  Cinematic Wealth Command Center V200"""
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 🎯 FEATURE 1: Show tactical guide modal on first visit
+    # ══════════════════════════════════════════════════════════════════
+    if "guide_shown_" + __name__ not in st.session_state:
+        show_guide_modal()
+        st.session_state["guide_shown_" + __name__] = True
+    
     _inject_css()
     _ensure_portfolio()
 
@@ -1187,6 +1242,7 @@ def render():
         fn()
     except Exception as exc:
         import traceback
+        st.toast(f"❌ Section {label} 發生錯誤: {exc}", icon="💀")
         st.error(f"❌ Section {label} 發生錯誤: {exc}")
         with st.expander(f"🔍 Debug — {label}"):
             st.code(traceback.format_exc())
