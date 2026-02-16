@@ -623,10 +623,11 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
     ma284    = pd.to_numeric(row.get('ma284'),  errors='coerce') or 0.0
     conv_pct = _safe_conv(row)
     is_bull  = ma87 > ma284
-    # 修正：使用普查迴圈中賦值的欄位名稱
-    cp       = pd.to_numeric(row.get('conv_price_val', 0.01), errors='coerce') or 0.01
+    # [關鍵修正]: 優先使用普查迴圈中賦值的欄位名稱，若無則回退到原始欄位
+    # 這樣可以同時支援普查後的資料和原始上傳的資料
+    cp       = pd.to_numeric(row.get('conv_price_val', row.get('conv_price', 0.01)), errors='coerce') or 0.01
     sp       = pd.to_numeric(row.get('stock_price_real', 0.0), errors='coerce') or 0.0
-    cv       = pd.to_numeric(row.get('conv_value_val', 0.0), errors='coerce') or 0.0
+    cv       = pd.to_numeric(row.get('conv_value_val', row.get('conv_value', 0.0)), errors='coerce') or 0.0
     parity   = (sp / cp * 100) if cp > 0 else 0.0
     premium  = ((price - cv) / cv * 100) if cv > 0 else 0.0
 
@@ -838,9 +839,9 @@ def render_2_1(df: pd.DataFrame):
             ma87     = pd.to_numeric(row.get('ma87'),  errors='coerce') or 0.0
             ma284    = pd.to_numeric(row.get('ma284'), errors='coerce') or 0.0
             is_bull  = ma87 > ma284
-            cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
+            cp       = pd.to_numeric(row.get('conv_price_val', row.get('conv_price', 0.01)), errors='coerce') or 0.01
             sp       = pd.to_numeric(row.get('stock_price_real',0.0), errors='coerce') or 0.0
-            cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
+            cv       = pd.to_numeric(row.get('conv_value_val', row.get('conv_value', 0.0)),  errors='coerce') or 0.0
             parity   = (sp/cp*100) if cp > 0 else 0.0
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
             trend_t  = "✅ 多頭排列" if is_bull else ("⚠️ 資料不足或整理中" if ma87 == 0 else "❌ 偏弱")
@@ -946,8 +947,8 @@ def render_2_1(df: pd.DataFrame):
                     st.markdown("3. 身分認證: ☐ 領頭羊 / ☐ 風口豬")
                     st.markdown("4. 發債故事: ☐ 從無到有 / ☐ 擴產 / ☐ 政策事件")
                     st.markdown("#### 2. 決策輔助")
-                    cp = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
-                    cv = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
+                    cp = pd.to_numeric(row.get('conv_price_val', row.get('conv_price', 0.01)), errors='coerce') or 0.01
+                    cv = pd.to_numeric(row.get('conv_value_val', row.get('conv_value', 0.0)),  errors='coerce') or 0.0
                     parity  = (sp/cp*100) if cp > 0 else 0.0
                     premium = ((price-cv)/cv*100) if cv > 0 else 0.0
                     c1,c2,c3 = st.columns(3)
@@ -997,8 +998,8 @@ def render_2_1(df: pd.DataFrame):
             conv_pct = _safe_conv(row)
             pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A'
             is_bull  = ma87 > ma284
-            cp       = pd.to_numeric(row.get('conv_price_val',0.01), errors='coerce') or 0.01
-            cv       = pd.to_numeric(row.get('conv_value_val',0.0),  errors='coerce') or 0.0
+            cp       = pd.to_numeric(row.get('conv_price_val', row.get('conv_price', 0.01)), errors='coerce') or 0.01
+            cv       = pd.to_numeric(row.get('conv_value_val', row.get('conv_value', 0.0)),  errors='coerce') or 0.0
             parity   = (sp/cp*100) if cp > 0 else 0.0
             premium  = ((price-cv)/cv*100) if cv > 0 else 0.0
 
