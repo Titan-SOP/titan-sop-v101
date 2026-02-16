@@ -985,7 +985,7 @@ def render_2_1(df: pd.DataFrame):
             stock_price = pd.to_numeric(row.get('stock_price_real'), errors='coerce') or 0.0
             raw_c = pd.to_numeric(row.get('conv_rate', 100), errors='coerce') or 100.0
             converted_percentage = (100.0 - raw_c) if raw_c > 50 else raw_c
-            pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A
+            pd_str   = row['put_date'].strftime('%Y-%m-%d') if pd.notnull(row['put_date']) else 'N/A'
 
             title = f"🛡️ {name} ({cb_code}) | 賣回倒數 {left} 天 | CB價: {price:.1f}"
             with st.expander(title):
