@@ -1,9 +1,9 @@
 # ui_desktop/tab5_wiki.py
-# Titan OS V600 — Tab 5: 通用市場分析儀 (Universal Market Analyzer)
+# Titan OS V700 — Tab 5: 通用市場分析儀 (Universal Market Analyzer)
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║  V600: First-Principles Full Enhancement                            ║
+# ║  V700: Tactical Edition — Toast · Typewriter · Dialog · 13F Rebuilt ║
 # ║  5.1 籌碼+CMF+RSI  5.2 Squeeze+MACD  5.3 ATR詳解  5.4 DDM+Graham   ║
-# ║  5.5 REAL 13F + ARK 6 ETF Holdings  5.6 Codex 26px                 ║
+# ║  5.5 13F REBUILT — Multi-source · Normalized · ARK  5.6 Codex       ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 import streamlit as st
@@ -15,6 +15,46 @@ import requests
 import re as _re
 from datetime import datetime, timedelta
 import traceback
+import time
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER
+# ══════════════════════════════════════════════════════════════════
+def stream_generator(text: str):
+    """Valkyrie AI Typewriter — streams text word-by-word for live AI feel."""
+    for word in text.split():
+        yield word + " "
+        time.sleep(0.025)
+
+
+# ══════════════════════════════════════════════════════════════════
+# 🎯 FEATURE 1: TACTICAL GUIDE MODAL
+# ══════════════════════════════════════════════════════════════════
+@st.dialog("🔰 戰術指導 Mode — Titan V700")
+def show_guide_modal():
+    st.markdown("""
+### 指揮官，歡迎進入 Titan 市場情報戰區
+
+**6大分析模組**：
+- 🕵️ **5.1 籌碼K線** — VWAP / OBV / CMF / RSI · 追蹤法人留下的量能腳印
+- 🚀 **5.2 起漲偵測** — Squeeze Momentum + MACD · 找出爆發前的壓縮點
+- ⚡ **5.3 權證小哥** — ATR波幅 + 凱利公式 · 最大化風報比
+- 🚦 **5.4 艾蜜莉** — DDM / Graham / PE百分位 · 內在價值評估
+- 🐋 **5.5 13F巨鯨** — SEC 13F機構持倉 + ARK 6 ETF · 跟隨聰明錢
+- 📜 **5.6 戰略百科** — CB四大套利窗口 · 進出場SOP · CBAS引擎
+
+**操作方式**：點擊上方 6 個板塊切換模組。每個模組均有**第一性原理解析**，
+不只告訴你看什麼，更告訴你背後的邏輯。
+
+**狀態燈號**：🟢 買入 / 🟡 觀望 / 🔴 警戒 — 隨時留意各模組的動能方向與籌碼評分。
+
+---
+*建議：從 5.1 籌碼K線 入手熟悉介面，再依需求切換。*
+""")
+    if st.button("✅ Roger that，出發！", type="primary", use_container_width=True):
+        st.session_state["t5_guide_shown"] = True
+        st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -269,13 +309,13 @@ def _nav():
         top   = f'<div style="position:absolute;top:0;left:15%;right:15%;height:2px;background:{accent};border-radius:0 0 2px 2px;"></div>' if is_a else ""
         with col:
             st.markdown(f"""
-<div style="height:120px;background:{bg};border:{brd};border-radius:14px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+<div style="height:160px;background:{bg};border:{brd};border-radius:14px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
     box-shadow:{glow};overflow:hidden;position:relative;">
   {top}
-  <div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
+  <div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;line-height:1.1;">{title}</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:26px;color:{tc};letter-spacing:1px;text-transform:uppercase;line-height:1.1;">{sub}</div>
 </div>""", unsafe_allow_html=True)
             if st.button(f"▶ {sid}", key=f"t5_nav_{sid}", use_container_width=True):
                 st.session_state.t5_active = sid
@@ -314,12 +354,15 @@ def _banner(msg_big, msg_small, color, icon=""):
 </div>""", unsafe_allow_html=True)
 
 def _explain(title, body, keys="", color="#00F5FF"):
-    """First-principles explanation box, min 26px font."""
+    """First-principles explanation box with Valkyrie AI Typewriter (st.write_stream)."""
     key_html = f'<div class="t5-explain-key">{keys}</div>' if keys else ""
     st.markdown(f"""
 <div class="t5-explain" style="border-left-color:{color}44;background:rgba(0,0,0,.2);">
   <div class="t5-explain-title" style="color:{color};">▸ {title}</div>
-  <div class="t5-explain-body">{body}</div>
+  <div class="t5-explain-body">""", unsafe_allow_html=True)
+    # 🎯 FEATURE 3: Valkyrie AI Typewriter — streams word-by-word
+    st.write_stream(stream_generator(body))
+    st.markdown(f"""</div>
   {key_html}
 </div>""", unsafe_allow_html=True)
 
@@ -347,7 +390,7 @@ def _prep(hist: pd.DataFrame) -> pd.DataFrame:
 def _s51(hist: pd.DataFrame, info: dict, symbol: str):
     _hd("5.1","🕵️ 主力籌碼透視 (Smart Money Flow)",
         "VWAP20/50 · OBV · CMF · RSI · Smart Money Score","#00F5FF")
-    if hist.empty: st.error("⚠️ 無歷史數據"); return
+    if hist.empty: st.toast("⚠️ 無歷史數據，請確認代號", icon="⚠️"); return
 
     _explain(
         "第一性原理：主力籌碼分析",
@@ -484,7 +527,7 @@ def _s51(hist: pd.DataFrame, info: dict, symbol: str):
 def _s52(hist: pd.DataFrame, symbol: str):
     _hd("5.2","🚀 動能突破偵測 (Momentum Ignition)",
         "Bollinger Squeeze · Keltner · BW% · MACD · Momentum Histogram","#00FF7F")
-    if hist.empty: st.error("⚠️ 無歷史數據"); return
+    if hist.empty: st.toast("⚠️ 無歷史數據，請確認代號", icon="⚠️"); return
 
     _explain(
         "第一性原理：起漲動能偵測",
@@ -586,7 +629,7 @@ def _s52(hist: pd.DataFrame, symbol: str):
 def _s53(hist: pd.DataFrame, symbol: str):
     _hd("5.3","⚡ 短線操盤儀 (Tactical Trader)",
         "ATR波動 · 相對量能 · 布林通道位置 · 短線趨勢評分","#FFD700")
-    if hist.empty: st.error("⚠️ 無歷史數據"); return
+    if hist.empty: st.toast("⚠️ 無歷史數據，請確認代號", icon="⚠️"); return
 
     _explain(
         "第一性原理：短線波動管理",
@@ -774,21 +817,176 @@ def _s54(hist3y: pd.DataFrame, info: dict, symbol: str):
             c_pos="#FF3131" if pct_pos>80 else ("#FFD700" if pct_pos>40 else "#00FF7F")
             st.markdown(f'<div style="margin:12px 0;"><div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;color:rgba(160,176,208,.5);margin-bottom:8px;">PE PERCENTILE GAUGE — 目前PE位於3年歷史的第 {pct_pos:.0f} 百分位</div><div style="background:rgba(255,255,255,.05);border-radius:20px;height:10px;position:relative;overflow:hidden;"><div style="position:absolute;left:0;top:0;height:100%;width:{pct_pos:.0f}%;background:linear-gradient(90deg,#00FF7F,{c_pos});border-radius:20px;"></div></div><div style="font-family:\'Orbitron\',sans-serif;font-size:12px;color:{c_pos};margin-top:6px;text-align:right;">{pct_pos:.0f}th PERCENTILE</div></div>',unsafe_allow_html=True)
     else:
-        st.info("💡 此標的無EPS數據（ETF/未獲利公司）。")
+        st.toast("💡 此標的無EPS數據（ETF/未獲利公司），顯示現有估值倍數", icon="💡")
         if pe_trail: st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Trailing P/E: <b>{pe_trail:.1f}×</b></div>',unsafe_allow_html=True)
         if pe_fwd:   st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Forward P/E: <b>{pe_fwd:.1f}×</b></div>',unsafe_allow_html=True)
         if ps:       st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">P/S (TTM): <b>{ps:.2f}×</b></div>',unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════════
-# 5.5  13F巨鯨  WHALE WATCHER — COMPLETE REBUILD
-# First Principle: 13F是全美資產管理>1億美元的機構每季必須向SEC申報的持倉
+# 5.5  13F巨鯨  WHALE WATCHER — FIRST PRINCIPLES REBUILD V700
+# ────────────────────────────────────────────────────────────────────
+# 根本問題診斷：
+#   1. yfinance 各版本欄位名稱不一致 (% Out / pctHeld / PctHeld)
+#   2. Yahoo Finance API 限速時 holders 可能回傳 None/空 DataFrame
+#   3. 沒有多來源容錯機制，一旦 cache 拿到空資料就顯示「無數據」
+#
+# 第一性原則解法：
+#   A. 獨立的 _normalize_inst() — 處理所有已知欄位名稱變體
+#   B. _fetch_13f_robust(symbol) — 多方法輪詢（property + get_方法 + 直接 API）
+#   C. _s55 內部呼叫 robust fetch，而非依賴外部傳入的可能為空的 cache
+#   D. st.toast 通知每個資料來源的狀態
 # ════════════════════════════════════════════════════════════════════
+
+def _normalize_inst(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize institutional/mutual-fund holder DataFrame.
+    Handles all known yfinance column name variants across versions:
+      v0.1.x: Holder, Shares, Date Reported, % Out, Value
+      v0.2.x: holder, shares, pctHeld, value, reportDate
+      direct API: organization, position, pctHeld, value, reportDate
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+    out = df.copy().reset_index(drop=True)
+    cm = {}
+    for c in out.columns:
+        cl = str(c).strip().lower()
+        # Holder name — must check BEFORE generic "name" catches value/shares cols
+        if (any(k == cl for k in ["holder","organization","fund","institution"]) or
+            any(k in cl for k in ["holder","organization","fund","institution","name"])
+            and "date" not in cl and "value" not in cl):
+            if "Holder" not in cm.values():
+                cm[c] = "Holder"
+        # Shares / position (integer count)
+        elif cl in ["shares","position","quantity"] or ("share" in cl and "%" not in cl and "pct" not in cl):
+            if "Shares" not in cm.values():
+                cm[c] = "Shares"
+        # Market value in dollars
+        elif "value" in cl or ("market" in cl and "cap" not in cl):
+            if "Value" not in cm.values():
+                cm[c] = "Value"
+        # Percentage held  — catches "% Out", "pctHeld", "% held", "percentHeld"
+        elif "%" in cl or "pct" in cl or "percent" in cl or "out" in cl:
+            if "PctHeld" not in cm.values():
+                cm[c] = "PctHeld"
+        # Report date
+        elif "date" in cl or "report" in cl or "filed" in cl:
+            if "ReportDate" not in cm.values():
+                cm[c] = "ReportDate"
+    out.rename(columns=cm, inplace=True)
+    for col in ["Holder", "Shares", "Value", "PctHeld"]:
+        if col not in out.columns:
+            out[col] = None
+    return out
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_13f_robust(symbol: str):
+    """
+    Multi-method 13F fetcher — tries every known yfinance access path.
+    Returns: (inst_df, mf_df, source_label)
+
+    Priority chain:
+      1. tk.institutional_holders  (classic property, all versions)
+      2. tk.get_institutional_holders()  (newer yfinance 0.2.x+)
+      3. Direct Yahoo Finance v4 JSON API with crumb-less endpoint
+      4. Empty DataFrame (display graceful empty state)
+    """
+    sym = symbol.upper()
+    # For Taiwan stocks try base symbol too (strip .TW/.TWO)
+    base = _re.sub(r"\.(TW|TWO)$", "", sym)
+    candidates = [sym] if sym == base else [sym, base]
+
+    inst_df = pd.DataFrame()
+    mf_df   = pd.DataFrame()
+    source  = "unavailable"
+
+    for tsym in candidates:
+        try:
+            tk = yf.Ticker(tsym)
+
+            # ── Method 1: classic property ─────────────────────────
+            try:
+                _d = tk.institutional_holders
+                if _d is not None and not _d.empty:
+                    inst_df = _d; source = f"yfinance ({tsym})"
+            except Exception:
+                pass
+
+            # ── Method 2: .get_institutional_holders() — yfinance 0.2.x ──
+            if inst_df.empty:
+                try:
+                    _d = tk.get_institutional_holders()
+                    if _d is not None and not _d.empty:
+                        inst_df = _d; source = f"yfinance.get ({tsym})"
+                except Exception:
+                    pass
+
+            # ── Mutual fund holders ─────────────────────────────────
+            try:
+                _m = tk.mutualfund_holders
+                if _m is not None and not _m.empty:
+                    mf_df = _m
+            except Exception:
+                pass
+            if mf_df.empty:
+                try:
+                    _m = tk.get_mutualfund_holders()
+                    if _m is not None and not _m.empty:
+                        mf_df = _m
+                except Exception:
+                    pass
+
+            if not inst_df.empty:
+                break  # data found — no need to try next symbol
+
+        except Exception:
+            continue
+
+    # ── Method 3: Direct Yahoo Finance JSON API ─────────────────────
+    # Tries the v4 holders endpoint directly (bypasses yfinance caching issues)
+    if inst_df.empty:
+        try:
+            hdrs = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "application/json",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            url = f"https://query2.finance.yahoo.com/v4/finance/holders/{base}"
+            r = requests.get(url, headers=hdrs, timeout=12)
+            if r.status_code == 200:
+                data = r.json()
+                raw_list = (data.get("holders", {})
+                               .get("institutionOwnership", {})
+                               .get("ownershipList", []))
+                if raw_list:
+                    rows = []
+                    for item in raw_list:
+                        def _rv(v):
+                            return v.get("raw") if isinstance(v, dict) else v
+                        def _fv(v):
+                            return v.get("fmt") if isinstance(v, dict) else v
+                        rows.append({
+                            "Holder":     item.get("organization", "Unknown"),
+                            "Shares":     _rv(item.get("position")),
+                            "Value":      _rv(item.get("value")),
+                            "PctHeld":    _rv(item.get("pctHeld")),
+                            "ReportDate": _fv(item.get("reportDate", "")),
+                        })
+                    inst_df = pd.DataFrame(rows)
+                    source  = "Yahoo Finance v4 API (direct)"
+        except Exception:
+            pass
+
+    return _normalize_inst(inst_df), _normalize_inst(mf_df), source
+
+
 def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFrame = None):
     _hd("5.5","🐋 13F機構巨鯨 + ARK持倉 (Institutional Intelligence)",
         "SEC 13F · Top Institutions · Mutual Funds · ARK 6 ETFs · Concentration","#B77DFF")
 
-    # ── 第一性原理說明 ─────────────────────────────────────────
+    # ── 第一性原理說明（Valkyrie Typewriter）───────────────────
     _explain(
         "第一性原理：13F機構持倉情報",
         "美國SEC規定：任何管理資產超過1億美元的機構，必須在每季結束後45天內向SEC提交13F表格，"
@@ -799,13 +997,30 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
         "#B77DFF"
     )
 
+    # ── 取得資料 — 多方法容錯 ──────────────────────────────────
+    # 優先使用傳入的 cache；如果是空的，立即啟動 robust 多方法抓取
+    if holders is not None and not holders.empty:
+        inst_df = _normalize_inst(holders)
+        mf_df   = _normalize_inst(mf_holders) if mf_holders is not None else pd.DataFrame()
+        data_source = "yfinance (cached)"
+        st.toast(f"🐋 13F 資料已載入 — {len(inst_df)} 筆機構持倉", icon="✅")
+    else:
+        # 🎯 FEATURE 2: toast 通知正在重新抓取
+        st.toast("⏳ yfinance cache 為空，啟動多方法抓取中…", icon="🔄")
+        with st.spinner("🔍 13F 多方法抓取中（yfinance property → get方法 → 直接API）…"):
+            inst_df, mf_df, data_source = _fetch_13f_robust(symbol)
+        if not inst_df.empty:
+            st.toast(f"✅ 13F 載入成功 — 來源：{data_source} · {len(inst_df)} 筆", icon="🐋")
+        else:
+            st.toast("⚠️ 無法取得13F數據（台股/小型股/API限流）", icon="⚠️")
+
     # ── 總覽 KPI ───────────────────────────────────────────────
     inst_pct    = info.get("institutionPercentHeld")
     insider_pct = info.get("heldPercentInsiders")
     short_pct   = info.get("shortPercentOfFloat")
     float_shares= info.get("floatShares")
 
-    c1,c2,c3,c4,c5 = st.columns(5)
+    c1, c2, c3, c4, c5 = st.columns(5)
     _kpi(c1,"機構持股%",
          f"{inst_pct*100:.1f}%" if inst_pct else "N/A",
          ">70%=主流標的","#B77DFF")
@@ -822,32 +1037,26 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
          "流通市場規模","#00F5FF")
     _kpi(c5,"股票類型",
          info.get("quoteType","N/A"),
-         info.get("sector","")or info.get("category",""),"#FFD700")
-    st.markdown("<div style='height:20px'></div>",unsafe_allow_html=True)
+         info.get("sector","") or info.get("category",""),"#FFD700")
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # ── 說明欄：如何解讀持倉比例 ──────────────────────────────
-    st.markdown("""
+    # ── 說明卡：如何解讀持倉數據 ──────────────────────────────
+    st.markdown(f"""
 <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
   <div style="flex:1;min-width:200px;padding:14px 18px;background:rgba(183,125,255,.06);border:1px solid rgba(183,125,255,.15);border-radius:10px;">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#B77DFF;margin-bottom:6px;">📋 PctHeld 解讀</div>
-    <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(200,215,235,.65);line-height:1.7;">
-      持股比例若 &lt;1 (例如0.056) = 佔流通股5.6%<br>
-      持股比例若 &gt;1 (例如5.6) = 已是百分比格式
-    </div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#B77DFF;margin-bottom:6px;">📋 數據來源</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(200,215,235,.55);line-height:1.8;">
+      {data_source}<br>每季申報 · 有 ~45 天延遲</div>
   </div>
   <div style="flex:1;min-width:200px;padding:14px 18px;background:rgba(0,255,127,.04);border:1px solid rgba(0,255,127,.12);border-radius:10px;">
     <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#00FF7F;margin-bottom:6px;">🐋 三大指數巨頭</div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(200,215,235,.65);line-height:1.7;">
-      Vanguard / BlackRock / State Street<br>
-      持有幾乎所有S&amp;P500成分股（被動指數）
-    </div>
+      Vanguard / BlackRock / State Street<br>持有幾乎所有S&amp;P500成分股（被動指數）</div>
   </div>
   <div style="flex:1;min-width:200px;padding:14px 18px;background:rgba(255,215,0,.04);border:1px solid rgba(255,215,0,.12);border-radius:10px;">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#FFD700;margin-bottom:6px;">⚡ ARK是什麼訊號</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#FFD700;margin-bottom:6px;">⚡ PctHeld 解讀</div>
     <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(200,215,235,.65);line-height:1.7;">
-      ARK = 顛覆性創新認可。每日公布持倉<br>
-      增持 = Cathie Wood看好，減持 = 獲利了結
-    </div>
+      &lt;1 (如 0.056) = 佔流通股 5.6%<br>&gt;1 (如 5.6) = 已是百分比格式</div>
   </div>
 </div>""", unsafe_allow_html=True)
 
@@ -855,40 +1064,26 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
     # SECTION A: TOP 10 INSTITUTIONAL HOLDERS (13F)
     # ══════════════════════════════════════════════════════════
     _sec28("▸ SECTION A — TOP 10 機構持股 (SEC 13F)", "#B77DFF")
-    _sec26("資料來源：yfinance / Yahoo Finance 13F整合 · 每季更新","rgba(183,125,255,.5)")
+    _sec26("美國SEC 13F申報 · 管理資產>$1億美元的機構每季揭露 · 資料有45天延遲","rgba(183,125,255,.5)")
 
-    if holders is not None and not holders.empty:
-        hdf = holders.copy()
-        col_map = {}
-        for c in hdf.columns:
-            cl = str(c).lower()
-            if any(k in cl for k in ["holder","institution","name","org"]): col_map[c]="Holder"
-            elif "share" in cl and "pct" not in cl and "%" not in cl: col_map[c]="Shares"
-            elif "value" in cl or ("market" in cl and "cap" not in cl): col_map[c]="Value"
-            elif "pct" in cl or "percent" in cl or "%" in cl: col_map[c]="PctHeld"
-            elif "date" in cl or "report" in cl: col_map[c]="ReportDate"
-        hdf.rename(columns=col_map, inplace=True)
-        for need in ["Holder","Shares","Value","PctHeld"]:
-            if need not in hdf.columns: hdf[need]=None
+    def _to_scalar(x):
+        try:
+            if x is None: return None
+            if isinstance(x, (int, float)) and not (isinstance(x, float) and pd.isna(x)): return float(x)
+            if isinstance(x, pd.Series): x = x.iloc[0]
+            elif isinstance(x, np.ndarray): x = x.flat[0]
+            if hasattr(x, "item"): return float(x.item())
+            return float(x)
+        except Exception:
+            return None
 
-        # Safe scalar normalization
-        def _to_scalar(x):
-            try:
-                if x is None: return None
-                if isinstance(x, (int, float)) and not (isinstance(x, float) and pd.isna(x)): return float(x)
-                if isinstance(x, pd.Series): x = x.iloc[0]
-                elif isinstance(x, np.ndarray): x = x.flat[0]
-                if hasattr(x, "item"): return float(x.item())
-                return float(x)
-            except Exception:
-                return None
+    if not inst_df.empty:
+        hdf = inst_df.head(10).copy()
+        for nc in ["Shares","Value","PctHeld"]:
+            hdf[nc] = pd.to_numeric(hdf[nc].apply(_to_scalar), errors="coerce")
 
-        hdf = hdf.head(10)
-        for _nc in ["Shares","Value","PctHeld"]:
-            hdf[_nc] = pd.to_numeric(hdf[_nc].apply(_to_scalar), errors="coerce")
-
-        rank_colors = ["#FFD700","#C0C0C0","#CD7F32"] + ["#B77DFF"]*7
-        st.markdown(f"""
+        rank_colors = ["#FFD700","#C0C0C0","#CD7F32"] + ["#B77DFF"] * 7
+        st.markdown("""
 <div style="display:grid;grid-template-columns:28px 1fr 80px 90px 90px 80px;gap:0;
   font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(160,176,208,.35);
   padding:6px 16px;border-bottom:1px solid rgba(255,255,255,.05);letter-spacing:1px;">
@@ -902,19 +1097,19 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
             shares = float(shares) if shares is not None and not pd.isna(shares) else None
             value  = float(value)  if value  is not None and not pd.isna(value)  else None
             pct    = float(pct)    if pct    is not None and not pd.isna(pct)    else None
-            rc = rank_colors[i]
+            rc  = rank_colors[i]
             sh_s = (f"{shares/1e9:.2f}B" if shares and shares>1e9 else
                     f"{shares/1e6:.1f}M"  if shares and shares>1e6 else
                     f"{int(shares):,}"    if shares else "N/A")
             vl_s = (f"${value/1e9:.2f}B" if value and value>1e9 else
                     f"${value/1e6:.0f}M"  if value and value>1e6 else "N/A")
+            # pct may be decimal (0.056) or percent (5.6) depending on data source
             pc_s = (f"{pct*100:.2f}%" if pct is not None and pct < 1 else
                     f"{pct:.2f}%"     if pct is not None else "—")
-            # Classify holder type
             hl = holder.lower()
             badge = ("ETF" if any(k in hl for k in ["vanguard","blackrock","state street","ishares","spdr","fidelity spar","dimensional"]) else
                      "ARK" if "ark" in hl else
-                     "HF"  if any(k in hl for k in ["capital","partners","management","advisors"]) else "INST")
+                     "HF"  if any(k in hl for k in ["capital","partners","management","advisors","hedge"]) else "INST")
             badge_c = {"ETF":"#00F5FF","ARK":"#FF9A3C","HF":"#FFD700","INST":"#B77DFF"}[badge]
             st.markdown(f"""
 <div class="whale-row">
@@ -939,7 +1134,7 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
                                     legend=alt.Legend(labelColor="#aaa",titleColor="#aaa",labelFontSize=11)),
                     tooltip=["Holder:N",alt.Tooltip("PctHeld:Q",format=".4f")]
                 ).properties(background="transparent",height=280).configure_view(strokeOpacity=0)
-                st.altair_chart(donut,use_container_width=True)
+                st.altair_chart(donut, use_container_width=True)
         with cb_col:
             sh_data = hdf[["Holder","Shares"]].dropna().head(8)
             if not sh_data.empty:
@@ -949,9 +1144,10 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
                     y=alt.Y("Holder:N",sort="-x",axis=alt.Axis(labelColor="#ccc",labelLimit=160,labelFontSize=11)),
                     color=alt.Color("Holder:N",scale=alt.Scale(range=["#B77DFF","#8B5CF6","#7C3AED","#6D28D9","#5B21B6","#4C1D95","#3730A3","#312E81"]),legend=None)
                 ).properties(background="transparent",height=280).configure_view(strokeOpacity=0)
-                st.altair_chart(bar,use_container_width=True)
+                st.altair_chart(bar, use_container_width=True)
     else:
-        st.markdown("""
+        sym_clean = symbol.upper().replace(".TW","").replace(".TWO","")
+        st.markdown(f"""
 <div style="text-align:center;padding:40px 20px;background:rgba(255,255,255,.012);
   border:1px solid rgba(255,255,255,.05);border-radius:16px;">
   <div style="font-size:40px;opacity:.2;margin-bottom:12px;">🐋</div>
@@ -959,6 +1155,14 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
     暫無 13F 機構持倉數據</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:18px;color:rgba(160,176,208,.25);margin-top:6px;">
     台股 · 部分ETF · 小型股無SEC 13F申報義務</div>
+  <div style="margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(0,245,255,.3);">
+    可手動查詢 → 
+    <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&type=13F&dateb=&owner=include&count=40&search_text=" 
+       target="_blank" style="color:#00F5FF;">SEC EDGAR 13F</a>
+    &nbsp;|&nbsp;
+    <a href="https://finviz.com/quote.ashx?t={sym_clean}" 
+       target="_blank" style="color:#00F5FF;">Finviz Ownership</a>
+  </div>
 </div>""", unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
@@ -968,21 +1172,10 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
     _sec28("▸ SECTION B — 共同基金持倉", "#00FF7F")
     _sec26("共同基金的買入代表散戶資金的間接機構化 · 覆蓋率高=更多退休金認可","rgba(0,255,127,.4)")
 
-    if mf_holders is not None and not mf_holders.empty:
-        mdf = mf_holders.copy()
-        mf_col_map = {}
-        for c in mdf.columns:
-            cl = str(c).lower()
-            if any(k in cl for k in ["holder","fund","name"]): mf_col_map[c]="Holder"
-            elif "share" in cl and "pct" not in cl and "%" not in cl: mf_col_map[c]="Shares"
-            elif "value" in cl: mf_col_map[c]="Value"
-            elif "pct" in cl or "percent" in cl or "%" in cl: mf_col_map[c]="PctHeld"
-        mdf.rename(columns=mf_col_map, inplace=True)
-        for need in ["Holder","Shares","Value","PctHeld"]:
-            if need not in mdf.columns: mdf[need]=None
-        mdf = mdf.head(8)
-        for _nc in ["Shares","Value","PctHeld"]:
-            mdf[_nc] = pd.to_numeric(mdf[_nc].apply(_to_scalar), errors="coerce")
+    if not mf_df.empty:
+        mdf = mf_df.head(8).copy()
+        for nc in ["Shares","Value","PctHeld"]:
+            mdf[nc] = pd.to_numeric(mdf[nc].apply(_to_scalar), errors="coerce")
 
         mf_colors = ["#00FF7F","#00DD70","#00BB60","#009950","#007740","#005530","#003320","#001110"]
         for i, (_, row) in enumerate(mdf.iterrows()):
@@ -1014,18 +1207,14 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
     _sec28("▸ SECTION C — ARK Invest 主動持倉追蹤", "#FF9A3C")
     _sec26("Cathie Wood旗下6支ETF每日公布完整持倉 · 橙=持有 灰=未持有","rgba(255,154,60,.4)")
 
-    st.markdown("""
-<div style="padding:14px 18px;background:rgba(255,154,60,.05);border:1px solid rgba(255,154,60,.15);border-radius:10px;margin-bottom:16px;">
-  <div style="font-family:'Rajdhani',sans-serif;font-size:18px;color:rgba(255,154,60,.8);margin-bottom:4px;">
-    🔍 正在從 ARK Funds 官方 CSV 拉取即時持倉數據…</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(160,176,208,.45);">
-    資料來源：ark-funds.com · 每個交易日更新 · 若網路無法連線將顯示「連線失敗」</div>
-</div>""", unsafe_allow_html=True)
-
     with st.spinner("🐋 獵鯨中 — 掃描 ARK 6 支 ETF 持倉…"):
         ark_results = _fetch_ark_holdings(symbol)
 
-    # Display ARK ETFs in a grid
+    if ark_results:
+        st.toast(f"✅ ARK 掃描完成 — 在 {len(ark_results)}/6 支 ETF 發現持倉", icon="🐋")
+    else:
+        st.toast("ℹ️ 此標的未被任何 ARK ETF 持有，或網路封鎖", icon="📡")
+
     ark_cols = st.columns(3)
     for idx, (fund_ticker, (fund_name, fund_color)) in enumerate(_ARK_ETFS.items()):
         with ark_cols[idx % 3]:
@@ -1084,6 +1273,7 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str, mf_holders: pd.DataFram
   <div style="font-family:'Rajdhani',sans-serif;font-size:18px;color:rgba(160,176,208,.5);margin-top:4px;">
     {'高度ARK認可：Cathie Wood在多個基金同時持有' if held_count>=3 else '部分ARK認可' if held_count>0 else '未被ARK持有'}</div>
 </div>""", unsafe_allow_html=True)
+
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1184,7 +1374,7 @@ def _s56():
                 pm=p-100; lv=p/pm if pm>0 else 0; lc="#00FF7F" if lv>5 else ("#FFD700" if lv>3 else "#FF6B6B")
                 refs[i].markdown(f'<div style="text-align:center;padding:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:8px;"><div style="font-family:\'Rajdhani\',sans-serif;font-size:14px;color:rgba(160,176,208,.35);">CB {p}元</div><div style="font-family:\'Orbitron\',sans-serif;font-size:22px;font-weight:700;color:{lc};line-height:1.2;">{lv:.1f}×</div></div>',unsafe_allow_html=True)
         else:
-            st.warning("CB 市價需高於 100 元才有槓桿效應。")
+            st.toast("⚠️ CB 市價需高於 100 元才有槓桿效應", icon="⚡")
 
     # T6: OTC均線
     with tabs[5]:
@@ -1204,6 +1394,10 @@ def _s56():
 # MAIN ENTRY
 # ════════════════════════════════════════════════════════════════════
 def render():
+    # 🎯 FEATURE 1: 首次進入顯示戰術指導 Modal
+    if not st.session_state.get("t5_guide_shown", False):
+        show_guide_modal()
+
     _inject_css()
     symbol=_search()
     _hero(symbol)
@@ -1212,8 +1406,10 @@ def render():
         h1,h3,info,holders,mf_holders,err=_fetch(symbol)
 
     if err:
-        st.error(f"❌ {err}")
-        st.info("💡 美股: AAPL · NVDA  |  台股直接輸入: 2330 · 00675L · 5274  |  ETF: SPY · QQQ")
+        # 🎯 FEATURE 2: st.toast 取代醜醜的綠/紅色方塊
+        icon = "⏳" if "429" in err or "頻繁" in err or "rate" in err.lower() else "💀"
+        st.toast(f"❌ {err}", icon=icon)
+        st.toast("💡 美股: AAPL · NVDA  |  台股: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
         _nav()
         if st.session_state.get("t5_active")=="5.6": _s56()
         return
@@ -1242,12 +1438,12 @@ def render():
         elif active=="5.6": _s56()
         else:               _s51(h1,info,symbol)
     except Exception as exc:
-        st.error(f"❌ Module {active} Error: {exc}")
+        st.toast(f"❌ Module {active} Error: {exc}", icon="💀")
         with st.expander("🔍 Debug"):
             st.code(traceback.format_exc())
     st.markdown("</div>",unsafe_allow_html=True)
 
-    st.markdown(f'<div class="t5-foot">Titan Universal Market Analyzer V600 · First-Principles Edition · {symbol} · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="t5-foot">Titan Universal Market Analyzer V700 · Tactical Edition · Toast · Typewriter · 13F Rebuilt · {symbol} · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>',unsafe_allow_html=True)
 
 
 if __name__=="__main__":
