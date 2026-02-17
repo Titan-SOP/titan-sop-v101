@@ -636,6 +636,26 @@ def _inject_css():
 }
 
 /* ═══════════════════════════════════════════════════════════ */
+/* 🎴 POSTER RAIL BUTTONS — transparent hit layer              */
+/* Card div is drawn first (pointer-events:none, z-index:1)    */
+/* Button is drawn second: transparent, covers full card area  */
+/* ═══════════════════════════════════════════════════════════ */
+.t3-rail [data-testid="stButton"] > button {
+    opacity: 0 !important;
+    height: 128px !important;
+    margin-top: -128px !important;
+    position: relative !important;
+    z-index: 10 !important;
+    cursor: pointer !important;
+    width: 100% !important;
+    min-height: 128px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════ */
 /* 🎯 RAIL CONTAINER                                           */
 /* ═══════════════════════════════════════════════════════════ */
 .t3-rail {
@@ -4805,7 +4825,7 @@ def render():
 <div style="position:relative;height:128px;background:{bg_c};border:{brd};
     border-radius:14px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:6px;box-shadow:{glow};
-    margin-bottom:-56px;pointer-events:none;z-index:1;overflow:hidden;">
+    margin-bottom:-128px;pointer-events:none;z-index:1;overflow:hidden;">
   {top_line}
   <div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
