@@ -97,12 +97,12 @@ def render_launcher():
             st.session_state.active_tab = "tab1_macro"
             st.rerun()
     with c2:
-        st.markdown("### 📡 獵殺雷達")
+        st.markdown("### 📡 CB雷達")
         if st.button("進入 Tab 2", key="btn_t2", use_container_width=True):
             st.session_state.active_tab = "tab2_radar"
             st.rerun()
     with c3:
-        st.markdown("### 🎯 單兵狙擊")
+        st.markdown("### 🎯 個股狙擊")
         if st.button("進入 Tab 3", key="btn_t3", use_container_width=True):
             st.session_state.active_tab = "tab3_sniper"
             st.rerun()
@@ -112,12 +112,12 @@ def render_launcher():
     # Row 2
     c4, c5, c6 = st.columns(3)
     with c4:
-        st.markdown("### ⚖️ 全球決策")
+        st.markdown("### ⚖️ 部位回測")
         if st.button("進入 Tab 4", key="btn_t4", use_container_width=True):
             st.session_state.active_tab = "tab4_decision"
             st.rerun()
     with c5:
-        st.markdown("### 📚 戰略百科")
+        st.markdown("### 📚 Cmoney")
         if st.button("進入 Tab 5", key="btn_t5", use_container_width=True):
             st.session_state.active_tab = "tab5_wiki"
             st.rerun()

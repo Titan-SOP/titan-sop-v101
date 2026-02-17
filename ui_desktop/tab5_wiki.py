@@ -34,8 +34,8 @@ def _inject_css():
 .t5-hero-sub{font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,.25);letter-spacing:4px;text-transform:uppercase;margin-top:9px;}
 .t5-nav-rail{background:linear-gradient(165deg,#07080f,#0b0c18);border:1px solid rgba(255,255,255,.05);border-radius:18px;padding:18px 14px 14px;margin-bottom:22px;}
 .t5-nav-lbl{font-family:var(--f-m);font-size:8px;letter-spacing:4px;color:rgba(0,245,255,.22);text-transform:uppercase;margin-bottom:14px;text-align:center;}
-/* CRITICAL FIX: transparent hit-layer over visual card */
-.t5-nav-rail [data-testid="stButton"]>button{opacity:0 !important;height:120px !important;margin-top:-120px !important;position:relative !important;z-index:10 !important;width:100% !important;min-height:120px !important;padding:0 !important;background:transparent !important;border:none !important;box-shadow:none !important;cursor:pointer !important;}
+/* NAV BUTTON: slim strip below each visual card */
+.t5-nav-rail [data-testid="stButton"]>button{background:transparent !important;border:none !important;color:rgba(0,245,255,.0) !important;font-size:1px !important;padding:2px 0 !important;margin-top:4px !important;height:22px !important;min-height:22px !important;box-shadow:none !important;cursor:pointer !important;width:100% !important;}
 .t5-hd{display:flex;align-items:center;gap:16px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:24px;}
 .t5-hd-num{font-family:var(--f-d);font-size:50px;color:rgba(0,245,255,.05);line-height:1;}
 .t5-hd-main{font-family:var(--f-d);font-size:22px;letter-spacing:2px;}
@@ -79,15 +79,34 @@ def _inject_css():
 # ════════════════════════════════════════════════════════════════════
 # DATA FETCHER
 # ════════════════════════════════════════════════════════════════════
+import re as _re
+
+def _is_tw_ticker(symbol: str) -> bool:
+    """Detect if symbol looks like a TW/TWO ticker (no suffix yet)."""
+    return bool(_re.fullmatch(r'\d{4,5}[A-Z0-9]*', symbol.upper()))
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _fetch(symbol: str):
     try:
+        # Auto-resolve TW/TWO suffix if missing
+        sym_upper = symbol.upper()
+        if _is_tw_ticker(sym_upper):
+            # Try TWSE (.TW) first, then OTC (.TWO)
+            for suffix in [".TW", ".TWO"]:
+                try:
+                    _tk = yf.Ticker(sym_upper + suffix)
+                    _h = _tk.history(period="5d")
+                    if not _h.empty:
+                        symbol = sym_upper + suffix
+                        break
+                except Exception:
+                    continue
         tk = yf.Ticker(symbol)
         h1 = tk.history(period="1y")
         h3 = tk.history(period="3y")
         if h1.empty:
             return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), \
-                   f"查無數據 '{symbol}'。台股加 .TW，如 2330.TW"
+                   f"查無數據 '{symbol}'。請確認代號是否正確。"
         for h in [h1, h3]:
             if hasattr(h.index, "tz") and h.index.tz is not None:
                 h.index = h.index.tz_localize(None)
@@ -120,14 +139,14 @@ def _search() -> str:
     ca, cb, cc = st.columns([3, 1, 4])
     with ca:
         sym = st.text_input("Symbol", value=st.session_state.get("t5_symbol","SPY"),
-                            placeholder="AAPL · NVDA · 2330.TW · 0050.TW",
+                            placeholder="AAPL · NVDA · 2330 · 00675L · 5274",
                             label_visibility="collapsed", key="t5_sym_inp")
     with cb:
         if st.button("🔍 鎖定", use_container_width=True, type="primary"):
             st.session_state["t5_symbol"] = sym.strip().upper()
             st.rerun()
     with cc:
-        st.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(160,176,208,.28);padding:8px 0;line-height:1.7;">美股: AAPL · NVDA · TSLA &nbsp;|&nbsp; 台股: 2330.TW · 2454.TW &nbsp;|&nbsp; ETF: SPY · 0050.TW · QQQ</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(160,176,208,.28);padding:8px 0;line-height:1.7;">美股: AAPL · NVDA · TSLA &nbsp;|&nbsp; 台股: 2330 · 2454 · 5274 &nbsp;|&nbsp; ETF: SPY · 0050 · 00675L</div>', unsafe_allow_html=True)
     return st.session_state.get("t5_symbol", sym.strip().upper() if sym else "SPY")
 
 
@@ -159,15 +178,15 @@ def _nav():
         top   = f'<div style="position:absolute;top:0;left:15%;right:15%;height:2px;background:{accent};border-radius:0 0 2px 2px;"></div>' if is_a else ""
         with col:
             st.markdown(f"""
-<div style="position:relative;height:120px;background:{bg};border:{brd};border-radius:14px;
+<div style="height:120px;background:{bg};border:{brd};border-radius:14px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-    box-shadow:{glow};margin-bottom:-120px;pointer-events:none;z-index:1;overflow:hidden;">
+    box-shadow:{glow};overflow:hidden;position:relative;">
   {top}
   <div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
 </div>""", unsafe_allow_html=True)
-            if st.button(title, key=f"t5_nav_{sid}", use_container_width=True):
+            if st.button(f"▶ {sid}", key=f"t5_nav_{sid}", use_container_width=True):
                 st.session_state.t5_active = sid
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
@@ -584,9 +603,16 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str):
     for i,(_,row) in enumerate(hdf.iterrows()):
         holder=str(row.get("Holder","Unknown")); shares=row.get("Shares"); value=row.get("Value"); pct=row.get("PctHeld")
         rc=rank_colors[i]
+        # Convert to scalar to avoid pandas Series ambiguity
+        try: shares = float(shares) if shares is not None and not pd.isna(shares) else None
+        except: shares = None
+        try: value = float(value) if value is not None and not pd.isna(value) else None
+        except: value = None
+        try: pct = float(pct) if pct is not None and not pd.isna(pct) else None
+        except: pct = None
         sh_s=(f"{shares/1e9:.2f}B" if shares and shares>1e9 else f"{shares/1e6:.1f}M" if shares and shares>1e6 else f"{int(shares):,}" if shares else "N/A")
         vl_s=(f"${value/1e9:.2f}B" if value and value>1e9 else f"${value/1e6:.0f}M" if value and value>1e6 else "N/A")
-        pc_s=(f"{pct*100:.2f}%" if pct and float(pct)<1 else f"{float(pct):.2f}%" if pct else "—")
+        pc_s=(f"{pct*100:.2f}%" if pct is not None and pct < 1 else f"{pct:.2f}%" if pct is not None else "—")
         st.markdown(f'<div class="whale-row"><div class="w-rank" style="color:{rc};">#{i+1}</div><div class="w-name">{holder}</div><div class="w-shares">{sh_s}</div><div class="w-shares" style="color:rgba(255,154,60,.55);">{vl_s}</div><div class="w-pct">{pc_s}</div></div>',unsafe_allow_html=True)
 
     st.markdown("<div style='height:14px'></div>",unsafe_allow_html=True)
@@ -735,7 +761,7 @@ def render():
 
     if err:
         st.error(f"❌ {err}")
-        st.info("💡 美股: AAPL · NVDA  |  台股: 2330.TW  |  ETF: SPY · 0050.TW")
+        st.info("💡 美股: AAPL · NVDA  |  台股直接輸入: 2330 · 00675L · 5274  |  ETF: SPY · QQQ")
         _nav()
         if st.session_state.get("t5_active")=="5.6": _s56()
         return
