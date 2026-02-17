@@ -635,7 +635,7 @@ def render_5_2_breakout_revenue(ticker: str, df: pd.DataFrame, info: dict):
                 f"BW={bw_now:.1f}% · 接近歷史低波動，隨時可能爆發", "#FFD700")
     else:
         _banner("⬜ 正常震盪 — 持續監控",
-                f"BW={bw_now:.1f if bw_now else 'N/A'}% · 無擠壓訊號", "#888")
+                f"BW={f'{bw_now:.1f}' if bw_now else 'N/A'}% · 無擠壓訊號", "#888")
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
