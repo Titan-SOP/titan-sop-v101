@@ -1658,7 +1658,7 @@ AI/半導體：0.15～0.40；科技平台：0.10～0.18；傳統產業：0.03～
                          scale=alt.Scale(zero=False)),
                 color=alt.Color("顏色:N", scale=None),
                 tooltip=["折現率", alt.Tooltip("公允價值:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
-            ).properties(height=240, background="rgba(0,0,0,0)",
+            ).properties(height=240,
                          title=alt.TitleParams("不同折現率下的公允價值（橫線=當前市價）",
                                                 color="#FFD700", fontSize=12, font="JetBrains Mono"))
         )
@@ -2042,7 +2042,7 @@ SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Fin
                          axis=alt.Axis(labelColor="#556677", titleColor="#445566"), scale=alt.Scale(zero=False)),
                 color=alt.Color("顏色:N", scale=None),
                 tooltip=["折現率", alt.Tooltip("推算目標價:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
-            ).properties(height=240, background="rgba(0,0,0,0)",
+            ).properties(height=240,
                          title=alt.TitleParams("不同折現率下的推算目標價（橫線=當前市價）",
                                                 color="#FF9A3C", fontSize=12, font="JetBrains Mono"))
         )
