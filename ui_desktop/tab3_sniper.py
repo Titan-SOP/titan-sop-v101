@@ -1152,7 +1152,7 @@ def _t5(ticker, cp):
         return
 
     st.toast("🚀 正在推演三情境目標價…", icon="⏳")
-    result = calculate_ark_scenarios(rev_ttm, shares * 1e6, cp, g, m, pe, int(years))
+    result = calculate_ark_scenarios(rev_ttm, shares, cp, g, m, pe, int(years))
 
     if not result:
         st.toast("⚠️ 計算失敗，請確認股數 > 0 且所有欄位已填寫", icon="⚡")
@@ -1553,7 +1553,7 @@ def _t6(ticker, cp):
         return
 
     st.toast("🚀 正在計算內在價值…", icon="⏳")
-    fair_value = calculate_smart_valuation(eps, rev, shares * 1e6, g, m, pe, dr, 10)
+    fair_value = calculate_smart_valuation(eps, rev, shares, g, m, pe, dr, 10)
 
     if not fair_value or fair_value <= 0:
         st.toast("⚠️ 計算失敗，請確認股數 > 0 且所有欄位已填寫", icon="⚡")
