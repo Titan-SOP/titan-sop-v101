@@ -896,102 +896,231 @@ def _t5(ticker, cp):
     st.markdown('<div class="hero-sub">Bull · Base · Bear 三情境五年推演</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── 使用說明卡片 (高對比度) ───────────────────────────────────────────────
+    # ── 使用說明卡片 ─────────────────────────────────────────────────────────
     st.markdown(f"""
-<div style="background:linear-gradient(135deg,rgba(0,255,127,0.06),rgba(0,245,255,0.04));
-    border:1px solid rgba(0,255,127,0.25);border-left:3px solid #00FF7F;
-    border-radius:14px;padding:18px 22px;margin:0 0 22px;">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;
-      color:rgba(0,255,127,0.6);text-transform:uppercase;margin-bottom:12px;">
-    📋 ARK 情境分析 — 使用說明
+<div style="background:linear-gradient(135deg,rgba(0,255,127,0.07),rgba(0,245,255,0.04));
+    border:1px solid rgba(0,255,127,0.28);border-left:4px solid #00FF7F;
+    border-radius:16px;padding:24px 28px;margin:0 0 26px;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;
+      color:#00FF7F;margin-bottom:16px;">
+    📋 ARK 三情境分析 — 完整操作說明
   </div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(200,220,240,0.88);line-height:1.9;">
-    ARK 投資法的核心是對同一標的建立<strong style="color:#FFD700;">三種情境假設</strong>，透過不同的成長/利潤/本益比排列，推算 <strong style="color:#00F5FF;">5 年後目標股價</strong>並回推當前投資的年化報酬率（CAGR）。<br>
-    ▸ <strong style="color:#FF3131;">熊市情境</strong>：衰退假設，成長 &amp; 本益比各下調 20%<br>
-    ▸ <strong style="color:#FFD700;">基準情境</strong>：維持你填入的數字原樣計算<br>
-    ▸ <strong style="color:#00FF7F;">牛市情境</strong>：樂觀假設，成長 &amp; 本益比各上調 20%
+  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(215,230,245,0.95);line-height:2.0;margin-bottom:14px;">
+    ARK 投資法的核心是對同一標的同時建立<strong style="color:#FFD700;font-size:17px;">三種情境假設</strong>，
+    用不同的成長率 × 利潤率 × 本益比組合，推算出 <strong style="color:#00F5FF;font-size:17px;">N年後的目標股價</strong>，
+    再反推「現在買入、持有到期」的<strong style="color:#FF9A3C;font-size:17px;">年化報酬率 CAGR</strong>。
   </div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.5);
-      margin-top:10px;letter-spacing:0.5px;">
-    目前市價：<strong style="color:#00F5FF;font-size:14px;">{cp:.2f}</strong>
-    &nbsp;·&nbsp; 公式：(年營收 × (1+成長率)^年限 × 淨利率 × 本益比) / 股數
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="background:rgba(255,49,49,0.08);border:1px solid rgba(255,49,49,0.25);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#FF3131;letter-spacing:2px;margin-bottom:6px;">🐻 BEAR 熊市</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(215,225,235,0.85);line-height:1.8;">
+        成長率 &amp; 本益比各<strong style="color:#FF3131;">下調 20%</strong>。<br>
+        代表公司遭遇逆風：競爭加劇、經濟衰退、產品失敗的最壞情境。
+      </div>
+    </div>
+    <div style="background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.25);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#FFD700;letter-spacing:2px;margin-bottom:6px;">⚖️ BASE 基準</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(215,225,235,0.85);line-height:1.8;">
+        維持你填入的<strong style="color:#FFD700;">原始數字</strong>計算。<br>
+        代表公司依照歷史趨勢穩定發展的中性情境。
+      </div>
+    </div>
+    <div style="background:rgba(0,255,127,0.07);border:1px solid rgba(0,255,127,0.25);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#00FF7F;letter-spacing:2px;margin-bottom:6px;">🚀 BULL 牛市</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(215,225,235,0.85);line-height:1.8;">
+        成長率 &amp; 本益比各<strong style="color:#00FF7F;">上調 20%</strong>。<br>
+        代表公司超出預期：新市場開拓、產品爆款、行業龍頭溢價的樂觀情境。
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(0,245,255,0.65);
+      padding:10px 14px;background:rgba(0,245,255,0.04);border-radius:8px;letter-spacing:0.3px;">
+    📐 計算公式：目標股價 = (年營收 × (1+成長率)^年限 × 淨利率 × 目標本益比) ÷ 流通股數（股）<br>
+    📌 目前市價：<strong style="color:#00F5FF;font-size:15px;">{cp:.2f}</strong>
+    &nbsp;·&nbsp; CAGR = (目標價 / 市價)^(1/年限) − 1
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-    # ── 參數輸入區 (帶說明標籤) ──────────────────────────────────────────────
+    # ── 範例選單 (25檔) ───────────────────────────────────────────────────────
+    # preset: (label, rev_ttm, shares_M, g, m, pe, years)
+    ARK_PRESETS = {
+        "── 台股科技 ──":                    None,
+        "🇹🇼 台積電 2330  半導體龍頭":       (2161000, 25930, 0.15, 0.37, 28, 5),
+        "🇹🇼 聯發科 2454  IC設計王":         (547000,  1585,  0.12, 0.24, 22, 5),
+        "🇹🇼 鴻海 2317    電子代工":         (6162000, 13860, 0.06, 0.03, 12, 5),
+        "🇹🇼 台達電 2308  電源/EV":          (380000,  2572,  0.10, 0.09, 18, 5),
+        "🇹🇼 大立光 3008  光學鏡頭":         (62000,   134,   0.08, 0.35, 25, 5),
+        "🇹🇼 廣達 2382    AI伺服器":         (1380000, 7767,  0.20, 0.04, 16, 5),
+        "── 台股金融/傳產 ──":               None,
+        "🇹🇼 中信金 2891  金融控股":         (210000,  19800, 0.07, 0.18, 12, 5),
+        "🇹🇼 長榮 2603    航運":             (320000,  14280, 0.05, 0.28, 8,  5),
+        "🇹🇼 台塑 1301    石化":             (360000,  12645, 0.04, 0.07, 10, 5),
+        "🇹🇼 統一 1216    食品消費":         (170000,  5679,  0.05, 0.06, 14, 5),
+        "── 美股科技巨頭 ──":                None,
+        "🇺🇸 NVIDIA      AI晶片王":         (96300,   2460,  0.45, 0.55, 35, 5),
+        "🇺🇸 Apple AAPL  消費電子":          (391000,  15200, 0.07, 0.26, 28, 5),
+        "🇺🇸 Microsoft   雲端/AI":           (245000,  7430,  0.14, 0.36, 30, 5),
+        "🇺🇸 Google GOOG 廣告/雲端":         (307000,  12280, 0.12, 0.24, 22, 5),
+        "🇺🇸 Amazon AMZN 電商/AWS":          (590000,  10560, 0.12, 0.08, 30, 5),
+        "🇺🇸 Meta        社群/AI":           (135000,  2530,  0.16, 0.35, 22, 5),
+        "🇺🇸 Tesla TSLA  電動車":            (97690,   3190,  0.20, 0.15, 40, 5),
+        "── 美股成長股 ──":                  None,
+        "🇺🇸 Palantir    數據AI":            (2860,    2150,  0.25, 0.16, 60, 5),
+        "🇺🇸 CrowdStrike 資安":              (3660,    243,   0.30, 0.18, 55, 5),
+        "🇺🇸 Datadog     雲端監控":          (2430,    323,   0.22, 0.14, 50, 5),
+        "🇺🇸 Snowflake   數據雲":            (3240,    326,   0.28, 0.05, 45, 5),
+        "── 美股穩健型 ──":                  None,
+        "🇺🇸 Berkshire   巴菲特控股":        (364000,  2176,  0.05, 0.21, 14, 5),
+        "🇺🇸 Johnson&J   醫療消費":          (88000,   2410,  0.04, 0.21, 18, 5),
+        "🇺🇸 Coca-Cola   飲料":              (46000,   4310,  0.04, 0.23, 22, 5),
+        "🇺🇸 McDonald's  餐飲":              (25500,   730,   0.04, 0.33, 24, 5),
+    }
+
     st.markdown("""
 <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#00F5FF;
-    letter-spacing:3px;margin:4px 0 16px;">📝 情境參數設定</div>
+    letter-spacing:3px;margin:8px 0 10px;">⚡ 快速套用範例 — 選一檔自動填入</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(180,200,220,0.75);
+    margin-bottom:10px;">
+    從下方選單挑選任意個股，系統會自動將該公司的真實財務數據填入下方欄位，
+    你也可以在填入後手動微調任何數字。
+</div>
 """, unsafe_allow_html=True)
 
-    # --- Row 1: Revenue & Shares ---
+    preset_options = list(ARK_PRESETS.keys())
+    preset_choice = st.selectbox(
+        "選擇範例股票", options=preset_options, index=0,
+        key="ark_preset", label_visibility="collapsed"
+    )
+
+    # Extract preset values (or defaults)
+    pv = ARK_PRESETS.get(preset_choice)
+    if pv is None:
+        pv = (50000, 5000, 0.15, 0.15, 25, 5)
+
+    p_rev, p_shares, p_g, p_m, p_pe, p_years = pv
+
+    if preset_choice and ARK_PRESETS.get(preset_choice) is not None:
+        st.markdown(f"""
+<div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);
+    border-radius:10px;padding:10px 16px;margin:6px 0 14px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,215,0,0.75);">
+  ✅ 已選取：<strong style="color:#FFD700;">{preset_choice}</strong>
+  &nbsp;｜ 年營收：{p_rev:,.0f}百萬
+  &nbsp;｜ 股數：{p_shares:,.0f}百萬股
+  &nbsp;｜ 成長率：{p_g*100:.0f}%
+  &nbsp;｜ 淨利率：{p_m*100:.0f}%
+  &nbsp;｜ P/E：{p_pe}x
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 參數輸入區 ────────────────────────────────────────────────────────────
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#00F5FF;
+    letter-spacing:3px;margin:4px 0 14px;">📝 參數確認 / 手動調整</div>
+""", unsafe_allow_html=True)
+
+    # --- Row 1: Revenue & Shares & Years ---
     c1, c2, c3 = st.columns([1, 1, 1])
     with c1:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">年營收 TTM (百萬元/美元)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">填入近 12 個月總營收。台股單位：百萬台幣，美股：百萬美元。<br>
-    範例：台積電 ≈ 2,161,000（百萬台幣）；TSLA ≈ 97,690（百萬美元）</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    💰 年營收 TTM（百萬元）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">什麼是TTM？</strong> 最近12個月（Trailing Twelve Months）的總營業收入。<br>
+    <strong style="color:#FFD700;">台股單位：</strong>百萬新台幣（例如台積電年營收約 2,161,000 百萬台幣）<br>
+    <strong style="color:#FFD700;">美股單位：</strong>百萬美元（例如 Apple 約 391,000 百萬美元）<br>
+    <strong style="color:#FFD700;">哪裡查？</strong>公司財報 / Goodinfo / 財報狗 / Yahoo Finance
+</div>
 """, unsafe_allow_html=True)
-        rev_ttm = st.number_input("年營收", value=50000.0, min_value=1.0, step=1000.0,
+        rev_ttm = st.number_input("年營收", value=float(p_rev), min_value=1.0, step=1000.0,
                                    format="%.0f", key="ark_rev", label_visibility="collapsed")
 
     with c2:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">流通股數 (百萬股)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">公司發行在外的總股數，單位為百萬股。<br>
-    範例：台積電 ≈ 25,930（百萬股）；TSLA ≈ 3,190（百萬股）</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📊 流通股數（百萬股）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">什麼是流通股數？</strong> 公司公開發行、可在市場自由交易的股份總數。<br>
+    <strong style="color:#FFD700;">單位：</strong>百萬股（台積電約 25,930 百萬股；TSLA 約 3,190 百萬股）<br>
+    <strong style="color:#FFD700;">注意：</strong>不含庫藏股。台股可從集保中心或財報查閱。<br>
+    <strong style="color:#FFD700;">哪裡查？</strong>Yahoo Finance → Statistics → Shares Outstanding
+</div>
 """, unsafe_allow_html=True)
-        shares = st.number_input("流通股數 (M)", value=5000.0, min_value=1.0, step=100.0,
+        shares = st.number_input("流通股數 (M)", value=float(p_shares), min_value=1.0, step=100.0,
                                   format="%.0f", key="ark_shares", label_visibility="collapsed")
 
     with c3:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">推演年限 (年)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">ARK 標準為 5 年。建議科技成長股用 5 年，<br>穩定型股票可用 3 年。</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📅 推演年限（年）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">ARK 標準：</strong>5年。這是對「不確定未來」與「足夠時間複利」的平衡。<br>
+    <strong style="color:#FFD700;">成長科技股：</strong>5 年，因為商業模式仍在快速演化。<br>
+    <strong style="color:#FFD700;">成熟穩定股：</strong>3～5 年，業績可見度較高。<br>
+    <strong style="color:#FFD700;">不建議超過 7 年，</strong>遠期預測誤差會急劇放大。
+</div>
 """, unsafe_allow_html=True)
-        years = st.number_input("推演年限", value=5, min_value=1, max_value=10, step=1,
+        years = st.number_input("推演年限", value=int(p_years), min_value=1, max_value=10, step=1,
                                  key="ark_years", label_visibility="collapsed")
 
     # --- Row 2: Growth, Margin, PE ---
     c4, c5, c6 = st.columns([1, 1, 1])
     with c4:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">基準成長率 (Base CAGR)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">預期每年營收複合成長率（0.15 = 15%）。<br>
-    高成長科技股：0.20~0.40；成熟穩健股：0.05~0.10</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📈 基準成長率 CAGR</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>每年預期的「營收複合成長率」（0.15 = 每年成長 15%）。<br>
+    <strong style="color:#00F5FF;">爆發型科技股：</strong>0.25～0.50（如 NVIDIA AI 爆發期）<br>
+    <strong style="color:#00F5FF;">穩健成長科技：</strong>0.12～0.20（如台積電、聯發科）<br>
+    <strong style="color:#00F5FF;">傳統產業：</strong>0.03～0.08（如台塑、統一）<br>
+    <strong style="color:#00F5FF;">哪裡查？</strong>近3年營收 YoY% 的平均值即為參考值。
+</div>
 """, unsafe_allow_html=True)
-        g = st.number_input("成長率", value=0.15, min_value=0.0, max_value=2.0,
+        g = st.number_input("成長率", value=float(p_g), min_value=0.0, max_value=2.0,
                              step=0.01, format="%.2f", key="ark_g", label_visibility="collapsed")
 
     with c5:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">淨利率 (Net Margin)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">稅後淨利佔營收比例（0.20 = 20%）。<br>
-    台積電 ≈ 0.37；TSLA ≈ 0.15；一般製造業 ≈ 0.05~0.10</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    💹 淨利率 Net Margin</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>稅後淨利 ÷ 年營收（0.20 = 每賺 100 元留下 20 元）。<br>
+    <strong style="color:#00F5FF;">半導體/軟體：</strong>0.25～0.55（台積電 0.37、NVIDIA 0.55）<br>
+    <strong style="color:#00F5FF;">科技平台：</strong>0.20～0.35（Apple 0.26、Meta 0.35）<br>
+    <strong style="color:#00F5FF;">電商/硬體：</strong>0.03～0.10（亞馬遜 0.08、鴻海 0.03）<br>
+    <strong style="color:#00F5FF;">傳統製造：</strong>0.03～0.08（汽車、航運依周期大幅波動）
+</div>
 """, unsafe_allow_html=True)
-        m = st.number_input("淨利率", value=0.15, min_value=0.0, max_value=1.0,
+        m = st.number_input("淨利率", value=float(p_m), min_value=0.0, max_value=1.0,
                              step=0.01, format="%.2f", key="ark_m", label_visibility="collapsed")
 
     with c6:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">目標本益比 P/E</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">5年後預估的合理 P/E 倍數。<br>
-    科技龍頭：25~35；高成長：40~60；穩健藍籌：15~20</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    🏷️ 目標本益比 P/E</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>5年後市場願意給多少倍的本益比（成長越快越貴）。<br>
+    <strong style="color:#00F5FF;">AI爆發/高成長：</strong>40～80（NVIDIA、Palantir 成長期）<br>
+    <strong style="color:#00F5FF;">科技龍頭成熟：</strong>22～35（Apple、Microsoft 穩定期）<br>
+    <strong style="color:#00F5FF;">台灣電子：</strong>15～25（台積電 20～28、聯發科 18～22）<br>
+    <strong style="color:#00F5FF;">傳統/金融：</strong>8～16（銀行 10～14、航運 6～10）
+</div>
 """, unsafe_allow_html=True)
-        pe = st.number_input("目標 P/E", value=25.0, min_value=1.0, max_value=200.0,
+        pe = st.number_input("目標 P/E", value=float(p_pe), min_value=1.0, max_value=200.0,
                               step=1.0, key="ark_pe", label_visibility="collapsed")
 
     # ── 計算按鈕 ─────────────────────────────────────────────────────────────
@@ -1133,107 +1262,245 @@ def _t6(ticker, cp):
 
     # ── 使用說明卡片 ──────────────────────────────────────────────────────────
     st.markdown(f"""
-<div style="background:linear-gradient(135deg,rgba(183,125,255,0.07),rgba(0,245,255,0.04));
-    border:1px solid rgba(183,125,255,0.28);border-left:3px solid #B77DFF;
-    border-radius:14px;padding:18px 22px;margin:0 0 22px;">
-  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;
-      color:rgba(183,125,255,0.6);text-transform:uppercase;margin-bottom:12px;">
-    💎 智能 DCF 估值 — 使用說明
+<div style="background:linear-gradient(135deg,rgba(183,125,255,0.08),rgba(0,245,255,0.04));
+    border:1px solid rgba(183,125,255,0.30);border-left:4px solid #B77DFF;
+    border-radius:16px;padding:24px 28px;margin:0 0 26px;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;
+      color:#B77DFF;margin-bottom:16px;">
+    💎 智能 DCF 估值 — 完整操作說明
   </div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(200,220,240,0.88);line-height:1.9;">
-    DCF（現金流折現）是最嚴謹的基本面估值方法。核心邏輯：<strong style="color:#FFD700;">公司今天的價值 = 未來所有獲利的現值總和</strong>。<br>
-    模型預測公司在 <strong style="color:#B77DFF;">10 年間</strong>創造的利潤，透過折現率換算成<strong style="color:#00F5FF;">今日內在價值</strong>，<br>
-    再與當前市價比較，判斷是<strong style="color:#00FF7F;">低估（值得買入）</strong>還是<strong style="color:#FF3131;">高估（等待回調）</strong>。
+  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(215,230,245,0.95);line-height:2.0;margin-bottom:14px;">
+    <strong style="color:#B77DFF;font-size:17px;">DCF（現金流折現）</strong>是巴菲特、查理蒙格最推崇的估值方法。
+    核心邏輯：<strong style="color:#FFD700;font-size:17px;">一家公司今天的價值 = 未來 10 年它能賺到的所有錢，折算成今日的總和</strong>。<br>
+    不是看股價貴不貴，而是看公司<strong style="color:#00F5FF;">「賺錢能力」</strong>值不值得現在這個價格。
   </div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.5);
-      margin-top:10px;letter-spacing:0.5px;">
-    目前市價：<strong style="color:#00F5FF;font-size:14px;">{cp:.2f}</strong>
-    &nbsp;·&nbsp; 公式：(年營收 × (1+g)^10 × 淨利率 × P/E) / 股數 / (1+折現率)^10
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
+    <div style="background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.18);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:#00F5FF;letter-spacing:2px;margin-bottom:8px;">📐 計算邏輯（五步驟）</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(210,225,240,0.85);line-height:2.0;">
+        ① 年營收 × (1+成長率)^10 → <strong style="color:#FFD700;">10年後總營收</strong><br>
+        ② × 淨利率 → <strong style="color:#FFD700;">10年後總淨利</strong><br>
+        ③ × 目標本益比 → <strong style="color:#FFD700;">10年後市值</strong><br>
+        ④ ÷ 流通股數 → <strong style="color:#FFD700;">10年後每股價值</strong><br>
+        ⑤ ÷ (1+折現率)^10 → <strong style="color:#00FF7F;">今日公允價值</strong>
+      </div>
+    </div>
+    <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.18);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:#FFD700;letter-spacing:2px;margin-bottom:8px;">🎯 結果判讀標準</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(210,225,240,0.85);line-height:2.0;">
+        公允價值 &gt; 市價 +20%：<strong style="color:#00FF7F;">明顯低估，值得建倉</strong><br>
+        公允價值 &gt; 市價 +5%：<strong style="color:#FFD700;">合理偏低，可分批佈局</strong><br>
+        公允價值 ≈ 市價 ±5%：<strong style="color:#00F5FF;">合理價位，持有觀察</strong><br>
+        公允價值 &lt; 市價 -10%：<strong style="color:#FF3131;">高估警示，等待回調</strong>
+      </div>
+    </div>
   </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(0,245,255,0.65);
+      padding:10px 14px;background:rgba(0,245,255,0.04);border-radius:8px;">
+    📐 公式：公允價值 = (年營收 × (1+g)^10 × 淨利率 × P/E) ÷ 股數(股) ÷ (1+折現率)^10<br>
+    📌 目前市價：<strong style="color:#00F5FF;font-size:15px;">{cp:.2f}</strong>
+    &nbsp;·&nbsp; 折現率 = 你要求的最低年化報酬率（通常 8%～12%）
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 範例選單 (25檔) ───────────────────────────────────────────────────────
+    # preset: (label, rev, shares_M, eps, g, m, pe, dr)
+    DCF_PRESETS = {
+        "── 台股科技 ──":                    None,
+        "🇹🇼 台積電 2330  半導體龍頭":       (2161000, 25930, 48.0,  0.13, 0.37, 26, 0.10),
+        "🇹🇼 聯發科 2454  IC設計王":         (547000,  1585,  85.0,  0.10, 0.24, 20, 0.10),
+        "🇹🇼 鴻海 2317    電子代工":         (6162000, 13860, 10.5,  0.05, 0.03, 11, 0.10),
+        "🇹🇼 台達電 2308  電源/EV":          (380000,  2572,  14.0,  0.09, 0.09, 17, 0.10),
+        "🇹🇼 大立光 3008  光學鏡頭":         (62000,   134,   145.0, 0.07, 0.35, 24, 0.10),
+        "🇹🇼 廣達 2382    AI伺服器":         (1380000, 7767,  8.5,   0.18, 0.04, 15, 0.10),
+        "🇹🇼 緯創 3231    伺服器":           (1050000, 5475,  6.8,   0.15, 0.03, 13, 0.10),
+        "── 台股金融/傳產 ──":               None,
+        "🇹🇼 中信金 2891  金融控股":         (210000,  19800, 2.8,   0.06, 0.18, 11, 0.09),
+        "🇹🇼 長榮 2603    航運":             (320000,  14280, 16.5,  0.04, 0.28, 7,  0.10),
+        "🇹🇼 台塑 1301    石化":             (360000,  12645, 3.5,   0.03, 0.07, 9,  0.09),
+        "🇹🇼 統一 1216    食品消費":         (170000,  5679,  4.2,   0.04, 0.06, 13, 0.09),
+        "── 美股科技巨頭 ──":                None,
+        "🇺🇸 NVIDIA      AI晶片王":         (96300,   2460,  11.93, 0.40, 0.55, 32, 0.10),
+        "🇺🇸 Apple AAPL  消費電子":          (391000,  15200, 6.57,  0.07, 0.26, 26, 0.10),
+        "🇺🇸 Microsoft   雲端/AI":           (245000,  7430,  11.45, 0.13, 0.36, 28, 0.10),
+        "🇺🇸 Google GOOG 廣告/雲端":         (307000,  12280, 8.04,  0.12, 0.24, 20, 0.10),
+        "🇺🇸 Amazon AMZN 電商/AWS":          (590000,  10560, 3.98,  0.12, 0.08, 28, 0.10),
+        "🇺🇸 Meta        社群/AI":           (135000,  2530,  19.85, 0.15, 0.35, 20, 0.10),
+        "🇺🇸 Tesla TSLA  電動車":            (97690,   3190,  3.01,  0.18, 0.15, 38, 0.11),
+        "── 美股成長股 ──":                  None,
+        "🇺🇸 Palantir    數據AI":            (2860,    2150,  0.36,  0.24, 0.16, 55, 0.12),
+        "🇺🇸 CrowdStrike 資安":              (3660,    243,   2.93,  0.28, 0.18, 50, 0.12),
+        "🇺🇸 Datadog     雲端監控":          (2430,    323,   1.80,  0.22, 0.14, 48, 0.11),
+        "── 美股穩健/配息 ──":               None,
+        "🇺🇸 Berkshire   巴菲特控股":        (364000,  2176,  59.21, 0.05, 0.21, 13, 0.09),
+        "🇺🇸 Johnson&J   醫療消費":          (88000,   2410,  8.76,  0.04, 0.21, 17, 0.09),
+        "🇺🇸 Coca-Cola   飲料":              (46000,   4310,  2.47,  0.04, 0.23, 21, 0.09),
+        "🇺🇸 McDonald's  餐飲":              (25500,   730,   11.56, 0.05, 0.33, 22, 0.09),
+    }
+
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#B77DFF;
+    letter-spacing:3px;margin:8px 0 10px;">⚡ 快速套用範例 — 選一檔自動填入</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(180,200,220,0.80);
+    margin-bottom:10px;">
+    從下方選單挑選任意個股，系統自動將該公司的真實財務數據填入所有欄位。
+    填入後你仍可以手動微調任何數字，做「如果...會怎樣」的情境測試。
+</div>
+""", unsafe_allow_html=True)
+
+    dcf_options = list(DCF_PRESETS.keys())
+    dcf_choice = st.selectbox(
+        "選擇範例股票", options=dcf_options, index=0,
+        key="dcf_preset", label_visibility="collapsed"
+    )
+
+    pv = DCF_PRESETS.get(dcf_choice)
+    if pv is None:
+        pv = (50000, 5000, 10.0, 0.12, 0.15, 20, 0.10)
+
+    p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
+
+    if dcf_choice and DCF_PRESETS.get(dcf_choice) is not None:
+        st.markdown(f"""
+<div style="background:rgba(183,125,255,0.05);border:1px solid rgba(183,125,255,0.22);
+    border-radius:10px;padding:10px 16px;margin:6px 0 14px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(183,125,255,0.8);">
+  ✅ 已選取：<strong style="color:#B77DFF;">{dcf_choice}</strong>
+  &nbsp;｜ 年營收：{p_rev:,.0f}百萬
+  &nbsp;｜ 股數：{p_shares:,.0f}百萬股
+  &nbsp;｜ EPS：{p_eps}
+  &nbsp;｜ 成長率：{p_g*100:.0f}%
+  &nbsp;｜ 淨利率：{p_m*100:.0f}%
+  &nbsp;｜ P/E：{p_pe}x
+  &nbsp;｜ 折現率：{p_dr*100:.0f}%
 </div>
 """, unsafe_allow_html=True)
 
     # ── 參數輸入區 ────────────────────────────────────────────────────────────
     st.markdown("""
 <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#B77DFF;
-    letter-spacing:3px;margin:4px 0 16px;">📝 估值參數設定</div>
+    letter-spacing:3px;margin:4px 0 14px;">📝 參數確認 / 手動調整</div>
 """, unsafe_allow_html=True)
 
     # --- Row 1 ---
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">年營收 (百萬元/美元)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">近 12 個月總營收（TTM）。台股單位百萬台幣。<br>
-    台積電 ≈ 2,161,000；鴻海 ≈ 6,162,000；AAPL ≈ 391,000（百萬美元）</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    💰 年營收（百萬元）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">TTM</strong> = 最近12個月合計營收。<br>
+    <strong style="color:#FFD700;">台股：</strong>百萬新台幣（年報→合併損益表→「營業收入」）<br>
+    <strong style="color:#FFD700;">美股：</strong>百萬美元（Yahoo Finance → Financials → Revenue TTM）<br>
+    <strong style="color:#FFD700;">常見量級：</strong>中小型台股 10,000～100,000；大型台股 100,000+
+</div>
 """, unsafe_allow_html=True)
-        rev = st.number_input("年營收", value=50000.0, min_value=1.0, step=1000.0,
+        rev = st.number_input("年營收", value=float(p_rev), min_value=1.0, step=1000.0,
                                format="%.0f", key="val_rev", label_visibility="collapsed")
 
     with c2:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">流通股數 (百萬股)</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">發行在外的總股數，單位百萬股。<br>
-    台積電 ≈ 25,930；聯發科 ≈ 1,585；AAPL ≈ 15,200（百萬股）</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📊 流通股數（百萬股）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">定義：</strong>市場上可以自由買賣的股份總數（不含庫藏股）。<br>
+    <strong style="color:#FFD700;">台股查詢：</strong>集保中心 / 公司財報 / Goodinfo → 股本結構<br>
+    <strong style="color:#FFD700;">美股查詢：</strong>Yahoo Finance → Statistics → Shares Outstanding<br>
+    <strong style="color:#FFD700;">換算：</strong>台積電普通股 259.3 億股 = 25,930（百萬股）
+</div>
 """, unsafe_allow_html=True)
-        shares = st.number_input("流通股數 (M)", value=5000.0, min_value=1.0, step=100.0,
+        shares = st.number_input("流通股數 (M)", value=float(p_shares), min_value=1.0, step=100.0,
                                   format="%.0f", key="val_shares", label_visibility="collapsed")
 
     with c3:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">EPS TTM（每股盈餘）</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">近 12 個月每股稅後盈餘，用於驗算。<br>
-    台積電 ≈ 48 元；聯發科 ≈ 85 元；AAPL ≈ 6.57 美元</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
+    💵 EPS TTM（每股盈餘）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#FFD700;">定義：</strong>近12個月稅後淨利 ÷ 流通股數 = 每股賺多少錢。<br>
+    <strong style="color:#FFD700;">用途：</strong>本模型以 EPS 做驗算，確認與成長率/淨利率假設一致性。<br>
+    <strong style="color:#FFD700;">台股查詢：</strong>Goodinfo / 財報狗 → 每股盈餘（EPS）<br>
+    <strong style="color:#FFD700;">美股查詢：</strong>Yahoo Finance → Statistics → EPS (TTM)
+</div>
 """, unsafe_allow_html=True)
-        eps = st.number_input("EPS (TTM)", value=10.0, min_value=0.01, step=0.5,
+        eps = st.number_input("EPS (TTM)", value=float(p_eps), min_value=0.01, step=0.5,
                                format="%.2f", key="val_eps", label_visibility="collapsed")
 
     # --- Row 2 ---
     c4, c5, c6, c7 = st.columns(4)
     with c4:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">年均成長率 CAGR</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">10年預期複合成長率。<br>科技高成長：0.20+；穩健：0.08~0.12</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📈 年均成長率 CAGR</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>預估未來10年每年平均的「營收成長率」。<br>
+    <strong style="color:#00F5FF;">AI/半導體：</strong>0.15～0.40<br>
+    <strong style="color:#00F5FF;">科技平台：</strong>0.10～0.18<br>
+    <strong style="color:#00F5FF;">傳統產業：</strong>0.03～0.08<br>
+    <strong style="color:#00F5FF;">參考：</strong>近3年 YoY% 平均值
+</div>
 """, unsafe_allow_html=True)
-        g = st.number_input("成長率", value=0.12, min_value=0.0, max_value=2.0,
+        g = st.number_input("成長率", value=float(p_g), min_value=0.0, max_value=2.0,
                              step=0.01, format="%.2f", key="val_g", label_visibility="collapsed")
 
     with c5:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">淨利率 Net Margin</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">稅後淨利 ÷ 總營收。<br>台積電 ≈ 0.37；科技平均 ≈ 0.15~0.25</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    💹 淨利率 Net Margin</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>每賺100元營收最終留下多少淨利。<br>
+    <strong style="color:#00F5FF;">半導體：</strong>0.30～0.55<br>
+    <strong style="color:#00F5FF;">科技平台：</strong>0.20～0.36<br>
+    <strong style="color:#00F5FF;">電商/硬體：</strong>0.03～0.10<br>
+    <strong style="color:#00F5FF;">製造/傳產：</strong>0.03～0.08
+</div>
 """, unsafe_allow_html=True)
-        m = st.number_input("淨利率", value=0.15, min_value=0.0, max_value=1.0,
+        m = st.number_input("淨利率", value=float(p_m), min_value=0.0, max_value=1.0,
                              step=0.01, format="%.2f", key="val_m", label_visibility="collapsed")
 
     with c6:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">終端本益比 P/E</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">10年後預估合理倍數。<br>藍籌：15~20；科技：25~35</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    🏷️ 終端本益比 P/E</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>10年後市場給予的「合理估值倍數」。<br>
+    <strong style="color:#00F5FF;">高成長科技：</strong>35～60<br>
+    <strong style="color:#00F5FF;">科技龍頭：</strong>20～32<br>
+    <strong style="color:#00F5FF;">台電子/金融：</strong>10～20<br>
+    <strong style="color:#00F5FF;">傳統/原物料：</strong>6～12
+</div>
 """, unsafe_allow_html=True)
-        pe = st.number_input("終端 P/E", value=20.0, min_value=1.0, max_value=200.0,
+        pe = st.number_input("終端 P/E", value=float(p_pe), min_value=1.0, max_value=200.0,
                               step=1.0, key="val_pe", label_visibility="collapsed")
 
     with c7:
         st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);
-    letter-spacing:1.5px;margin-bottom:4px;">折現率 Discount Rate</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:11px;color:rgba(150,170,190,0.6);
-    margin-bottom:6px;">資金機會成本/要求報酬率。<br>保守：0.08；一般：0.10；積極：0.12</div>
+<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
+    📉 折現率 Discount Rate</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
+    line-height:1.8;margin-bottom:8px;">
+    <strong style="color:#00F5FF;">意義：</strong>你要求的「最低年化報酬率」，越高越保守。<br>
+    <strong style="color:#00F5FF;">穩健投資：</strong>0.08（8%）<br>
+    <strong style="color:#00F5FF;">一般標準：</strong>0.10（10%）<br>
+    <strong style="color:#00F5FF;">高風險溢價：</strong>0.12～0.15<br>
+    <strong style="color:#00F5FF;">巴菲特慣用：</strong>0.09～0.10
+</div>
 """, unsafe_allow_html=True)
-        dr = st.number_input("折現率", value=0.10, min_value=0.01, max_value=0.5,
+        dr = st.number_input("折現率", value=float(p_dr), min_value=0.01, max_value=0.5,
                               step=0.01, format="%.2f", key="val_dr", label_visibility="collapsed")
 
     # ── 計算按鈕 ──────────────────────────────────────────────────────────────
