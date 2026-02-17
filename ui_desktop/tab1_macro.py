@@ -584,6 +584,24 @@ def _inject_css():
     font-family:var(--f-mono); font-size:8px; letter-spacing:4px;
     color:rgba(255,215,0,0.2); text-transform:uppercase; margin-bottom:14px; padding-left:2px;
 }
+
+/* FIX: Hide poster button text so icon & label don't overlap */
+.nav-deck-frame div[data-testid="stVerticalBlock"] div.stButton > button {
+    color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    height: 160px !important;
+    position: relative;
+    z-index: 2;
+}
+.nav-deck-frame div[data-testid="stVerticalBlock"] div.stButton > button:hover {
+    background: transparent !important;
+    border: none !important;
+}
+.nav-deck-frame div[data-testid="stVerticalBlock"] div.stButton > button p {
+    display: none !important;
+}
 </style>""", unsafe_allow_html=True)
 
 
@@ -902,194 +920,490 @@ def _calculate_futures_targets():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_1_1_hud():
-    # ─── 1.1 HERO BILLBOARD ──────────────────────────────────────────────────
-    _sec_header("🚦", "宏觀風控儀表", "MACRO HUD")
+    # ══════════════════════════════════════════════════════════════════════
+    # 1.1 宏觀風控儀表 — 第一性原則重建
+    # 核心邏輯：三燈號系統 = VIX × PR90 × PTT 三重交叉驗證
+    #   GREEN：VIX<20 且 PR90<115 且 PTT<50%  → 系統性風險低，積極進攻
+    #   YELLOW：任一指標進入警戒區            → 區間操作，控制倉位
+    #   RED：VIX>30 或 PR90>130 或 PTT>65%   → 極端恐慌/過熱，現金為王
+    # ══════════════════════════════════════════════════════════════════════
+    _sec_header("🚦", "宏觀風控儀表 · 三重驗證戰情系統", "MACRO HUD v3.0")
     macro, _, _ = _load_engines()
     df      = st.session_state.get('df', pd.DataFrame())
     df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
-    if not df.empty:
-        md  = _get_macro_data(macro, df_hash)
-        sig = md['signal']
-        col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
-        sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
-        parts    = sig_text.split("：")
-        sig_main = parts[0] if parts else sig_text
-        sig_desc = parts[1] if len(parts) > 1 else ""
-
-        # ── HERO BILLBOARD ──
-        st.markdown(f"""
-<div class="hero-container" style="--hero-color:{col};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
-  <div style="display:inline-flex;align-items:center;margin-bottom:6px;">
-    <span class="hero-pulse" style="--hero-color:{col};--hero-rgb:{rgb};"></span>
-  </div>
-  <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
-  <div class="hero-subtitle">{sig_desc}</div>
-  <div class="hero-badge">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
-</div>""", unsafe_allow_html=True)
-
-        # [UPGRADE #2] Toast for signal
-        st.toast(f"{sig_main} — {sig_desc}", icon="🚦")
-
-        # ── 4-KPI ROW ──────────────────────────────────────────────────────
-        vix      = md['vix']
-        pr90     = md['price_distribution']['pr90']
-        ptt      = md['ptt_ratio']
-        ptt_txt  = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
-        vix_col  = "#FF3131" if vix > 30 else "#FFD700" if vix > 20 else "#00FF7F"
-        pr90_col = "#FF3131" if pr90 > 130 else "#FFD700" if pr90 > 115 else "#00F5FF"
-        ptt_col  = "#FF3131" if (ptt != -1.0 and ptt > 50) else "#00FF7F"
-
-        _kpi_row(
-            ("SIGNAL",   sig_main,      sig_desc,               col),
-            ("VIX",      f"{vix:.2f}",  ">30 DANGER · >20 WARN", vix_col),
-            ("PR90",     f"{pr90:.1f}", ">130 OVERHEATED",        pr90_col),
-            ("PTT BEAR", ptt_txt,       ">50% RED SIGNAL",        ptt_col),
-        )
-
-        # [UPGRADE #3] Typewriter for HUD summary
-        hud_summary = (
-            f"【戰情總覽】信號燈：{sig_text}。"
-            f"VIX 恐慌指數 {vix:.2f}{'⚠️ 警戒' if vix > 20 else ' 正常'}。"
-            f"PR90 籌碼壓力 {pr90:.1f}{'🔴 過熱' if pr90 > 130 else ' 正常'}。"
-            f"PTT 散戶看空比 {ptt_txt}。"
-        )
-        if 'hud_streamed' not in st.session_state:
-            st.write_stream(_stream_text(hud_summary, speed=0.015))
-            st.session_state['hud_streamed'] = True
-        else:
-            st.caption(hud_summary)
-
-        # ── TSE DEEP-DIVE ──────────────────────────────────────────────────
-        tse     = md['tse_analysis']
-        deducts = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
-        st.markdown(f"""
-<div style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.052);border-radius:16px;padding:18px 20px 16px;margin-top:4px;">
-  <div style="font-family:var(--f-mono);font-size:8px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:13px;">
-    🇹🇼 Taiwan Weighted Index — Deep Analysis
-  </div>
-  <div class="tse-grid">
-    <div class="tse-chip">
-      <div class="tsc-lbl">目前點位</div>
-      <div class="tsc-val" style="font-family:var(--f-display);font-size:22px;color:#FFF;">
-        {tse.get('price', 0):,.0f}
-      </div>
-    </div>
-    <div class="tse-chip">
-      <div class="tsc-lbl">動能方向</div>
-      <div class="tsc-val">{tse.get('momentum', 'N/A')}</div>
-    </div>
-    <div class="tse-chip">
-      <div class="tsc-lbl">神奇均線</div>
-      <div class="tsc-val">{tse.get('magic_ma', 'N/A')}</div>
-    </div>
-    <div class="tse-chip">
-      <div class="tsc-lbl">格蘭碧法則</div>
-      <div class="tsc-val">{tse.get('granville', 'N/A')}</div>
-    </div>
-  </div>
-  <div class="tse-deduct">扣抵與斜率 — {deducts}</div>
-</div>""", unsafe_allow_html=True)
-
-    else:
+    if df.empty:
         st.markdown("""
 <div class="hero-container">
   <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
   <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
 </div>""", unsafe_allow_html=True)
+        return
 
+    md  = _get_macro_data(macro, df_hash)
+    sig = md['signal']
+    col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
+    sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
+    parts    = sig_text.split("：")
+    sig_main = parts[0] if parts else sig_text
+    sig_desc = parts[1] if len(parts) > 1 else ""
 
-# ─────────────────────────────────────────────────────────────────────────────
+    vix     = md['vix']
+    pr90    = md['price_distribution']['pr90']
+    ptt     = md['ptt_ratio']
+    ptt_txt = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
+    tse     = md['tse_analysis']
+
+    # ── 指標評級 ───────────────────────────────────────────────────────────
+    # VIX 評級
+    if vix > 35:   vix_lv, vix_col = "💀 極端恐慌", "#FF3131"
+    elif vix > 25: vix_lv, vix_col = "🔴 高度警戒", "#FF3131"
+    elif vix > 20: vix_lv, vix_col = "🟡 溫和警戒", "#FFD700"
+    else:          vix_lv, vix_col = "🟢 市場平靜", "#00FF7F"
+
+    # PR90 評級（CB籌碼壓力）
+    if pr90 > 135:   pr90_lv, pr90_col = "🔴 嚴重過熱 — 獲利了結", "#FF3131"
+    elif pr90 > 120: pr90_lv, pr90_col = "🟡 籌碼偏高 — 謹慎追高", "#FFD700"
+    elif pr90 > 100: pr90_lv, pr90_col = "🟢 健康區間 — 正常操作", "#00FF7F"
+    else:            pr90_lv, pr90_col = "🔵 籌碼偏低 — 可積極佈局", "#00F5FF"
+
+    # PTT 評級（散戶情緒反向指標）
+    if ptt != -1.0:
+        if ptt > 65:   ptt_lv, ptt_col = "🔴 散戶過度悲觀 → 反向看多訊號", "#FF3131"
+        elif ptt > 50: ptt_lv, ptt_col = "🟡 散戶偏空 → 市場謹慎", "#FFD700"
+        elif ptt > 35: ptt_lv, ptt_col = "🟢 散戶情緒平衡", "#00FF7F"
+        else:          ptt_lv, ptt_col = "⚠️ 散戶過度樂觀 → 反向注意", "#FF9A3C"
+    else:
+        ptt_lv, ptt_col = "⚪ 數據無法取得", "#667788"
+
+    # TSE 技術面
+    tse_price = tse.get('price', 0)
+    tse_mom   = tse.get('momentum', 'N/A')
+    tse_gran  = tse.get('granville', 'N/A')
+    tse_ma    = tse.get('magic_ma', 'N/A')
+    deducts   = " | ".join(tse.get('deduct_slope', ["計算中…"]))
+
+    # 三重驗證總評分（0~3，判定燈號合理性）
+    score = 0
+    if vix <= 20:             score += 1
+    if pr90 <= 115:           score += 1
+    if ptt != -1.0 and ptt <= 50: score += 1
+    score_txt   = "三重確認 ✅" if score == 3 else f"{score}/3 訊號確認"
+    score_color = "#00FF7F" if score == 3 else "#FFD700" if score == 2 else "#FF3131"
+
+    # VIX 歷史情境對照
+    vix_context = (
+        "歷史對照：VIX>40 對應金融危機（2008/2020）極端底部，通常為千載難逢買點。"
+        if vix > 40 else
+        "歷史對照：VIX 25~35 對應修正行情，波動劇烈，需降低倉位等待企穩。"
+        if vix > 25 else
+        "歷史對照：VIX 20~25 為市場轉折敏感區，宜縮減高風險部位。"
+        if vix > 20 else
+        "歷史對照：VIX<20 為牛市常態，市場波動可控，可正常佈局。"
+    )
+
+    # ── 英雄告示牌 ──────────────────────────────────────────────────────────
+    st.markdown(f"""
+<div class="hero-container" style="--hero-color:{col};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
+  <div style="display:inline-flex;align-items:center;margin-bottom:6px;">
+    <span class="hero-pulse" style="--hero-color:{col};--hero-rgb:{rgb};"></span>
+    <span style="font-family:var(--f-mono);font-size:11px;color:rgba({rgb},0.6);letter-spacing:3px;">TITAN SOP V300 · 三重驗證</span>
+  </div>
+  <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
+  <div class="hero-subtitle" style="margin-top:8px;">{sig_desc}</div>
+  <div style="display:flex;justify-content:center;gap:16px;margin-top:16px;flex-wrap:wrap;">
+    <div style="font-family:var(--f-mono);font-size:12px;color:{vix_col};border:1px solid {vix_col};border-radius:20px;padding:5px 16px;">VIX {vix:.1f} — {vix_lv}</div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{pr90_col};border:1px solid {pr90_col};border-radius:20px;padding:5px 16px;">PR90 {pr90:.1f} — {pr90_lv[:4]}</div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{score_color};border:1px solid {score_color};border-radius:20px;padding:5px 16px;">{score_txt}</div>
+  </div>
+  <div class="hero-badge" style="margin-top:14px;">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+</div>""", unsafe_allow_html=True)
+
+    st.toast(f"{sig_main} — {sig_desc}  |  三重驗證 {score}/3", icon="🚦")
+
+    # ── KPI 儀表板（8格）──────────────────────────────────────────────────
+    _kpi_row(
+        ("VIX 恐慌指數",    f"{vix:.2f}",  vix_lv,   vix_col),
+        ("PR90 籌碼壓力",   f"{pr90:.1f}", pr90_lv[:8], pr90_col),
+        ("PTT 散戶看空比",  ptt_txt,       ptt_lv[:10], ptt_col),
+        ("訊號驗證強度",    f"{score}/3",  score_txt, score_color),
+    )
+    _kpi_row(
+        ("加權指數",     f"{tse_price:,.0f}", "TSE 即時點位",  "#00F5FF"),
+        ("動能方向",     tse_mom,             "MA 斜率判定",   "#FFD700"),
+        ("格蘭碧法則",   tse_gran,            "生命線關係",    "#FF9A3C"),
+        ("神奇均線",     tse_ma,              "87MA 狀態",     "#FF6BFF"),
+    )
+
+    # ── AI 戰術分析（Typewriter）────────────────────────────────────────────
+    st.markdown("### 🧠 三重驗證 · 第一性原則戰術推演")
+    st.markdown('<div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,245,255,0.1);border-radius:16px;padding:20px 24px;margin:12px 0;font-family:var(--f-mono);font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">', unsafe_allow_html=True)
+
+    analysis = f"""
+═══════════════════════════════════════════════════════════
+🚦 MACRO HUD v3.0 — 三重驗證戰情推演
+   信號燈：{sig_text}  |  驗證強度：{score}/3
+═══════════════════════════════════════════════════════════
+
+【一、三燈號系統原理（為什麼是這個燈？）】
+  三燈號系統由三個獨立指標交叉驗證決定：
+  ① VIX（恐慌指數）：衡量選擇權市場對未來波動的預期
+  ② PR90（籌碼分佈）：CB籌碼分佈的第90百分位，反映市場超漲程度
+  ③ PTT 散戶情緒：散戶看空比例，作為反向指標使用
+  
+  當前燈號：{sig_text}
+  觸發依據：VIX {vix:.1f} ({vix_lv}) | PR90 {pr90:.1f} ({pr90_lv[:8]}) | PTT {ptt_txt} ({ptt_lv[:10]})
+
+【二、VIX 深度解讀（現值：{vix:.2f}）】
+  VIX 的本質：S&P 500選擇權隱含波動率指數，代表市場對未來30天波動的「恐懼定價」。
+  
+  當前評級：{vix_lv}
+  {vix_context}
+  
+  操作含義：{'VIX 高位通常是買點，但需等待VIX從峰值回落後才進場（峰值買 = 接飛刀）。' if vix > 25 else 'VIX 低位市場自滿，代表系統性風險被忽視，適合持股但需設好停損。' if vix < 15 else 'VIX 中性區間，跟著技術面操作即可，無特殊系統性風險。'}
+
+【三、PR90 籌碼壓力解讀（現值：{pr90:.1f}）】
+  PR90 的本質：CB 可轉換公司債的第90百分位價格，反映市場「過熱籌碼」的集中程度。
+  
+  當前評級：{pr90_lv}
+  解讀：PR90 > 130 代表高價籌碼已嚴重堆積，若遭主力出貨，市場將面臨籌碼崩塌式下跌。
+  {'⚠️ 目前籌碼壓力嚴重偏高，持股風險升高，建議降低高PR值個股的倉位。' if pr90 > 130 else '✅ 籌碼分佈尚在合理範圍，無立即性崩盤風險。' if pr90 <= 115 else '🟡 籌碼分佈偏高，注意高位個股的獲利了結壓力。'}
+
+【四、PTT 散戶情緒（反向指標）解讀（現值：{ptt_txt}）】
+  PTT 的本質：散戶情緒是最佳反向指標——散戶最悲觀時，往往是市場底部。
+  
+  當前評級：{ptt_lv}
+  {'逆向邏輯：散戶>65%看空 = 空方能量基本耗盡，主力有機會在此區間吸籌，歷史上是強買點。' if ptt != -1.0 and ptt > 65 else '逆向邏輯：散戶<35%看空 = 全員樂觀，歷史上反而是市場頂部前兆，需謹慎。' if ptt != -1.0 and ptt < 35 else '逆向邏輯：散戶情緒中性，無強烈反向訊號，跟隨技術面操作。' if ptt != -1.0 else 'PTT 數據暫無法取得，僅憑 VIX + PR90 兩重驗證。'}
+
+【五、加權指數技術面（TSE 精讀）】
+  現值：{tse_price:,.0f}  │  動能：{tse_mom}
+  格蘭碧法則：{tse_gran}
+  神奇均線(87MA)：{tse_ma}
+  扣抵斜率：{deducts}
+  解讀：格蘭碧法則判定生命線關係，當現值{'高於' if '多頭' in str(tse_gran) else '低於'}87MA，{'趨勢偏多，回測均線為買點。' if '多頭' in str(tse_gran) else '趨勢偏空，反彈均線為賣點。'}
+
+【六、綜合戰術推演】
+  {'🟢 積極進攻：三重驗證全數通過（VIX低+PR90健康+PTT中性），系統性風險極低。策略：正常倉位佈局，以格蘭碧法則選股，優先布局動能強的族群。' if score == 3 else '🟡 區間操作：三重驗證部分警示，市場存在局部風險。策略：精選強勢股，倉位控制在60%以下，避開高PR90個股，設好停損。' if score == 2 else '🔴 防守模式：三重驗證多數警示，系統性風險上升。策略：降低整體倉位至30%以下，持有現金等待訊號轉為中性後再積極操作。'}
+
+═══════════════════════════════════════════════════════════
+"""
+    key_hud = 'hud_streamed_v3'
+    if key_hud not in st.session_state:
+        st.write_stream(_stream_text(analysis, speed=0.008))
+        st.session_state[key_hud] = True
+    else:
+        st.markdown(f'<pre style="white-space:pre-wrap;font-size:13px;color:rgba(200,215,230,0.8);line-height:1.85;">{analysis}</pre>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── TSE 深度面板 ────────────────────────────────────────────────────────
+    st.markdown('<div style="margin-top:16px;">', unsafe_allow_html=True)
+    deducts_full = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
+    st.markdown(f"""
+<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:20px 22px 18px;margin-top:8px;">
+  <div style="font-family:var(--f-mono);font-size:9px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:16px;">
+    🇹🇼 Taiwan Weighted Index — 技術面深度解讀
+  </div>
+  <div class="tse-grid">
+    <div class="tse-chip">
+      <div class="tsc-lbl">目前點位</div>
+      <div class="tsc-val" style="font-family:var(--f-display);font-size:24px;color:#FFF;margin-top:4px;">
+        {tse.get('price', 0):,.0f}
+      </div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">動能方向</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('momentum', 'N/A')}</div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">神奇均線(87MA)</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('magic_ma', 'N/A')}</div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">格蘭碧法則</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('granville', 'N/A')}</div>
+    </div>
+  </div>
+  <div class="tse-deduct" style="margin-top:12px;font-size:12px;line-height:1.7;">
+    扣抵斜率預判 — {deducts_full}
+  </div>
+</div>""", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── VIX × PR90 對照圖（近期趨勢）──────────────────────────────────────
+    try:
+        vix_df = macro.get_single_stock_data("^VIX", period="3mo")
+        if not vix_df.empty:
+            vix_plot = vix_df[['Close']].tail(60).reset_index()
+            vix_plot.columns = ['Date', 'VIX']
+            vix_plot['Date'] = pd.to_datetime(vix_plot['Date'])
+            ax_v = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+            vix_line = alt.Chart(vix_plot).mark_area(
+                line={'color': '#FF3131', 'strokeWidth': 2},
+                color=alt.Gradient(gradient='linear', stops=[
+                    alt.GradientStop(color='rgba(255,49,49,0.3)', offset=0),
+                    alt.GradientStop(color='rgba(255,49,49,0.02)', offset=1)
+                ], x1=1, x2=1, y1=1, y2=0)
+            ).encode(
+                x=alt.X('Date:T', axis=ax_v, title='日期'),
+                y=alt.Y('VIX:Q', axis=ax_v, title='VIX', scale=alt.Scale(zero=False)),
+                tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('VIX:Q', format='.2f')]
+            )
+            r20 = alt.Chart(pd.DataFrame({'y': [20]})).mark_rule(color='#FFD700', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+            r30 = alt.Chart(pd.DataFrame({'y': [30]})).mark_rule(color='#FF3131', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+            vix_chart = alt.layer(vix_line, r20, r30).properties(
+                height=200,
+                title=alt.TitleParams('VIX 近60日走勢  金虛=警戒(20)  紅虛=危險(30)',
+                                      color='#aaa', fontSize=18, font='JetBrains Mono')
+            ).configure_view(strokeOpacity=0, fill='rgba(0,0,0,0)'
+            ).configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#aaa', titleColor='#aaa')
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.altair_chart(vix_chart, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+    except Exception:
+        pass  # VIX chart is bonus — don't crash if unavailable
+
 
 def render_1_2_thermometer():
-    _sec_header("🌡️", "高價權值股多空溫度計", "BULL / BEAR THERMO")
+    # ══════════════════════════════════════════════════════════════════════
+    # 1.2 多空溫度計 — 第一性原則重建
+    # 核心邏輯：高價權值股站上87MA的比例 = 市場廣度（Market Breadth）
+    #   市場廣度 > 65%：強勢多頭，主力資金全面進場，趨勢性行情
+    #   市場廣度 50~65%：多方略優，選股行情，非系統性上漲
+    #   市場廣度 35~50%：多空拉鋸，盤整格局，等待方向確認
+    #   市場廣度 < 35%：空頭主控，現金為王，等待底部訊號
+    # ══════════════════════════════════════════════════════════════════════
+    _sec_header("🌡️", "高價權值股多空溫度計 · 市場廣度分析", "BREADTH THERMOMETER v3.0")
     macro, _, _ = _load_engines()
 
     if 'high_50_sentiment' not in st.session_state:
         st.session_state.high_50_sentiment = None
 
     st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
-    if st.button("🔄  REFRESH MARKET SENTIMENT", key="btn_sentiment"):
-        st.toast("🚀 掃描高價權值股多空…", icon="⏳")
-        with st.spinner("Analyzing high-price weighted stocks…"):
+    if st.button("🔄  REFRESH MARKET BREADTH SCAN", key="btn_sentiment"):
+        st.toast("🚀 市場廣度掃描中…", icon="⏳")
+        with st.spinner("Scanning high-price weighted stocks breadth…"):
             st.session_state.high_50_sentiment = macro.analyze_high_50_sentiment()
         st.toast("✅ 多空溫度計更新完成！", icon="🌡️")
     st.markdown('</div>', unsafe_allow_html=True)
 
     sent = st.session_state.high_50_sentiment
     if not sent:
-        st.markdown('<div class="empty-state"><div class="empty-icon">🌡️</div>'
-                    '<div class="empty-text">CLICK TO FETCH SENTIMENT</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="empty-state"><div class="empty-icon">🌡️</div>' +
+                    '<div class="empty-text">CLICK SCAN TO LOAD MARKET BREADTH</div></div>', unsafe_allow_html=True)
         return
     if "error" in sent:
         st.toast(f"⚠️ {sent['error']}", icon="⚡")
         return
 
-    ratio  = sent['bull_ratio']
-    bear_r = sent['bear_ratio']
-    total  = sent['total']
+    ratio   = sent['bull_ratio']
+    bear_r  = sent['bear_ratio']
+    total   = sent['total']
+    neutral = max(0, 100 - ratio - bear_r)
 
-    if ratio >= 65:   vd, vc, vr = "🔥 強勢多頭市場 — 全力進攻",  "#FF3131", "255,49,49"
-    elif ratio >= 50: vd, vc, vr = "🟢 多方略佔優勢 — 持股向好",  "#00FF7F", "0,255,127"
-    elif ratio >= 35: vd, vc, vr = "🟡 多空膠著 — 審慎選股",      "#FFD700", "255,215,0"
-    else:             vd, vc, vr = "🔴 空頭市場 — 輕倉防守",      "#26A69A", "38,166,154"
+    # ── 溫度分級 ──────────────────────────────────────────────────────────
+    if ratio >= 70:
+        vd, vc, vr = "🔥 強勢多頭市場 — 主力全面進場，趨勢性行情", "#FF3131", "255,49,49"
+        market_phase = "BULL MARKET"
+        strategy = "積極進攻：均線多頭排列確認，持倉比例可提升至70~80%，以動能強股為主。"
+        breadth_interp = "超過70%的高價權值股站上87MA，代表大資金已全面回歸，市場廣度極強，趨勢性牛市特徵顯著。"
+    elif ratio >= 55:
+        vd, vc, vr = "🟢 多方略佔優勢 — 選股行情，挑強勢族群", "#00FF7F", "0,255,127"
+        market_phase = "SELECTIVE BULL"
+        strategy = "精選進攻：非系統性上漲，需選對族群和個股。避開站上87MA比例低的弱勢族群。"
+        breadth_interp = "55~70%高價股站上87MA，市場呈現選股行情。強者恆強，弱勢個股可能持續落後，需精選標的。"
+    elif ratio >= 40:
+        vd, vc, vr = "🟡 多空膠著 — 盤整格局，等待方向", "#FFD700", "255,215,0"
+        market_phase = "NEUTRAL ZONE"
+        strategy = "中性觀望：倉位控制在40~50%，等待市場廣度突破55%確認多頭，或跌破35%確認空頭再行動。"
+        breadth_interp = "40~55%高價股站上87MA，多空力量接近均衡，市場缺乏方向性，易現上下震盪。"
+    else:
+        vd, vc, vr = "🔴 空頭市場 — 現金為王，等待底部訊號", "#26A69A", "38,166,154"
+        market_phase = "BEAR MARKET"
+        strategy = "防守撤退：倉位降至20%以下，等待市場廣度回升至40%以上才考慮佈局，切勿抄底搶反彈。"
+        breadth_interp = "不足40%高價股站上87MA，主力資金撤離明顯，空頭結構確立，系統性風險高。"
 
-    # ── 64px KPI Cards ──
+    # ── 廣度趨勢判斷（動態方向）──────────────────────────────────────────
+    prev_ratio = st.session_state.get('prev_breadth', ratio)
+    breadth_dir = "📈 擴張" if ratio > prev_ratio + 2 else "📉 收縮" if ratio < prev_ratio - 2 else "➡️ 持平"
+    breadth_dir_color = "#00FF7F" if "擴張" in breadth_dir else "#FF3131" if "收縮" in breadth_dir else "#FFD700"
+    st.session_state['prev_breadth'] = ratio
+
+    # ── 英雄面板 ──────────────────────────────────────────────────────────
+    bar_fill = ratio
+    st.markdown(f"""
+<div style="background:linear-gradient(175deg,rgba(8,10,18,0.95),rgba(10,12,20,0.98));
+     border:1px solid rgba({vr},0.2);border-radius:22px;padding:28px 28px 22px;margin-bottom:20px;">
+  <div style="font-family:var(--f-mono);font-size:9px;letter-spacing:4px;color:rgba({vr},0.5);
+       text-transform:uppercase;margin-bottom:16px;">🌡️ MARKET BREADTH THERMOMETER · HIGH-PRICE WEIGHTED STOCKS</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:22px;">
+    <div style="text-align:center;">
+      <div style="font-family:var(--f-mono);font-size:10px;color:#445566;letter-spacing:2px;margin-bottom:8px;">🐂 多頭（站上87MA）</div>
+      <div style="font-family:var(--f-display);font-size:64px;color:#FF3131;line-height:1;">{ratio:.1f}%</div>
+      <div style="font-family:var(--f-mono);font-size:11px;color:#FF3131;margin-top:4px;">{ratio/100*total:.0f} 檔</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:var(--f-mono);font-size:10px;color:#445566;letter-spacing:2px;margin-bottom:8px;">📊 掃描樣本</div>
+      <div style="font-family:var(--f-display);font-size:64px;color:#FFF;line-height:1;">{total}</div>
+      <div style="font-family:var(--f-mono);font-size:11px;color:#667788;margin-top:4px;">高價權值股</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:var(--f-mono);font-size:10px;color:#445566;letter-spacing:2px;margin-bottom:8px;">🐻 空頭（低於87MA）</div>
+      <div style="font-family:var(--f-display);font-size:64px;color:#26A69A;line-height:1;">{bear_r:.1f}%</div>
+      <div style="font-family:var(--f-mono);font-size:11px;color:#26A69A;margin-top:4px;">{bear_r/100*total:.0f} 檔</div>
+    </div>
+  </div>
+
+  <!-- 廣度溫度條 -->
+  <div style="margin-bottom:16px;">
+    <div style="font-family:var(--f-mono);font-size:10px;color:#334455;letter-spacing:2px;margin-bottom:8px;">MARKET BREADTH GAUGE</div>
+    <div style="position:relative;height:20px;background:rgba(0,0,0,0.4);border-radius:10px;overflow:hidden;">
+      <div style="position:absolute;left:0;top:0;height:100%;width:{bar_fill:.0f}%;
+           background:linear-gradient(90deg,#26A69A,#FFD700 50%,#FF3131);border-radius:10px;
+           transition:width 0.5s;"></div>
+      <div style="position:absolute;left:35%;top:-4px;width:2px;height:28px;background:#FFD700;opacity:0.5;"></div>
+      <div style="position:absolute;left:65%;top:-4px;width:2px;height:28px;background:#FF3131;opacity:0.5;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--f-mono);font-size:10px;color:#334455;">
+      <span>0% 極度空頭</span><span>35% 警戒</span><span>65% 多頭確認</span><span>100%</span>
+    </div>
+  </div>
+
+  <div style="background:rgba({vr},0.06);border:1px solid rgba({vr},0.2);border-radius:12px;
+       padding:14px 18px;font-family:var(--f-body);font-size:16px;color:rgb({vr});
+       font-weight:700;letter-spacing:0.3px;">
+    {vd}
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────────
     _kpi_row(
-        ("MARKET MOOD",  sent['sentiment'],   f"Based on {total} stocks", vc),
-        ("🐂 BULL RATIO", f"{ratio:.1f}%",    "Above 87MA lifeline",      "#FF3131"),
-        ("🐻 BEAR RATIO", f"{bear_r:.1f}%",   "Below 87MA lifeline",      "#26A69A"),
+        ("多頭佔比",   f"{ratio:.1f}%",   f"站上87MA · {ratio/100*total:.0f}檔", vc),
+        ("空頭佔比",   f"{bear_r:.1f}%",  f"低於87MA · {bear_r/100*total:.0f}檔", "#26A69A"),
+        ("廣度趨勢",   breadth_dir,       "vs 上次掃描",                          breadth_dir_color),
+        ("市場階段",   market_phase[:6],  vd[:8],                                 vc),
     )
 
-    # ── Plotly Gauge ──
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=ratio,
-        title={'text': "多頭佔比 (%)", 'font': {'color': '#445566', 'size': 13, 'family': 'JetBrains Mono'}},
-        number={'font': {'color': '#FFF', 'size': 64, 'family': 'Bebas Neue'}, 'suffix': '%'},
-        gauge={
-            'axis':    {'range': [0, 100], 'tickcolor': '#222'},
-            'bar':     {'color': "#FF3131"},
-            'bgcolor': 'rgba(0,0,0,0)',
-            'bordercolor': 'rgba(0,0,0,0)',
-            'steps': [
-                {'range': [0,   35], 'color': '#060e14'},
-                {'range': [35,  65], 'color': '#090f0a'},
-                {'range': [65, 100], 'color': '#13060a'},
-            ],
-            'threshold': {
-                'line': {'color': "#FFD700", 'width': 4},
-                'thickness': 0.78, 'value': 50
-            }
-        }
-    ))
-    fig.update_layout(
-        height=300, template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(t=18, b=4, l=18, r=18),
-        font=dict(family='JetBrains Mono')
-    )
-    st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=True)
+    # ── AI 戰術分析（Typewriter）────────────────────────────────────────────
+    st.markdown("### 🧠 市場廣度 · 第一性原則戰術推演")
+    st.markdown('<div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,245,255,0.1);border-radius:16px;padding:20px 24px;margin:12px 0;font-family:var(--f-mono);font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">', unsafe_allow_html=True)
+
+    analysis = f"""
+═══════════════════════════════════════════════════════════
+🌡️ BREADTH THERMOMETER v3.0 — 市場廣度精密推演
+   多頭佔比：{ratio:.1f}%  |  空頭佔比：{bear_r:.1f}%  |  樣本：{total} 檔
+═══════════════════════════════════════════════════════════
+
+【一、市場廣度第一性原則】
+  市場廣度的本質：「高價權值股有多少比例站在87MA生命線之上」。
+  87MA（87日均線）= 近87個交易日的平均成本，是多空力量的關鍵分水嶺：
+    站上87MA = 主力資金成本有支撐，多方佔優
+    跌破87MA = 主力資金套牢，空方主控
+  
+  廣度 vs 價格的關係：
+    廣度擴張 + 指數上漲 → 最強多頭訊號（主力全面進場）
+    廣度收縮 + 指數上漲 → 高度警戒（指數創高但廣度不確認 = 頭部分佈訊號）
+    廣度擴張 + 指數下跌 → 超賣反彈（廣度領先見底）
+    廣度收縮 + 指數下跌 → 空頭加速（趨勢確認向下）
+
+【二、當前廣度數據解讀】
+  多頭佔比（站上87MA）：{ratio:.1f}%  ({ratio/100*total:.0f}/{total} 檔)
+  空頭佔比（低於87MA）：{bear_r:.1f}%  ({bear_r/100*total:.0f}/{total} 檔)
+  廣度趨勢：{breadth_dir}  (vs 上次掃描)
+  
+  {breadth_interp}
+
+【三、市場階段判定：{market_phase}】
+  當前分類：{vd}
+  
+  歷史對照（台股經驗值）：
+  · 廣度 > 70%：牛市高峰，但也是過熱警訊前兆（2021年台股最高時達80%+）
+  · 廣度 50~70%：健康牛市區間，適合積極操作
+  · 廣度 35~50%：震盪整理，耐心等待方向
+  · 廣度 < 35%：熊市，等待廣度「黃金交叉」（從底部回升穿越35%）再考慮進場
+
+【四、廣度背離預警機制】
+  廣度背離是最重要的警示訊號：
+  正向背離（廣度擴張 > 指數）→ 市場底部能量積累，即將反彈
+  負向背離（廣度收縮 < 指數）→ 市場頂部分配，即將見頂
+  
+  當前廣度趨勢：{breadth_dir}（{breadth_dir_color}方向）
+  {'⚠️ 若當前指數持續創高但廣度收縮，須高度警戒，可能為頭部訊號。' if ratio > 60 and "收縮" in breadth_dir else '✅ 廣度與趨勢方向一致，無明顯背離警訊。' if "擴張" in breadth_dir else '🟡 廣度持平，市場方向待確認。'}
+
+【五、操作戰術推演】
+  {strategy}
+  
+  關鍵觀察指標：
+  · 若廣度從當前水準{'上升突破65%' if ratio < 65 else '維持在65%以上'}，代表多方力量{'進一步增強' if ratio < 65 else '穩定'}，可加碼。
+  · 若廣度{'跌破50%' if ratio > 50 else '跌破35%'}，代表{'多空均勢打破，需降低倉位' if ratio > 50 else '空頭確認，需全面撤退'}。
+
+═══════════════════════════════════════════════════════════
+"""
+    key_thermo = 'thermo_streamed_v3'
+    if key_thermo not in st.session_state:
+        st.write_stream(_stream_text(analysis, speed=0.008))
+        st.session_state[key_thermo] = True
+    else:
+        st.markdown(f'<pre style="white-space:pre-wrap;font-size:13px;color:rgba(200,215,230,0.8);line-height:1.85;">{analysis}</pre>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div class="thermo-verdict" style="--vr:{vr};">{vd}</div>',
-                unsafe_allow_html=True)
+    # ── Plotly 儀表盤（保留但升級）──────────────────────────────────────
+    st.markdown("#### 📊 廣度儀表盤（多頭佔比 vs 警戒線）")
+    col1, col2 = st.columns(2)
+    with col1:
+        fig_bull = go.Figure(go.Indicator(
+            mode="gauge+number+delta",
+            value=ratio,
+            title={'text': "多頭佔比 %", 'font': {'color': '#445566', 'size': 14, 'family': 'JetBrains Mono'}},
+            number={'font': {'color': '#FFF', 'size': 64, 'family': 'Bebas Neue'}, 'suffix': '%'},
+            delta={'reference': prev_ratio, 'relative': False,
+                   'font': {'size': 18}, 'increasing': {'color': '#00FF7F'}, 'decreasing': {'color': '#FF3131'}},
+            gauge={
+                'axis': {'range': [0, 100], 'tickcolor': '#222', 'tickfont': {'size': 14}},
+                'bar': {'color': vc},
+                'bgcolor': 'rgba(0,0,0,0)',
+                'bordercolor': 'rgba(0,0,0,0)',
+                'steps': [
+                    {'range': [0,  35], 'color': '#060e14'},
+                    {'range': [35, 65], 'color': '#090f0a'},
+                    {'range': [65,100], 'color': '#13060a'},
+                ],
+                'threshold': {'line': {'color': '#FFD700', 'width': 4}, 'thickness': 0.78, 'value': 50}
+            }
+        ))
+        fig_bull.update_layout(
+            height=280, template="plotly_dark",
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=18, b=4, l=18, r=18),
+            font=dict(family='JetBrains Mono')
+        )
+        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+        st.plotly_chart(fig_bull, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # [UPGRADE #3] Typewriter verdict
-    thermo_text = (
-        f"【多空溫度計判讀】市場情緒: {sent['sentiment']}。"
-        f"多頭佔比 {ratio:.1f}% / 空頭佔比 {bear_r:.1f}% (共 {total} 檔高價股)。"
-        f"結論: {vd.split('—')[1].strip() if '—' in vd else vd}。"
-    )
-    if 'thermo_streamed' not in st.session_state:
-        st.write_stream(_stream_text(thermo_text, speed=0.015))
-        st.session_state['thermo_streamed'] = True
-    else:
-        st.caption(thermo_text)
+    with col2:
+        # 多空比例圓餅
+        fig_pie = go.Figure(go.Pie(
+            labels=['多頭(站上87MA)', '空頭(低於87MA)', '中性'],
+            values=[ratio, bear_r, max(0, neutral)],
+            marker_colors=['#FF3131', '#26A69A', '#334455'],
+            hole=0.55,
+            textfont_size=16,
+            textfont_family='JetBrains Mono',
+        ))
+        fig_pie.update_layout(
+            height=280, template="plotly_dark",
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=True,
+            legend=dict(font=dict(size=14, family='JetBrains Mono', color='#aaa')),
+            margin=dict(t=18, b=4, l=8, r=8),
+            annotations=[dict(text=f'{ratio:.0f}%', x=0.5, y=0.5, font_size=28,
+                               font_family='Bebas Neue', font_color='#FFF', showarrow=False)]
+        )
+        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+        st.plotly_chart(fig_pie, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
 
 def render_1_3_pr90():
     _sec_header("📊", "PR90 籌碼分佈圖", "CHIP DISTRIBUTION")
