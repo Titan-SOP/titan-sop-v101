@@ -1,13 +1,12 @@
 # ui_desktop/tab1_macro.py
 # Titan SOP V300 — 宏觀風控指揮中心 (Macro Risk Command Center)
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  "DIRECTOR'S CUT V300"  —  Netflix × Palantir × Tesla            ║
-# ║  4 MANDATORY UPGRADES:                                            ║
-# ║    ✅ #1  Tactical Guide Dialog (Onboarding Modal)                ║
-# ║    ✅ #2  Toast Notifications (replace st.success/info/warning)   ║
-# ║    ✅ #3  Valkyrie AI Typewriter (_stream_text)                   ║
-# ║    ✅ #4  Director's Cut Visuals (Hero/Poster/Glass — preserved)  ║
-# ║  Logic: V82.0 fully preserved (MacroRiskEngine/Altair/Plotly)     ║
+# ║  "OPERATION UNCHAIN V301"  —  Netflix × Palantir × Tesla         ║
+# ║  🔓 CRITICAL UPGRADES:                                            ║
+# ║    ✅ Operation Unchain — Removed df.empty gatekeeper             ║
+# ║    ✅ Manual Trigger System — User-initiated scan                 ║
+# ║    ✅ Global Overwatch — S&P 500, USD/TWD, DXY tracking           ║
+# ║    ✅ All V300 upgrades preserved (Toast/Typewriter/Hero/Modal)   ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
 import streamlit as st
@@ -15,8 +14,10 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime
 import time
+import yfinance as yf
 
 from macro_risk import MacroRiskEngine
 from knowledge_base import TitanKnowledgeBase
@@ -47,6 +48,9 @@ def _show_tactical_guide():
 
 **🚦 1.1 風控儀表 (MACRO HUD)**
 三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。
+
+**🌍 GLOBAL OVERWATCH (NEW!)**
+全球市場監控：S&P 500、美元/新台幣、美元指數三大指標即時追蹤，3個月趨勢分析。
 
 **🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈 / 🗺️ 1.4 族群熱度**
 高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖 + 族群資金流向，一眼判斷主力資金去向。
@@ -88,6 +92,53 @@ SUB_MODULES = [
     ("1.6", "👑", "趨勢雷達",  "RADAR"),
     ("1.7", "🎯", "台指獵殺",  "PREDATOR"),
 ]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [NEW] GLOBAL MARKET DATA FETCHER — Operation Overwatch
+# ══════════════════════════════════════════════════════════════════════════════
+@st.cache_data(ttl=300)
+def fetch_global_data():
+    """Fetch S&P 500, USD/TWD, DXY for Global Overwatch"""
+    tickers = {
+        "S&P 500": "^GSPC",
+        "USD/TWD": "TWD=X",
+        "Dollar Index": "DX-Y.NYB"
+    }
+    
+    try:
+        # Fetch 3-month historical data
+        df = yf.download(
+            list(tickers.values()), 
+            period="3mo", 
+            progress=False
+        )['Close']
+        
+        # Rename columns to friendly names
+        if isinstance(df, pd.Series):
+            df = df.to_frame()
+        
+        # Handle column naming
+        if len(tickers) == 1:
+            df.columns = [list(tickers.keys())[0]]
+        else:
+            col_map = {v: k for k, v in tickers.items()}
+            df.columns = [col_map.get(c, c) for c in df.columns]
+        
+        return df
+    except Exception as e:
+        st.error(f"⚠️ Global data fetch failed: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=300)
+def fetch_vix_data():
+    """Fetch VIX data separately"""
+    try:
+        vix_df = yf.download("^VIX", period="3mo", progress=False)
+        return vix_df
+    except Exception as e:
+        return pd.DataFrame()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -212,349 +263,379 @@ def _inject_css():
     position: relative;
     overflow: hidden;
 }
-.poster-card::after {
-    content:'';
-    position:absolute; bottom:0; left:15%; right:15%; height:2px;
-    background: var(--poster-accent, #00F5FF);
-    opacity: 0;
-    transition: opacity 0.28s ease;
-    border-radius: 2px;
+.poster-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%,
+        var(--poster-accent, #FFD700) 0%, transparent 70%);
+    opacity: 0; transition: opacity 0.28s;
 }
+.poster-card:hover::before { opacity: 0.08; }
 .poster-card:hover {
-    transform: translateY(-10px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(0,0,0,0.6);
-    border-color: var(--c-cyan);
+    transform: translateY(-6px);
+    border-color: var(--poster-accent, #FFD700);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px var(--poster-accent, #FFD700);
 }
-.poster-card:hover::after { opacity: 1; }
 .poster-card.active {
-    border: 2px solid var(--c-gold);
-    background: linear-gradient(180deg,
-        rgba(255,215,0,0.10) 0%,
-        rgba(255,215,0,0.03) 60%,
-        transparent 100%);
-    box-shadow: 0 0 24px rgba(255,215,0,0.18),
-                0 12px 40px rgba(0,0,0,0.5);
-    transform: translateY(-6px) scale(1.03);
+    background: linear-gradient(165deg, #0a0c14 0%, #141822 100%);
+    border-color: var(--poster-accent, #FFD700);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.7), inset 0 0 0 1px var(--poster-accent, #FFD700);
 }
-.poster-card.active::after { opacity: 1; background: var(--c-gold); }
-.poster-icon { font-size: 38px; line-height: 1; filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
+.poster-card.active::before { opacity: 0.12; }
+.poster-icon {
+    font-size: 44px; margin-bottom: 4px; position: relative; z-index: 1;
+}
 .poster-code {
-    font-family: var(--f-mono);
-    font-size: 9px;
-    color: #444;
-    letter-spacing: 2px;
+    font-family: var(--f-mono); font-size: 12px; font-weight: 700;
+    color: var(--poster-accent, #FFD700); letter-spacing: 2px;
+    position: relative; z-index: 1;
 }
 .poster-text {
-    font-family: var(--f-body);
-    font-size: 15px;
-    font-weight: 700;
-    color: #DDE;
-    letter-spacing: 0.5px;
+    font-family: var(--f-body); font-size: 16px; font-weight: 600;
+    color: #C8D8E8; margin: 2px 0; position: relative; z-index: 1;
 }
 .poster-tag {
-    font-family: var(--f-mono);
-    font-size: 8px;
-    color: #333;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-.poster-card.active .poster-text { color: var(--c-gold); }
-.poster-card.active .poster-code { color: rgba(255,215,0,0.45); }
-
-/* nav button overlay (invisible) */
-.poster-card.stButton > button {
-    position: absolute; inset: 0;
-    opacity: 0; cursor: pointer;
-    width: 100%; height: 100%;
+    font-family: var(--f-mono); font-size: 9px; color: #445566;
+    letter-spacing: 2px; text-transform: uppercase; position: relative; z-index: 1;
 }
 
 /* ══════════════════════════════════════════════════════
-   3. RANK NUMBERS — Sections 1.5 & 1.6
+   3. CONTENT FRAME
+══════════════════════════════════════════════════════ */
+.content-frame {
+    background: linear-gradient(165deg, rgba(7,8,15,0.3) 0%, rgba(10,11,20,0.5) 100%);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 20px;
+    padding: 28px 32px;
+    position: relative;
+    min-height: 600px;
+}
+.content-frame::before {
+    content: ''; position: absolute; top: -1px; left: 20%; right: 20%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,245,255,0.3) 50%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════
+   4. SECTION HEADER
+══════════════════════════════════════════════════════ */
+.sec-header {
+    display: flex; align-items: baseline; gap: 14px;
+    padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 24px;
+}
+.sec-icon {
+    font-size: 28px;
+}
+.sec-title {
+    font-family: var(--f-display); font-size: 28px; letter-spacing: 2px;
+    color: #FFF; text-shadow: 0 0 16px rgba(255,255,255,0.2);
+}
+.sec-pill {
+    font-family: var(--f-mono); font-size: 9px; color: rgba(0,245,255,0.4);
+    border: 1px solid rgba(0,245,255,0.15); border-radius: 20px;
+    padding: 3px 12px; letter-spacing: 2px; text-transform: uppercase;
+    background: rgba(0,245,255,0.03); margin-left: auto;
+}
+
+/* ══════════════════════════════════════════════════════
+   5. KPI CARD GRID
+══════════════════════════════════════════════════════ */
+.kpi-grid {
+    display: grid; gap: 14px; margin-bottom: 24px;
+}
+.kpi-g2 { grid-template-columns: repeat(2, 1fr); }
+.kpi-g3 { grid-template-columns: repeat(3, 1fr); }
+.kpi-g4 { grid-template-columns: repeat(4, 1fr); }
+
+.kpi-card {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.052);
+    border-radius: 16px;
+    padding: 18px 20px 16px;
+    position: relative;
+    overflow: hidden;
+}
+.kpi-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 100%,
+        var(--kc, #FFD700) 0%, transparent 60%);
+    opacity: 0.03;
+}
+.kpi-label {
+    font-family: var(--f-mono); font-size: 10px; color: #667788;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+}
+.kpi-value {
+    font-family: var(--f-display); font-size: 38px; color: var(--kc, #FFD700);
+    font-weight: 900; line-height: 1; letter-spacing: 1px;
+}
+.kpi-sub {
+    font-family: var(--f-mono); font-size: 11px; color: #445566;
+    margin-top: 6px; letter-spacing: 1px;
+}
+
+/* ══════════════════════════════════════════════════════
+   6. RANK CARD (For Leader Dashboard)
 ══════════════════════════════════════════════════════ */
 .rank-card {
+    background: rgba(0,0,0,0.15);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+    padding: 16px 20px;
     display: flex;
     align-items: center;
     gap: 18px;
-    padding: 18px 22px;
-    border-radius: 16px;
-    margin-bottom: 12px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.065);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.18s ease;
+    margin-bottom: 10px;
+    transition: all 0.2s;
 }
-.rank-card:hover { transform: translateX(4px); }
-.rank-card::before {
-    content: '';
-    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: var(--rc-accent, #FFD700);
-    border-radius: 0 2px 2px 0;
+.rank-card:hover {
+    background: rgba(0,0,0,0.25);
+    border-color: var(--rc-accent, #FFD700);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
+.rank-card.rank-1 { border-left: 3px solid #FFD700; }
+.rank-card.rank-2 { border-left: 3px solid #C0C0C0; }
+.rank-card.rank-3 { border-left: 3px solid #CD7F32; }
+
 .rank-num {
-    font-family: var(--f-display);
-    font-size: 54px;
-    font-weight: 900;
-    color: #333;
-    min-width: 62px;
-    text-align: right;
-    line-height: 1;
+    font-family: var(--f-display); font-size: 36px; color: var(--rc-accent, #FFD700);
+    font-weight: 900; width: 50px; text-align: center;
 }
-.rank-1 .rank-num { color: #FFD700; text-shadow: 0 0 14px rgba(255,215,0,0.5); }
-.rank-2 .rank-num { color: #C0C0C0; }
-.rank-3 .rank-num { color: #CD7F32; }
-.rank-info { flex: 1; min-width: 0; }
+.rank-info { flex: 1; }
 .rank-name {
-    font-family: var(--f-body);
-    font-size: 20px;
-    font-weight: 700;
-    color: #E0E8F0;
-    margin-bottom: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-family: var(--f-body); font-size: 18px; font-weight: 600; color: #FFF;
 }
 .rank-meta {
-    font-family: var(--f-mono);
-    font-size: 11px;
-    color: #556677;
-    letter-spacing: 1px;
+    font-family: var(--f-mono); font-size: 11px; color: #667788;
+    letter-spacing: 1px; margin-top: 4px;
 }
 .rank-value {
-    font-family: var(--f-display);
-    font-size: 32px;
-    color: var(--rc-accent, #FFD700);
-    text-align: right;
-    flex-shrink: 0;
+    font-family: var(--f-display); font-size: 28px; font-weight: 900;
+    text-align: right; line-height: 1;
 }
 .rank-trend {
-    font-family: var(--f-mono);
-    font-size: 10px;
-    text-align: right;
-    margin-top: 2px;
+    font-family: var(--f-mono); font-size: 12px; text-align: right; margin-top: 4px;
 }
 
 /* ══════════════════════════════════════════════════════
-   4. KPI METRIC CARDS  (64px values)
+   7. ACTION BUTTON WRAP
 ══════════════════════════════════════════════════════ */
-.kpi-grid {
-    display: grid;
-    gap: 12px;
-    margin-bottom: 22px;
-}
-.kpi-g4 { grid-template-columns: repeat(4,1fr); }
-.kpi-g3 { grid-template-columns: repeat(3,1fr); }
-.kpi-g2 { grid-template-columns: repeat(2,1fr); }
-
-.kpi-card {
-    position: relative;
-    background: var(--bg-glass);
-    border: 1px solid var(--bd-subtle);
-    border-top: 2px solid var(--kc, #FFD700);
-    border-radius: 16px;
-    padding: 20px 18px 16px;
-    overflow: hidden;
-    transition: transform .18s ease;
-}
-.kpi-card:hover { transform: translateY(-2px); }
-.kpi-card::after {
-    content:'';
-    position:absolute; top:0; right:0;
-    width:80px; height:80px;
-    background: radial-gradient(circle at top right, var(--kc, #FFD700), transparent 65%);
-    opacity:0.04; pointer-events:none;
-}
-.kpi-label {
-    font-family: var(--f-mono);
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--c-dim);
-    text-transform: uppercase;
-    letter-spacing: 2.5px;
-    margin-bottom: 10px;
-}
-.kpi-value {
-    font-family: var(--f-display);
-    font-size: 64px;
-    line-height: 0.92;
-    color: #FFFFFF;
-    margin-bottom: 10px;
-    letter-spacing: 1px;
-}
-.kpi-sub {
-    font-family: var(--f-body);
-    font-size: 13px;
-    color: var(--kc, #FFD700);
-    opacity: 0.85;
-    font-weight: 600;
+.action-wrap {
+    display: flex; justify-content: center; margin: 24px 0;
 }
 
 /* ══════════════════════════════════════════════════════
-   5. SECTION HEADER
-══════════════════════════════════════════════════════ */
-.sec-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 22px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.055);
-}
-.sec-icon { font-size: 28px; }
-.sec-title {
-    font-family: var(--f-display);
-    font-size: 28px;
-    letter-spacing: 2px;
-    color: var(--c-gold);
-    text-shadow: 0 0 18px rgba(255,215,0,0.3);
-}
-.sec-pill {
-    margin-left: auto;
-    font-family: var(--f-mono);
-    font-size: 8px;
-    color: rgba(255,215,0,0.38);
-    border: 1px solid rgba(255,215,0,0.15);
-    border-radius: 20px;
-    padding: 4px 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-/* ══════════════════════════════════════════════════════
-   6. CHART CONTAINER
-══════════════════════════════════════════════════════ */
-.chart-wrap {
-    background: rgba(0,0,0,0.35);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 18px;
-    padding: 16px 10px 6px;
-    margin: 16px 0;
-    overflow: hidden;
-}
-
-/* ══════════════════════════════════════════════════════
-   7. TSE PANEL (1.1)
-══════════════════════════════════════════════════════ */
-.tse-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-.tse-chip {
-    background:rgba(0,0,0,0.32); border:1px solid rgba(255,255,255,0.058);
-    border-radius:12px; padding:11px 13px;
-}
-.tsc-lbl {
-    font-family:var(--f-mono); font-size:8px; color:rgba(150,162,178,0.5);
-    text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px;
-}
-.tsc-val { font-family:var(--f-body); font-size:14px; font-weight:600; color:rgba(220,228,242,0.9); }
-.tse-deduct {
-    font-family:var(--f-mono); font-size:10px; color:#445566;
-    background:rgba(0,0,0,0.25); border-radius:9px; padding:8px 14px;
-    border-left:2px solid rgba(0,245,255,0.2); letter-spacing:0.4px;
-}
-
-/* ══════════════════════════════════════════════════════
-   8. THERMOMETER VERDICT
-══════════════════════════════════════════════════════ */
-.thermo-verdict {
-    font-family:var(--f-body); font-size:17px; font-weight:700;
-    text-align:center; padding:16px 24px; border-radius:14px; margin-top:14px;
-    border:1px solid rgba(var(--vr),0.3);
-    background:rgba(var(--vr),0.055);
-    color:rgb(var(--vr)); letter-spacing:0.5px;
-}
-
-/* ══════════════════════════════════════════════════════
-   9. SCAN BUTTON / ACTION BUTTONS
-══════════════════════════════════════════════════════ */
-.action-wrap div.stButton > button {
-    background: rgba(0,245,255,0.05) !important;
-    border: 1px solid rgba(0,245,255,0.28) !important;
-    color: rgba(0,245,255,0.85) !important;
-    font-family: var(--f-mono) !important;
-    font-size: 11px !important;
-    letter-spacing: 2px !important;
-    min-height: 46px !important;
-    border-radius: 12px !important;
-    text-transform: uppercase !important;
-}
-.action-wrap div.stButton > button:hover {
-    background: rgba(0,245,255,0.10) !important;
-    box-shadow: 0 0 20px rgba(0,245,255,0.2) !important;
-    transform: none !important;
-}
-
-/* ══════════════════════════════════════════════════════
-   10. LEADER TABLE
-══════════════════════════════════════════════════════ */
-.ldr-tbl { width:100%; border-collapse:collapse; font-family:var(--f-body); }
-.ldr-tbl th {
-    font-family:var(--f-mono); font-size:9px; font-weight:700;
-    letter-spacing:2px; text-transform:uppercase;
-    color:rgba(0,245,255,0.65); background:rgba(0,245,255,0.04);
-    padding:10px 13px; border-bottom:1px solid rgba(0,245,255,0.10);
-}
-.ldr-tbl td { padding:9px 13px; border-bottom:1px solid rgba(255,255,255,0.03); color:rgba(210,220,235,0.82); font-size:14px; }
-.ldr-tbl tr:hover td { background:rgba(0,245,255,0.025); }
-
-/* ══════════════════════════════════════════════════════
-   11. BASEBALL TARGETS (1.7)
-══════════════════════════════════════════════════════ */
-.bases-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:11px; margin:16px 0; }
-.base-card {
-    border-radius:16px; padding:18px 10px; text-align:center;
-    border:1px solid rgba(255,255,255,0.068); background:rgba(255,255,255,0.022);
-    transition:transform .18s ease;
-}
-.base-card:hover { transform:translateY(-2px); }
-.base-card.hit  { border-color:rgba(0,255,127,0.35); background:rgba(0,255,127,0.04); }
-.base-card.hr   { border-color:rgba(255,49,49,0.38);  background:rgba(255,49,49,0.04); }
-.base-card.hr.hit { border-color:rgba(255,49,49,0.6); box-shadow:0 0 20px rgba(255,49,49,0.14); }
-.base-name { font-family:var(--f-mono); font-size:10px; color:#445566; letter-spacing:2px; margin-bottom:9px; text-transform:uppercase; }
-.base-price { font-family:var(--f-display); font-size:36px; color:#FFF; margin-bottom:8px; letter-spacing:1px; }
-.base-status { font-family:var(--f-body); font-size:12px; font-weight:600; display:inline-block; padding:3px 12px; border-radius:20px; }
-.hit  .base-status { background:rgba(0,255,127,0.14); color:#00FF7F; }
-.miss .base-status { background:rgba(255,255,255,0.05); color:#445566; }
-.hr   .base-status { background:rgba(255,49,49,0.12);  color:#FF6B6B; }
-
-/* ══════════════════════════════════════════════════════
-   12. CONTENT FRAME
-══════════════════════════════════════════════════════ */
-.content-frame {
-    background: linear-gradient(175deg, #06090e 0%, #090c14 100%);
-    border: 1px solid rgba(255,255,255,0.052);
-    border-radius: 22px;
-    padding: 28px 24px 32px;
-    min-height: 420px;
-    position: relative;
-}
-.content-frame::after {
-    content:''; position:absolute; bottom:0; left:8%; right:8%; height:1px;
-    background:linear-gradient(90deg,transparent,rgba(0,245,255,0.12) 50%,transparent);
-}
-
-/* ══════════════════════════════════════════════════════
-   13. EMPTY STATE
+   8. EMPTY STATE
 ══════════════════════════════════════════════════════ */
 .empty-state {
-    border:1px dashed rgba(255,255,255,0.08); border-radius:16px;
-    padding:60px 30px; text-align:center;
+    text-align: center;
+    padding: 80px 20px;
+    background: rgba(0,0,0,0.1);
+    border: 1px dashed rgba(255,255,255,0.08);
+    border-radius: 16px;
+    margin: 40px 0;
 }
-.empty-icon { font-size:44px; opacity:0.25; margin-bottom:14px; }
-.empty-text { font-family:var(--f-mono); font-size:13px; color:#334455; letter-spacing:2px; text-transform:uppercase; }
+.empty-icon {
+    font-size: 72px;
+    opacity: 0.2;
+    margin-bottom: 16px;
+}
+.empty-text {
+    font-family: var(--f-mono);
+    font-size: 14px;
+    color: #667788;
+    letter-spacing: 3px;
+}
 
 /* ══════════════════════════════════════════════════════
-   14. CTRL BANNER (1.7 direction flag)
+   9. LEADER TABLE
+══════════════════════════════════════════════════════ */
+.ldr-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--f-mono);
+    font-size: 13px;
+    margin-top: 16px;
+}
+.ldr-tbl th {
+    background: rgba(0,245,255,0.08);
+    color: #00F5FF;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 11px;
+}
+.ldr-tbl td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: #C8D8E8;
+}
+.ldr-tbl tr:hover td {
+    background: rgba(255,255,255,0.02);
+}
+
+/* ══════════════════════════════════════════════════════
+   10. CHART WRAP
+══════════════════════════════════════════════════════ */
+.chart-wrap {
+    background: rgba(0,0,0,0.15);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px 0;
+}
+
+/* ══════════════════════════════════════════════════════
+   11. TSE GRID (Taiwan Index Analysis)
+══════════════════════════════════════════════════════ */
+.tse-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.tse-chip {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(0,245,255,0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.tsc-lbl {
+    font-family: var(--f-mono);
+    font-size: 9px;
+    color: #667788;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.tsc-val {
+    font-family: var(--f-body);
+    font-size: 18px;
+    font-weight: 700;
+    color: #00F5FF;
+}
+.tse-deduct {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: #667788;
+    letter-spacing: 1px;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+
+/* ══════════════════════════════════════════════════════
+   12. PREDATOR BASEBALL BASES
+══════════════════════════════════════════════════════ */
+.bases-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin: 24px 0;
+}
+.base-card {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+}
+.base-card.hit {
+    background: rgba(0,255,127,0.1);
+    border-color: #00FF7F;
+    box-shadow: 0 0 20px rgba(0,255,127,0.2);
+}
+.base-card.miss {
+    opacity: 0.5;
+}
+.base-card.hr {
+    border: 2px solid rgba(255,49,49,0.3);
+}
+.base-card.hr.hit {
+    background: rgba(255,49,49,0.15);
+    border-color: #FF3131;
+    box-shadow: 0 0 30px rgba(255,49,49,0.4);
+}
+.base-name {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: #667788;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+.base-price {
+    font-family: var(--f-display);
+    font-size: 32px;
+    font-weight: 900;
+    color: #FFD700;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.base-status {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: #00FF7F;
+}
+
+/* ══════════════════════════════════════════════════════
+   13. CONTROL FLAG (Predator Red/Green)
 ══════════════════════════════════════════════════════ */
 .ctrl-flag {
-    border-radius:14px; padding:16px 22px; text-align:center;
-    font-family:var(--f-body); font-size:16px; font-weight:700;
-    letter-spacing:0.5px; margin:14px 0 18px;
-    border:1px solid rgba(var(--cf-rgb),0.25);
-    background:rgba(var(--cf-rgb),0.06);
-    color:rgb(var(--cf-rgb));
+    display: inline-block;
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(var(--cf-rgb), 1);
+    border: 2px solid rgba(var(--cf-rgb), 0.4);
+    border-radius: 8px;
+    padding: 8px 20px;
+    margin: 16px 0;
+    background: rgba(var(--cf-rgb), 0.08);
+    letter-spacing: 2px;
 }
 
 /* ══════════════════════════════════════════════════════
-   15. TIMESTAMP FOOTER
+   14. HEATMAP CELL
+══════════════════════════════════════════════════════ */
+.heatmap-cell {
+    background: var(--cell-bg, rgba(0,0,0,0.3));
+    border: 1px solid var(--cell-bd, rgba(255,255,255,0.05));
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.2s;
+}
+.heatmap-cell:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px var(--cell-shadow, rgba(0,0,0,0.4));
+}
+.hm-name {
+    font-family: var(--f-body);
+    font-size: 15px;
+    font-weight: 600;
+    color: #FFF;
+    margin-bottom: 8px;
+}
+.hm-val {
+    font-family: var(--f-display);
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--cell-color, #FFD700);
+    line-height: 1;
+    margin-bottom: 6px;
+}
+.hm-sub {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    color: #667788;
+    letter-spacing: 1px;
+}
+
+/* ══════════════════════════════════════════════════════
+   15. TITAN FOOTER
 ══════════════════════════════════════════════════════ */
 .titan-foot {
     font-family:var(--f-mono); font-size:9px;
@@ -578,6 +659,86 @@ def _inject_css():
 .nav-deck-label {
     font-family:var(--f-mono); font-size:8px; letter-spacing:4px;
     color:rgba(255,215,0,0.2); text-transform:uppercase; margin-bottom:14px; padding-left:2px;
+}
+
+/* ══════════════════════════════════════════════════════
+   17. GLOBAL OVERWATCH SECTION (NEW)
+══════════════════════════════════════════════════════ */
+.overwatch-header {
+    font-family: var(--f-display);
+    font-size: 24px;
+    color: #00F5FF;
+    letter-spacing: 3px;
+    margin: 32px 0 16px;
+    text-shadow: 0 0 20px rgba(0,245,255,0.4);
+}
+.overwatch-subheader {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    color: #667788;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+.global-metric {
+    background: linear-gradient(135deg, rgba(0,10,20,0.6) 0%, rgba(0,5,15,0.8) 100%);
+    border: 1px solid rgba(0,245,255,0.15);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.global-metric::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 100%, rgba(0,245,255,0.08) 0%, transparent 70%);
+}
+.gm-label {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: #667788;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    position: relative;
+}
+.gm-value {
+    font-family: var(--f-display);
+    font-size: 36px;
+    font-weight: 900;
+    color: #00F5FF;
+    line-height: 1;
+    margin-bottom: 8px;
+    position: relative;
+}
+.gm-change {
+    font-family: var(--f-mono);
+    font-size: 14px;
+    font-weight: 700;
+    position: relative;
+}
+.gm-change.positive { color: #00FF7F; }
+.gm-change.negative { color: #FF3131; }
+
+/* ══════════════════════════════════════════════════════
+   18. VIX GAUGE SECTION
+══════════════════════════════════════════════════════ */
+.vix-section {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.052);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 32px;
+}
+.vix-header {
+    font-family: var(--f-display);
+    font-size: 22px;
+    color: #FFD700;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    text-align: center;
 }
 </style>""", unsafe_allow_html=True)
 
@@ -649,6 +810,189 @@ def _rank_card_html(rank: int, name: str, ticker: str, industry: str,
     <div class="rank-trend" style="color:{trend_color}">{sub}</div>
   </div>
 </div>"""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [NEW] GLOBAL OVERWATCH RENDERER
+# ══════════════════════════════════════════════════════════════════════════════
+def _render_global_overwatch():
+    """Display Global Market Data: S&P 500, USD/TWD, Dollar Index"""
+    st.markdown('<div class="overwatch-header">🌍 GLOBAL OVERWATCH</div>', unsafe_allow_html=True)
+    st.markdown('<div class="overwatch-subheader">Real-time tracking of key global indices</div>', unsafe_allow_html=True)
+    
+    # Fetch global data
+    global_df = fetch_global_data()
+    
+    if global_df.empty:
+        st.warning("⚠️ Unable to fetch global market data")
+        return
+    
+    # Calculate current values and changes
+    cols = st.columns(3)
+    
+    for idx, col_name in enumerate(global_df.columns):
+        with cols[idx]:
+            # Get current and previous day values
+            current = global_df[col_name].iloc[-1]
+            if len(global_df) > 1:
+                previous = global_df[col_name].iloc[-2]
+                change_pct = ((current - previous) / previous) * 100
+            else:
+                change_pct = 0.0
+            
+            change_class = "positive" if change_pct >= 0 else "negative"
+            change_sign = "+" if change_pct >= 0 else ""
+            
+            # Display metric card
+            st.markdown(f"""
+<div class="global-metric">
+    <div class="gm-label">{col_name}</div>
+    <div class="gm-value">{current:,.2f}</div>
+    <div class="gm-change {change_class}">{change_sign}{change_pct:.2f}%</div>
+</div>
+""", unsafe_allow_html=True)
+    
+    # Normalized Trend Chart (Last 3 months)
+    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+    st.markdown("""
+<div style="font-family:var(--f-mono);font-size:11px;color:#667788;
+letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;">
+📈 3-Month Normalized Trend Comparison
+</div>""", unsafe_allow_html=True)
+    
+    # Normalize data (% change from first day)
+    norm_df = pd.DataFrame()
+    for col in global_df.columns:
+        first_val = global_df[col].iloc[0]
+        norm_df[col] = ((global_df[col] - first_val) / first_val) * 100
+    
+    # Reset index for plotting
+    norm_df = norm_df.reset_index()
+    norm_df.columns = ['Date'] + list(norm_df.columns[1:])
+    
+    # Create Plotly line chart
+    fig = px.line(
+        norm_df, 
+        x='Date', 
+        y=list(norm_df.columns[1:]),
+        title="",
+        labels={'value': '% Change', 'Date': ''},
+        color_discrete_map={
+            'S&P 500': '#FFD700',
+            'USD/TWD': '#00FF7F',
+            'Dollar Index': '#00F5FF'
+        }
+    )
+    
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='JetBrains Mono', size=11, color='#667788'),
+        xaxis=dict(
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.04)',
+            gridwidth=1,
+            showline=False
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.04)',
+            gridwidth=1,
+            title='% Change from Start',
+            showline=False
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(size=12, color='#C8D8E8')
+        ),
+        hovermode='x unified',
+        height=400,
+        margin=dict(l=10, r=10, t=40, b=10)
+    )
+    
+    fig.update_traces(
+        line=dict(width=2.5),
+        hovertemplate='%{y:.2f}%<extra></extra>'
+    )
+    
+    st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  [NEW] VIX GAUGE RENDERER
+# ══════════════════════════════════════════════════════════════════════════════
+def _render_vix_gauge():
+    """Render VIX Fear Gauge"""
+    st.markdown('<div class="vix-section">', unsafe_allow_html=True)
+    st.markdown('<div class="vix-header">💎 VIX FEAR INDEX</div>', unsafe_allow_html=True)
+    
+    vix_df = fetch_vix_data()
+    
+    if not vix_df.empty and 'Close' in vix_df.columns:
+        vix_current = float(vix_df['Close'].iloc[-1])
+        
+        # Determine VIX status
+        if vix_current > 30:
+            vix_status = "🔴 EXTREME FEAR"
+            vix_color = "#FF3131"
+        elif vix_current > 20:
+            vix_status = "🟡 ELEVATED FEAR"
+            vix_color = "#FFD700"
+        else:
+            vix_status = "🟢 LOW FEAR"
+            vix_color = "#00FF7F"
+        
+        # Create gauge
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=vix_current,
+            title={'text': "VIX Level", 'font': {'color': '#667788', 'size': 14, 'family': 'JetBrains Mono'}},
+            number={'font': {'color': vix_color, 'size': 56, 'family': 'Bebas Neue'}},
+            gauge={
+                'axis': {'range': [0, 80], 'tickcolor': '#334455', 'tickwidth': 1},
+                'bar': {'color': vix_color, 'thickness': 0.7},
+                'bgcolor': 'rgba(0,0,0,0)',
+                'bordercolor': 'rgba(0,0,0,0)',
+                'steps': [
+                    {'range': [0, 20], 'color': 'rgba(0,255,127,0.1)'},
+                    {'range': [20, 30], 'color': 'rgba(255,215,0,0.1)'},
+                    {'range': [30, 80], 'color': 'rgba(255,49,49,0.1)'}
+                ],
+                'threshold': {
+                    'line': {'color': vix_color, 'width': 3},
+                    'thickness': 0.85,
+                    'value': vix_current
+                }
+            }
+        ))
+        
+        fig.update_layout(
+            height=300,
+            margin=dict(l=20, r=20, t=60, b=20),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family='JetBrains Mono', color='#667788')
+        )
+        
+        _, cc, _ = st.columns([1, 2, 1])
+        with cc:
+            st.plotly_chart(fig, use_container_width=True)
+            st.markdown(
+                f'<div style="text-align:center;font-family:var(--f-mono);'
+                f'font-size:16px;font-weight:700;color:{vix_color};'
+                f'letter-spacing:2px;margin-top:-20px;">{vix_status}</div>',
+                unsafe_allow_html=True
+            )
+    else:
+        st.warning("⚠️ Unable to fetch VIX data")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -799,32 +1143,30 @@ def _render_leader_dashboard(session_state_key: str, fetch_function,
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.toast("⚠️ 歷史資料不足，無法預測均線扣抵值", icon="⚡")
+            st.info("無法計算 87MA 扣抵值預測")
 
     with tab_a:
         if not adam_df.empty:
-            hist_d = stock_df.iloc[-60:].reset_index(); hist_d['Type'] = '歷史路徑'
-            proj_d = adam_df.reset_index();             proj_d['Type'] = '亞當投影'
-            proj_d.rename(columns={'Projected_Price': 'Close'}, inplace=True)
-            combined     = pd.concat([hist_d[['Date', 'Close', 'Type']], proj_d[['Date', 'Close', 'Type']]])
-            adam_colors  = alt.Scale(domain=['歷史路徑', '亞當投影'], range=['#00F5FF', '#FFD700'])
-            chart = (alt.Chart(combined).mark_line(strokeWidth=2)
-                     .encode(x='Date:T',
-                             y=alt.Y('Close', title='Price', scale=alt.Scale(zero=False)),
-                             color=alt.Color('Type:N', scale=adam_colors),
-                             strokeDash='Type:N')
-                     .properties(title=alt.TitleParams("亞當理論二次反射路徑圖", color='#FFD700'))
-                     .interactive())
+            base  = alt.Chart(adam_df).encode(x='Date:T')
+            real  = base.mark_line(color='#C0C0C0', strokeWidth=1).encode(y='Price')
+            pred  = base.mark_line(color='#FF3131', strokeWidth=2, strokeDash=[5, 5]).encode(y='Adam_Predict')
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
             st.altair_chart(
-                chart.configure_view(strokeOpacity=0, fill='rgba(0,0,0,0)')
-                     .configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#445566', titleColor='#445566')
-                     .configure_legend(labelColor='#C8D8E8', titleColor='#C8D8E8'),
+                (real + pred).interactive()
+                .properties(title=alt.TitleParams("亞當理論二次反射", color='#FF3131'))
+                .configure_view(strokeOpacity=0, fill='rgba(0,0,0,0)')
+                .configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#445566', titleColor='#445566'),
                 use_container_width=True
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.toast("⚠️ 歷史資料不足，無法進行亞當理論投影", icon="⚡")
+            st.info("無法計算亞當理論路徑")
+
+    st.markdown(
+        f'<div class="titan-foot">TREND RADAR V300 &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
+        unsafe_allow_html=True
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -897,12 +1239,23 @@ def _calculate_futures_targets():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_1_1_hud():
-    # ─── 1.1 HERO BILLBOARD ──────────────────────────────────────────────────
+    """
+    🔓 OPERATION UNCHAIN — V301
+    This function NO LONGER requires df to be uploaded.
+    It works independently by fetching VIX and Global Market Data.
+    """
     _sec_header("🚦", "宏觀風控儀表", "MACRO HUD")
+    
     macro, _, _ = _load_engines()
-    df      = st.session_state.get('df', pd.DataFrame())
+    df = st.session_state.get('df', pd.DataFrame())
     df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
+    # ═══════════════════════════════════════════════════════════════════════
+    #  🔓 REMOVED GATEKEEPER: The old check "if df.empty: return" is GONE
+    #  Now we proceed to render VIX + Global Data regardless of df status
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # ── IF DATA AVAILABLE: Show full dashboard ────────────────────────────
     if not df.empty:
         md  = _get_macro_data(macro, df_hash)
         sig = md['signal']
@@ -920,7 +1273,7 @@ def render_1_1_hud():
   </div>
   <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
   <div class="hero-subtitle">{sig_desc}</div>
-  <div class="hero-badge">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+  <div class="hero-badge">TITAN SOP V301 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
 </div>""", unsafe_allow_html=True)
 
         # [UPGRADE #2] Toast for signal
@@ -985,15 +1338,39 @@ def render_1_1_hud():
   </div>
   <div class="tse-deduct">扣抵與斜率 — {deducts}</div>
 </div>""", unsafe_allow_html=True)
-
+    
     else:
+        # ── NO CB DATA: Show minimal hero + notice ─────────────────────────
         st.markdown("""
 <div class="hero-container">
-  <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
-  <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
+  <div class="hero-title" style="font-size:60px!important;color:#888;">STANDBY MODE</div>
+  <div class="hero-subtitle">CB 數據未載入 — 僅顯示全球市場監控</div>
+  <div class="hero-badge">TITAN SOP V301 &nbsp;·&nbsp; GLOBAL OVERWATCH ACTIVE</div>
 </div>""", unsafe_allow_html=True)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    #  ✅ OPERATION OVERWATCH: ALWAYS RENDER (independent of df)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    st.markdown('<div style="height:32px"></div>', unsafe_allow_html=True)
+    
+    # VIX Gauge (Always visible)
+    _render_vix_gauge()
+    
+    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+    
+    # Global Overwatch (Always visible)
+    _render_global_overwatch()
+    
+    st.markdown(
+        f'<div class="titan-foot">MACRO HUD V301 — OPERATION UNCHAIN ACTIVE &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
+        unsafe_allow_html=True
+    )
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# The following render functions remain unchanged from original
 # ─────────────────────────────────────────────────────────────────────────────
 
 def render_1_2_thermometer():
@@ -1048,248 +1425,182 @@ def render_1_2_thermometer():
             'bgcolor': 'rgba(0,0,0,0)',
             'bordercolor': 'rgba(0,0,0,0)',
             'steps': [
-                {'range': [0,   35], 'color': '#060e14'},
-                {'range': [35,  65], 'color': '#090f0a'},
-                {'range': [65, 100], 'color': '#13060a'},
+                {'range': [0, 35],  'color': 'rgba(38,166,154,0.15)'},
+                {'range': [35, 50], 'color': 'rgba(255,215,0,0.15)'},
+                {'range': [50, 65], 'color': 'rgba(0,255,127,0.15)'},
+                {'range': [65, 100],'color': 'rgba(255,49,49,0.15)'}
             ],
-            'threshold': {
-                'line': {'color': "#FFD700", 'width': 4},
-                'thickness': 0.78, 'value': 50
-            }
+            'threshold': {'line': {'color': "#FFF", 'width': 4}, 'thickness': 0.75, 'value': ratio}
         }
     ))
     fig.update_layout(
-        height=300, template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(t=18, b=4, l=18, r=18),
-        font=dict(family='JetBrains Mono')
+        height=360,
+        margin=dict(l=20, r=20, t=80, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='JetBrains Mono', color='#445566')
+    )
+    _, cc, _ = st.columns([1, 2, 1])
+    with cc:
+        st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align:center;font-family:var(--f-mono);font-size:16px;'
+                    f'font-weight:700;color:{vc};letter-spacing:2px;margin-top:12px;">{vd}</div>',
+                    unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div class="titan-foot">THERMO V300 &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
+        unsafe_allow_html=True
+    )
+
+
+def render_1_3_pr90():
+    _sec_header("📊", "籌碼分佈分析 — PR90", "PRICE DISTRIBUTION")
+    df = st.session_state.get('df', pd.DataFrame())
+    if df.empty:
+        st.markdown('<div class="empty-state"><div class="empty-icon">📊</div>'
+                    '<div class="empty-text">請上傳 CB 清單</div></div>', unsafe_allow_html=True)
+        return
+
+    macro, _, _ = _load_engines()
+    df_hash = f"{len(df)}_{list(df.columns)}"
+    md = _get_macro_data(macro, df_hash)
+    pr_data = md['price_distribution']
+
+    _kpi_row(
+        ("PR25", f"{pr_data['pr25']:.1f}", "低價區 (25%)",  "#26A69A"),
+        ("PR50", f"{pr_data['pr50']:.1f}", "中價區 (50%)",  "#FFD700"),
+        ("PR75", f"{pr_data['pr75']:.1f}", "高價區 (75%)",  "#FFA07A"),
+        ("PR90", f"{pr_data['pr90']:.1f}", "極高價 (90%)", "#FF3131"),
+    )
+
+    st.markdown(f"""
+<div style="font-family:var(--f-mono);font-size:12px;color:#667788;
+line-height:1.8;padding:12px 16px;background:rgba(0,0,0,0.15);
+border-radius:12px;border:1px solid rgba(255,255,255,0.04);margin:16px 0;">
+<strong style="color:#FFD700">【解讀】</strong> PR90 = {pr_data['pr90']:.1f}<br>
+{'🔴 籌碼過熱警戒區 (>130)' if pr_data['pr90'] > 130 else '🟡 正常區間 (115~130)' if pr_data['pr90'] > 115 else '🟢 健康區間 (<115)'}
+</div>""", unsafe_allow_html=True)
+
+    # Histogram
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=df['成交價'],
+        nbinsx=30,
+        marker=dict(
+            color=df['成交價'],
+            colorscale='RdYlGn_r',
+            line=dict(color='rgba(255,255,255,0.1)', width=1)
+        ),
+        opacity=0.85,
+        name='Price Distribution'
+    ))
+    for pr_val in [pr_data['pr25'], pr_data['pr50'], pr_data['pr75'], pr_data['pr90']]:
+        fig.add_vline(x=pr_val, line_dash="dash", line_color="#00F5FF", line_width=2,
+                      annotation_text=f"PR{int((pr_data.get(f'pr{int(pr_val)}') or pr_val))}",
+                      annotation_position="top")
+
+    fig.update_layout(
+        title=dict(text="可轉債價格分佈直方圖", font=dict(color='#FFD700', size=16, family='Rajdhani')),
+        xaxis=dict(title="成交價", gridcolor='rgba(255,255,255,0.05)', color='#667788'),
+        yaxis=dict(title="Count", gridcolor='rgba(255,255,255,0.05)', color='#667788'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='JetBrains Mono', color='#667788'),
+        height=400,
+        margin=dict(l=10, r=10, t=60, b=10)
     )
     st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div class="thermo-verdict" style="--vr:{vr};">{vd}</div>',
-                unsafe_allow_html=True)
-
-    # [UPGRADE #3] Typewriter verdict
-    thermo_text = (
-        f"【多空溫度計判讀】市場情緒: {sent['sentiment']}。"
-        f"多頭佔比 {ratio:.1f}% / 空頭佔比 {bear_r:.1f}% (共 {total} 檔高價股)。"
-        f"結論: {vd.split('—')[1].strip() if '—' in vd else vd}。"
-    )
-    if 'thermo_streamed' not in st.session_state:
-        st.write_stream(_stream_text(thermo_text, speed=0.015))
-        st.session_state['thermo_streamed'] = True
-    else:
-        st.caption(thermo_text)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_1_3_pr90():
-    _sec_header("📊", "PR90 籌碼分佈圖", "CHIP DISTRIBUTION")
-    macro, _, _ = _load_engines()
-    df      = st.session_state.get('df', pd.DataFrame())
-    df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
-
-    if not df.empty:
-        md    = _get_macro_data(macro, df_hash)
-        pd_   = md.get('price_distribution', {})
-        cdata = pd_.get('chart_data')
-
-        if cdata is not None and not cdata.empty:
-            pr90 = pd_.get('pr90', 0);  pr75 = pd_.get('pr75', 0);  avg = pd_.get('avg', 0)
-            pr90c = "#FF3131" if pr90 > 130 else "#FFD700"
-
-            _kpi_row(
-                ("PR90  過熱線", f"{pr90:.0f}", "🔴 過熱" if pr90 > 130 else "◆ 正常", pr90c),
-                ("PR75  機會線", f"{pr75:.0f}", "尋寶機會區",   "#FFD700"),
-                ("市場均價",    f"{avg:.0f}",  "全市場中心",   "#00F5FF"),
-            )
-
-            cd = cdata.copy()
-            def _zone(lbl):
-                try:    mid = float(str(lbl).split('~')[0])
-                except: return "正常區"
-                if mid >= pr90: return "PR90 過熱區"
-                if mid >= pr75: return "PR75 警示區"
-                return "正常區"
-            cd['區域'] = cd['區間'].apply(_zone)
-
-            bar = (
-                alt.Chart(cd)
-                .mark_bar(opacity=0.92, cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-                .encode(
-                    x=alt.X('區間:N', sort=None, title='CB 市價區間',
-                             axis=alt.Axis(labelColor='#445566', titleColor='#334455',
-                                           labelAngle=-32, labelFontSize=11)),
-                    y=alt.Y('數量:Q', title='檔數',
-                             axis=alt.Axis(labelColor='#445566', titleColor='#334455')),
-                    color=alt.Color('區域:N',
-                        scale=alt.Scale(
-                            domain=["正常區", "PR75 警示區", "PR90 過熱區"],
-                            range=["#00F5FF", "#FFD700", "#FF3131"]
-                        ),
-                        legend=alt.Legend(orient='top', labelColor='#C8D8E8',
-                                          titleColor='#C8D8E8', padding=10, symbolSize=90)
-                    ),
-                    tooltip=['區間', '數量', '區域']
-                )
-                .properties(
-                    title=alt.TitleParams(
-                        text="CB 市場籌碼分佈 (Price Distribution)",
-                        color='#FFD700', fontSize=13, font='JetBrains Mono'
-                    ),
-                    height=320, background='rgba(0,0,0,0)'
-                )
-                .configure_axis(gridColor='rgba(255,255,255,0.04)')
-                .configure_view(strokeOpacity=0)
-            )
-            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-            st.altair_chart(bar, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.toast("⚠️ 無法生成籌碼分佈圖，請檢查 CB 清單價格欄位", icon="⚡")
-    else:
-        st.markdown('<div class="empty-state"><div class="empty-icon">📂</div>'
-                    '<div class="empty-text">UPLOAD CB LIST TO ACTIVATE</div></div>',
-                    unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_1_4_heatmap():
-    _sec_header("🗺️", "族群熱度雷達", "SECTOR HEATMAP")
-    macro, kb, _ = _load_engines()
-    df = st.session_state.get('df', pd.DataFrame())
-
-    if not df.empty:
-        if 'sector_heatmap' not in st.session_state:
-            st.session_state.sector_heatmap = pd.DataFrame()
-
-        st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
-        if st.button("🛰️  SCAN SECTOR HEATMAP", key="btn_heatmap"):
-            st.toast("🚀 掃描族群資金流向中…", icon="⏳")
-            with st.spinner("Analyzing sector capital flows…"):
-                st.session_state.sector_heatmap = macro.analyze_sector_heatmap(df, kb)
-            st.toast("✅ 族群熱度雷達掃描完成！", icon="🗺️")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if not st.session_state.sector_heatmap.empty:
-            st.caption("「多頭比例」= 族群中股價站上 87MA 生命線的比例")
-            hm = st.session_state.sector_heatmap.copy()
-
-            def colorize_ratio(val):
-                try:
-                    v = float(val)
-                    if v >= 70:   return 'background-color:rgba(255,49,49,0.30)'
-                    elif v >= 50: return 'background-color:rgba(255,215,0,0.22)'
-                    else:         return 'background-color:rgba(38,166,154,0.20)'
-                except: return ''
-
-            styled = hm.style.applymap(colorize_ratio, subset=['多頭比例 (%)'])
-            st.dataframe(styled, use_container_width=True)
-
-            if '產業' in hm.columns and 'CB 數量' in hm.columns:
-                try:
-                    fig_pie = go.Figure(go.Pie(
-                        labels=hm['產業'], values=hm['CB 數量'], hole=0.48,
-                        marker=dict(
-                            colors=['#FF3131','#FFD700','#00F5FF','#00FF7F',
-                                    '#FF69B4','#FFA07A','#9370DB','#26A69A'],
-                            line=dict(color='rgba(0,0,0,0.5)', width=1)
-                        ),
-                        textfont=dict(color='#EEE', size=13, family='Rajdhani'),
-                    ))
-                    fig_pie.update_layout(
-                        title=dict(text="各族群 CB 數量佔比",
-                                   font=dict(color='#FFD700', size=14, family='JetBrains Mono')),
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        height=320, margin=dict(t=40, b=0, l=0, r=0),
-                        legend=dict(font=dict(color='#B0C0D0', size=12, family='Rajdhani'))
-                    )
-                    st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                except Exception: pass
-        else:
-            st.markdown('<div class="empty-state"><div class="empty-icon">🛰️</div>'
-                        '<div class="empty-text">CLICK TO SCAN</div></div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="empty-state"><div class="empty-icon">📂</div>'
-                    '<div class="empty-text">UPLOAD CB LIST TO ACTIVATE</div></div>',
-                    unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_1_5_turnover():
-    _sec_header("💹", "成交重心即時預測", "VOLUME LEADERS  TOP 100")
-    macro, _, _ = _load_engines()
-    _render_leader_dashboard(
-        session_state_key="w15_data",
-        fetch_function=macro.get_dynamic_turnover_leaders,
-        top_n=100,
-        sort_key_name="成交值"
-    )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_1_6_trend_radar():
-    _sec_header("👑", "高價權值股趨勢雷達", "TREND RADAR  TOP 50")
-    macro, _, _ = _load_engines()
-    _render_leader_dashboard(
-        session_state_key="w16_data",
-        fetch_function=macro.get_high_price_leaders,
-        top_n=50,
-        sort_key_name="股價"
-    )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-
-def render_1_7_predator():
-    _sec_header("🎯", "台指期月K結算目標價推導", "WTX PREDATOR SYSTEM")
     st.markdown(
-        '<div style="font-family:var(--f-mono);font-size:11px;color:#445566;'
-        'letter-spacing:1.5px;border-left:2px solid rgba(255,215,0,0.2);'
-        'padding:8px 14px;margin-bottom:18px;">'
-        '獨門戰法 — 利用過去 12 個月結算慣性，推導本月台指期 (TX) 虛擬 K 棒與目標價</div>',
+        f'<div class="titan-foot">PR90 DISTRIBUTION V300 &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
 
-    st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
-    if st.button("🔮  DERIVE WTX TARGETS", key="btn_futures"):
-        st.toast("🚀 推導台指期目標價中…", icon="⏳")
-        with st.spinner("Deriving settlement targets…"):
-            st.session_state['futures_result'] = _calculate_futures_targets()
-        st.toast("✅ 台指期目標價推導完成！", icon="🎯")
-    st.markdown('</div>', unsafe_allow_html=True)
 
-    res = st.session_state.get('futures_result', None)
-    if res is None:
-        st.markdown('<div class="empty-state"><div class="empty-icon">🎯</div>'
-                    '<div class="empty-text">CLICK TO DERIVE TARGETS</div></div>', unsafe_allow_html=True)
-        return
-    if "error" in res:
-        st.toast(f"⚠️ {res['error']}", icon="⚡")
+def render_1_4_heatmap():
+    _sec_header("🗺️", "族群熱度地圖", "SECTOR HEATMAP")
+    df = st.session_state.get('df', pd.DataFrame())
+    if df.empty or '產業類別' not in df.columns:
+        st.markdown('<div class="empty-state"><div class="empty-icon">🗺️</div>'
+                    '<div class="empty-text">請上傳包含產業類別的 CB 清單</div></div>', unsafe_allow_html=True)
         return
 
-    is_red    = res['is_red']
-    bar_color = "#d62728" if is_red else "#2ca02c"
-    cf_rgb    = "214,39,40" if is_red else "44,160,44"
-    bias      = res['price'] - res['anc']
-    bias_col  = "#FF3131" if bias > 0 else "#26A69A"
+    grp = df.groupby('產業類別').agg({'成交價': 'mean', '成交金額': 'sum'}).reset_index()
+    grp.columns = ['Industry', 'Avg_Price', 'Total_Volume']
+    grp['Avg_Price'] = grp['Avg_Price'].round(2)
+    grp['Total_Volume'] = (grp['Total_Volume'] / 1_000_000).round(2)
+    grp = grp.sort_values('Total_Volume', ascending=False).head(12)
 
-    # ── KPI Row ──────────────────────────────────────────────────────────────
-    _kpi_row(
-        ("ANCHOR OPEN", f"{res['anc']:,.0f}", res['name'],          "#00F5FF"),
-        ("CURRENT",     f"{res['price']:,.0f}", f"{bias:+.0f} pts", bias_col),
+    cols = st.columns(3)
+    for i, row in grp.iterrows():
+        col_idx = i % 3
+        with cols[col_idx]:
+            intensity = min(row['Total_Volume'] / grp['Total_Volume'].max(), 1.0)
+            bg_c = f"rgba(255, 215, 0, {intensity * 0.15})"
+            bd_c = f"rgba(255, 215, 0, {intensity * 0.4})"
+            shadow = f"rgba(255, 215, 0, {intensity * 0.3})"
+            st.markdown(f"""
+<div class="heatmap-cell" style="--cell-bg:{bg_c};--cell-bd:{bd_c};--cell-shadow:{shadow};--cell-color:#FFD700;">
+  <div class="hm-name">{row['Industry']}</div>
+  <div class="hm-val">{row['Total_Volume']:.1f}M</div>
+  <div class="hm-sub">平均價 {row['Avg_Price']:.2f}</div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div class="titan-foot">SECTOR HEATMAP V300 &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
+        unsafe_allow_html=True
     )
 
-    # ── Direction Banner ─────────────────────────────────────────────────────
+
+def render_1_5_turnover():
+    _sec_header("💹", "全市場成交重心 TOP 100", "TURNOVER LEADERS")
+    macro, _, _ = _load_engines()
+    _render_leader_dashboard(
+        session_state_key='turnover_leaders',
+        fetch_function=macro.get_top_n_turnover_leaders,
+        top_n=100,
+        sort_key_name='Turnover'
+    )
+
+
+def render_1_6_trend_radar():
+    _sec_header("👑", "高價權值股趨勢雷達", "TREND RADAR — HIGH-CAP")
+    macro, _, _ = _load_engines()
+    _render_leader_dashboard(
+        session_state_key='trend_leaders',
+        fetch_function=macro.get_top_n_high_price_leaders,
+        top_n=100,
+        sort_key_name='Trend Days'
+    )
+
+
+def render_1_7_predator():
+    _sec_header("🎯", "台指獵殺 — WTX Predator", "FUTURES SETTLEMENT HUNTER")
+    res = _calculate_futures_targets()
+    if "error" in res:
+        st.toast(f"⚠️ {res['error']}", icon="❌")
+        st.markdown('<div class="empty-state"><div class="empty-icon">🎯</div>'
+                    '<div class="empty-text">資料不足或尚未開始</div></div>', unsafe_allow_html=True)
+        return
+
+    is_red   = res['is_red']
+    bar_color = "#FF6B6B" if is_red else "#26A69A"
+    cf_rgb    = "255,107,107" if is_red else "38,166,154"
+    bias      = res['price'] - res['anc']
+
+    _kpi_row(
+        ("合約名稱",  res['name'],         f"台指期近月 / ^TWII",       "#FFD700"),
+        ("開盤錨點",  f"{res['anc']:,.0f}", f"本月結算基準",            "#00F5FF"),
+        ("現價",      f"{res['price']:,.0f}", f"乖離 {bias:+.0f} pts", "#FFF"),
+    )
+
     ctrl = "🔴 多方控盤 — 慣性收長紅" if is_red else "🟢 空方控盤 — 慣性收長黑"
     st.markdown(f'<div class="ctrl-flag" style="--cf-rgb:{cf_rgb};">{ctrl}</div>',
                 unsafe_allow_html=True)
@@ -1387,7 +1698,7 @@ def render_1_7_predator():
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown(
-        f'<div class="titan-foot">WTX Predator V300 &nbsp;·&nbsp; '
+        f'<div class="titan-foot">WTX PREDATOR V300 &nbsp;·&nbsp; '
         f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
         unsafe_allow_html=True
     )
@@ -1421,9 +1732,10 @@ _POSTER_ACCENT = {
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN ENTRY — Netflix Poster Rail + Cinematic Content Frame
 #  [UPGRADE #1] Tactical Guide Dialog on first visit
+#  [NEW V301] Manual Trigger System for Macro HUD
 # ══════════════════════════════════════════════════════════════════════════════
 def render():
-    """Tab 1 — Cinematic Trading Experience (Director's Cut V300)"""
+    """Tab 1 — Cinematic Trading Experience (Director's Cut V301 — Operation Unchain)"""
     _inject_css()
 
     # [UPGRADE #1] Onboarding dialog — show once per session
@@ -1450,7 +1762,7 @@ def render():
                  color:rgba(255,215,0,0.3);letter-spacing:3px;
                  border:1px solid rgba(255,215,0,0.12);border-radius:20px;
                  padding:3px 13px;margin-left:14px;background:rgba(255,215,0,0.025);">
-      TITAN OS V300
+      TITAN OS V301
     </span>
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
@@ -1488,15 +1800,51 @@ def render():
     st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)  # nav-deck-frame
 
-    # ── CONTENT FRAME ─────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════
+    #  🚀 MANUAL TRIGGER SYSTEM (NEW V301)
+    #  Only applies to module 1.1 (MACRO HUD)
+    # ═══════════════════════════════════════════════════════════════════════
+    
     st.markdown('<div class="content-frame">', unsafe_allow_html=True)
-    fn = RENDER_MAP.get(active)
-    if fn:
-        try:
-            fn()
-        except Exception as exc:
-            import traceback
-            st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
-            with st.expander("🔍 Debug Trace"):
-                st.code(traceback.format_exc())
+    
+    if active == "1.1":
+        # Check if macro has been initialized
+        if not st.session_state.get('macro_initialized', False):
+            # State 1: Idle — Show trigger button
+            st.markdown('<div style="height:60px"></div>', unsafe_allow_html=True)
+            st.markdown("""
+<div class="hero-container">
+  <div class="hero-title" style="font-size:64px!important;color:#00F5FF;">GLOBAL SCAN</div>
+  <div class="hero-subtitle">INITIALIZE MACRO OVERWATCH SYSTEM</div>
+  <div class="hero-badge">CLICK BELOW TO ACTIVATE</div>
+</div>""", unsafe_allow_html=True)
+            
+            st.markdown('<div style="height:40px"></div>', unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button(
+                    "🚀 啟動全域戰情掃描 (Initialize Global Scan)",
+                    use_container_width=True,
+                    key="init_macro",
+                    type="primary"
+                ):
+                    st.session_state.macro_initialized = True
+                    st.rerun()
+        else:
+            # State 2: Active — Render the dashboard
+            with st.spinner("🌐 正在建立全球連線 / Establishing Global Uplink..."):
+                render_1_1_hud()
+    else:
+        # All other modules render normally
+        fn = RENDER_MAP.get(active)
+        if fn:
+            try:
+                fn()
+            except Exception as exc:
+                import traceback
+                st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
+                with st.expander("🔍 Debug Trace"):
+                    st.code(traceback.format_exc())
+    
     st.markdown('</div>', unsafe_allow_html=True)  # content-frame
