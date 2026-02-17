@@ -3085,8 +3085,8 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         point=alt.OverlayMarkDef(color='#00FF7F', size=80)
     ).encode(
         x='年度:N',
-        y=alt.Y('EBITDA_clip:Q',
-                tooltip=[alt.Tooltip('EBITDA:Q', title='EBITDA', format=',.1f')])
+        y=alt.Y('EBITDA_clip:Q'),
+        tooltip=[alt.Tooltip('EBITDA:Q', title='EBITDA', format=',.1f')]
     )
     zero_l = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
         color='#FF3131', strokeDash=[4, 4], strokeWidth=2
