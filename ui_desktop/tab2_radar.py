@@ -112,7 +112,7 @@ def _inject_css():
 
 /* ── FIRE CONTROL DECK ─────────────────────────────────────────── */
 .t2-fire-card {
-    height:110px; border-radius:16px;
+    height:160px; border-radius:16px;
     display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:6px;
     transition:all .24s cubic-bezier(.4,0,.2,1);
@@ -126,8 +126,8 @@ def _inject_css():
 .t2-fire-card.active::after { opacity:1; }
 .t2-fire-card.active { transform:translateY(-3px); }
 .t2-fire-icon  { font-size:30px; line-height:1; }
-.t2-fire-label { font-family:var(--f-body);  font-size:14px; font-weight:700; color:#CDD; }
-.t2-fire-tag   { font-family:var(--f-mono);  font-size:7.5px; color:#334; letter-spacing:2px; text-transform:uppercase; }
+.t2-fire-label { font-family:var(--f-body);  font-size:28px; font-weight:700; color:#CDD; }
+.t2-fire-tag   { font-family:var(--f-mono);  font-size:26px; color:#334; letter-spacing:2px; text-transform:uppercase; }
 .t2-fire-card.active .t2-fire-label { color:var(--fa,#00F5FF); }
 
 /* ── STRATEGY PILL RAIL ────────────────────────────────────────── */

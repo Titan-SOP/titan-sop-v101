@@ -246,14 +246,14 @@ def _inject_css():
 }
 .poster-text {
     font-family: var(--f-body);
-    font-size: 15px;
+    font-size: 28px;
     font-weight: 700;
     color: #DDE;
     letter-spacing: 0.5px;
 }
 .poster-tag {
     font-family: var(--f-mono);
-    font-size: 8px;
+    font-size: 26px;
     color: #333;
     letter-spacing: 2px;
     text-transform: uppercase;

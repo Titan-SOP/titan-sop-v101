@@ -754,11 +754,11 @@ def _inject_css():
 .t6-hero-status.bear{color:#FF3131;text-shadow:0 0 60px rgba(255,49,49,0.25);}
 .t6-hero-status.neutral{color:#FFD700;text-shadow:0 0 60px rgba(255,215,0,0.2);}
 .t6-hero-sub{font-family:var(--f-m);font-size:10px;color:rgba(160,176,208,0.35);letter-spacing:4px;text-transform:uppercase;margin-top:6px;}
-.t6-poster{flex:1;min-width:110px;min-height:140px;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);border-radius:14px;padding:16px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.t6-poster{flex:1;min-width:110px;min-height:160px;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);border-radius:14px;padding:16px 10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
 .t6-poster.active{border-color:var(--c-cyan);background:rgba(0,245,255,0.04);box-shadow:0 0 30px rgba(0,245,255,0.08);}
 .t6-poster-icon{font-size:26px;margin-bottom:6px;}
-.t6-poster-title{font-family:var(--f-d);font-size:13px;color:#FFF;letter-spacing:1.5px;}
-.t6-poster-sub{font-family:var(--f-m);font-size:7px;color:rgba(140,155,178,0.4);letter-spacing:1.5px;text-transform:uppercase;margin-top:3px;}
+.t6-poster-title{font-family:var(--f-b);font-size:28px;font-weight:700;color:#FFF;letter-spacing:1px;}
+.t6-poster-sub{font-family:var(--f-m);font-size:26px;color:rgba(140,155,178,0.4);letter-spacing:1px;text-transform:uppercase;margin-top:3px;}
 .rank-badge{font-size:120px;font-weight:900;background:linear-gradient(135deg,#FFD700 0%,#B8860B 50%,#FFD700 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:var(--f-o);line-height:1;filter:drop-shadow(0 4px 12px rgba(255,215,0,0.3));}
 .rank-badge-wrap{text-align:center;padding:30px 0 10px;}
 .rank-badge-name{font-family:var(--f-b);font-size:20px;font-weight:700;color:rgba(255,215,0,0.7);letter-spacing:2px;margin-top:8px;}

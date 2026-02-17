@@ -503,7 +503,7 @@ def _inject_css():
     align-items: center;
     justify-content: center;
     height: 100%;
-    min-height: 140px;
+    min-height: 160px;
 }
 
 .poster-card:hover {
@@ -519,7 +519,7 @@ def _inject_css():
 
 .poster-title {
     font-family: var(--f-b);
-    font-size: 14px;
+    font-size: 28px;
     font-weight: 700;
     color: #FFF;
     margin-bottom: 5px;
@@ -527,7 +527,7 @@ def _inject_css():
 
 .poster-tag {
     font-family: var(--f-m);
-    font-size: 8px;
+    font-size: 26px;
     color: #555;
     letter-spacing: 2px;
 }

@@ -399,6 +399,7 @@ def _inject_css():
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  min-height: 160px;
 }
 .nav-poster::before {
   content: '';
@@ -422,18 +423,19 @@ def _inject_css():
   filter: drop-shadow(0 0 8px rgba(255,255,255,0.1));
 }
 .nav-poster-title {
-  font-family: var(--f-d);
-  font-size: 16px;
+  font-family: var(--f-b);
+  font-size: 28px;
+  font-weight: 700;
   color: #FFF;
-  letter-spacing: 2px;
-  line-height: 1.3;
+  letter-spacing: 1px;
+  line-height: 1.2;
   margin-bottom: 4px;
 }
 .nav-poster-sub {
   font-family: var(--f-m);
-  font-size: 8px;
+  font-size: 26px;
   color: rgba(160,176,192,0.45);
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
 
