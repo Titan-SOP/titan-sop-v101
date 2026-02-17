@@ -1499,7 +1499,9 @@ def _t3(sdf, ticker):
     df['Vol_ratio'] = df['Volume'] / df['Vol_MA20']  # 量比
 
     # ── 燭台形態識別（近5根）─────────────────────────────────────────
-    df_pat = df.tail(5).copy()
+    df_pat = df.tail(5).reset_index().copy()
+    if 'index' in df_pat.columns: df_pat.rename(columns={'index': 'Date'}, inplace=True)
+    df_pat['Date'] = pd.to_datetime(df_pat['Date'])
     def _candle_pattern(row):
         body = abs(row['Close'] - row['Open'])
         rng  = row['High'] - row['Low']
@@ -1888,8 +1890,8 @@ def _t4(sdf, ticker):
 
 【一、長線均線系統（宏觀趨勢定位）】
   月線MA6（半年）： ${ma6_m:.2f}
-  月線MA12（年線）：${ma12_m:.2f if ma12_m else 'N/A'}
-  月線MA24（兩年）：${ma24_m:.2f if ma24_m else 'N/A'}
+  月線MA12（年線）：{f'${ma12_m:.2f}' if ma12_m else 'N/A'}
+  月線MA24（兩年）：{f'${ma24_m:.2f}' if ma24_m else 'N/A'}
   趨勢判斷：{trend_m}
   解讀：{'現價在月線均線之上，長期多頭架構完整，逢月K回測均線為戰略買點。' if ma_bull else '現價跌破月線均線，長線轉空，需等月線重新向上扭頭才考慮大資金佈局。'}
 
@@ -1918,7 +1920,7 @@ def _t4(sdf, ticker):
   解讀：年化波動估算約 ±{atr6_m * 12 / cp_m * 100:.0f}%。
 
 【七、宏觀戰略推演】
-  {'🟢 長線積極：月線多頭排列，長期趨勢向上。策略：月K回測MA6（$' + f'{ma6_m:.2f}）附近為長線買進機會，停損設MA12（${ma12_m:.2f if ma12_m else "N/A"}）。' if ma_bull else '🔴 長線防守：月線空頭架構，避免輕易建立大倉。策略：等月K站回MA6並企穩，才考慮長線進場，現階段宜輕倉或觀望。'}
+  {'🟢 長線積極：均線多頭，逢月K回測MA6支撐買進，停損設月線均線下方。' if ma_bull else '🔴 長線防守：均線空頭，避免建立大倉，等月K企穩再評估。'}
 
 ═══════════════════════════════════════════════════════════
 """
