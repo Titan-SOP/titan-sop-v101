@@ -186,6 +186,82 @@ def calculate_smart_valuation(eps, rev, shares, g, m, pe, dr=0.1, y=10):
     if not rev or shares == 0: return 0
     return (rev * ((1 + g) ** y) * m * pe / ((1 + dr) ** y)) / shares
 
+def calculate_hypergrowth_valuation(rev, shares, rev_g, gm_now, gm_target, opex_now,
+                                     opex_improve, ps_terminal, pe_terminal, dr=0.15, y=7):
+    """
+    Pre-Profit HyperGrowth Valuation Model (for companies like QBTS, IONQ)
+    ──────────────────────────────────────────────────────────────────────
+    Logic:
+      1. Project revenue year-by-year at rev_g
+      2. Gross margin improves linearly from gm_now → gm_target over y years
+      3. OpEx (as % of rev) improves by opex_improve each year (converging to profitability)
+      4. Detect breakeven year (net income > 0)
+      5. Terminal value:
+         - If profitable within y years → use P/E on terminal net income
+         - Else → use P/S on terminal revenue
+      6. Discount terminal value back at dr
+    Returns dict: terminal_price, breakeven_year (None if not found), projections DataFrame
+    """
+    if not rev or shares == 0:
+        return None
+
+    rows = []
+    r = rev
+    opex_pct = opex_now
+    breakeven_year = None
+
+    for yr in range(1, y + 1):
+        r = r * (1 + rev_g)
+        # Gross margin improves linearly each year
+        gm = gm_now + (gm_target - gm_now) * (yr / y)
+        gross_profit = r * gm
+        # OpEx declines as % of revenue
+        opex_pct = max(opex_pct - opex_improve, gm * 0.5)  # floor: opex can't drop below 50% of GP
+        opex_abs = r * opex_pct
+        net_income = gross_profit - opex_abs
+        net_margin = net_income / r if r > 0 else 0
+        eps_proj = net_income / shares if shares > 0 else 0
+        price_ps = r * ps_terminal / shares if shares > 0 else 0
+
+        is_profitable = net_income > 0
+        if is_profitable and breakeven_year is None:
+            breakeven_year = yr
+
+        rows.append({
+            'Year': yr,
+            'Revenue': round(r, 1),
+            'GrossMargin': round(gm * 100, 1),
+            'GrossProfit': round(gross_profit, 1),
+            'OpEx': round(opex_abs, 1),
+            'NetIncome': round(net_income, 1),
+            'NetMargin': round(net_margin * 100, 2),
+            'EPS_proj': round(eps_proj, 4),
+            'Price_PS': round(price_ps, 4),
+            'Profitable': is_profitable,
+        })
+
+    proj_df = pd.DataFrame(rows)
+    terminal_row = proj_df.iloc[-1]
+
+    if breakeven_year is not None:
+        # Use P/E on terminal net income
+        terminal_mktcap = terminal_row['NetIncome'] * pe_terminal
+        terminal_price_raw = terminal_mktcap / shares
+    else:
+        # Use P/S on terminal revenue
+        terminal_price_raw = terminal_row['Revenue'] * ps_terminal / shares
+
+    terminal_price = terminal_price_raw / ((1 + dr) ** y)
+    terminal_price = max(terminal_price, 0)
+
+    return {
+        'terminal_price': terminal_price,
+        'terminal_price_raw': terminal_price_raw,
+        'breakeven_year': breakeven_year,
+        'projections': proj_df,
+        'used_method': 'P/E' if breakeven_year is not None else 'P/S',
+    }
+
 # ══════════════════════════════════════════════════════════════
 # 🎨 SOUL UPGRADE #3: FIRST PRINCIPLES CSS INJECTION
 # ══════════════════════════════════════════════════════════════
@@ -1268,38 +1344,91 @@ def _t5(ticker, cp):
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 6: SMART VALUATION (智能估值) — 第一性原則重建
 # ══════════════════════════════════════════════════════════════
+# 🎯 TAB 6: SMART VALUATION (智能估值) — 雙模式引擎
+# ══════════════════════════════════════════════════════════════
 def _t6(ticker, cp):
-    """T6: Smart DCF Valuation — fully rebuilt for clarity & usability"""
+    """T6: Smart Valuation — DCF (獲利型) + HyperGrowth (虧損高速成長型) 雙引擎"""
     st.toast("🚀 智能估值引擎啟動中…", icon="⏳")
 
-    # ── session_state 初始值（第一次載入時設定） ──────────────────────────────
+    # ── session_state 初始值 ──────────────────────────────────────────────────
     _dcf_defaults = {"val_rev": 50000.0, "val_shares": 5000.0, "val_eps": 10.0,
                      "val_g": 0.12, "val_m": 0.15, "val_pe": 20.0, "val_dr": 0.10}
     for k, v in _dcf_defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
+    _hg_defaults = {"hg_rev": 100.0, "hg_shares": 300.0, "hg_rev_g": 0.60,
+                    "hg_gm_now": 0.30, "hg_gm_target": 0.65, "hg_opex_pct": 1.20,
+                    "hg_opex_improve": 0.12, "hg_ps": 20.0, "hg_pe": 80.0,
+                    "hg_dr": 0.15, "hg_years": 7}
+    for k, v in _hg_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    if "val_mode" not in st.session_state:
+        st.session_state["val_mode"] = "DCF"
+
     # ── Hero ──────────────────────────────────────────────────────────────────
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown('<div class="hero-lbl">💎 SMART DCF VALUATION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">💎 SMART VALUATION ENGINE — DUAL MODE</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-sub">10年現金流折現 — 內在價值推算</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">DCF 獲利型 · HyperGrowth 虧損高速成長型</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── 使用說明卡片 ──────────────────────────────────────────────────────────
-    st.markdown(f"""
+    # ── 模式切換 ──────────────────────────────────────────────────────────────
+    mode = st.session_state["val_mode"]
+    mc1, mc2 = st.columns(2)
+    is_dcf = (mode == "DCF")
+    dcf_border = "2px solid #B77DFF" if is_dcf  else "1px solid rgba(255,255,255,0.07)"
+    hg_border  = "2px solid #FF9A3C" if not is_dcf else "1px solid rgba(255,255,255,0.07)"
+    dcf_bg     = "rgba(183,125,255,0.10)" if is_dcf else "rgba(255,255,255,0.02)"
+    hg_bg      = "rgba(255,154,60,0.10)"  if not is_dcf else "rgba(255,255,255,0.02)"
+    dcf_col    = "#B77DFF" if is_dcf else "rgba(200,215,230,0.55)"
+    hg_col     = "#FF9A3C" if not is_dcf else "rgba(200,215,230,0.55)"
+
+    with mc1:
+        if st.button("💎 DCF 估值  ·  適用已獲利公司", key="mode_dcf", use_container_width=True):
+            st.session_state["val_mode"] = "DCF"
+            st.rerun()
+        st.markdown(f"""
+<div style="position:relative;background:{dcf_bg};border:{dcf_border};border-radius:14px;
+    padding:16px 20px;margin-top:-38px;pointer-events:none;z-index:1;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:{dcf_col};letter-spacing:2px;">💎 DCF 現金流折現</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(200,215,230,0.65);margin-top:4px;">
+    台積電 · NVIDIA · Apple · 聯發科<br>
+    <span style="color:{dcf_col};font-weight:600;">適用：EPS > 0 的獲利公司</span>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    with mc2:
+        if st.button("🚀 HyperGrowth  ·  適用虧損高速成長", key="mode_hg", use_container_width=True):
+            st.session_state["val_mode"] = "HyperGrowth"
+            st.rerun()
+        st.markdown(f"""
+<div style="position:relative;background:{hg_bg};border:{hg_border};border-radius:14px;
+    padding:16px 20px;margin-top:-38px;pointer-events:none;z-index:1;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:{hg_col};letter-spacing:2px;">🚀 HyperGrowth 成長推演</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(200,215,230,0.65);margin-top:4px;">
+    QBTS · IONQ · RGTI · ARQQ · RKLB<br>
+    <span style="color:{hg_col};font-weight:600;">適用：尚未獲利的超高速成長股</span>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # MODE A: DCF 估值（獲利型）
+    # ════════════════════════════════════════════════════════════
+    if mode == "DCF":
+        st.markdown(f"""
 <div style="background:linear-gradient(135deg,rgba(183,125,255,0.08),rgba(0,245,255,0.04));
     border:1px solid rgba(183,125,255,0.30);border-left:4px solid #B77DFF;
     border-radius:16px;padding:24px 28px;margin:0 0 26px;">
-  <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;
-      color:#B77DFF;margin-bottom:16px;">
-    💎 智能 DCF 估值 — 完整操作說明
-  </div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;color:#B77DFF;margin-bottom:16px;">
+    💎 智能 DCF 估值 — 完整操作說明</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(215,230,245,0.95);line-height:2.0;margin-bottom:14px;">
-    <strong style="color:#B77DFF;font-size:17px;">DCF（現金流折現）</strong>是巴菲特、查理蒙格最推崇的估值方法。
-    核心邏輯：<strong style="color:#FFD700;font-size:17px;">一家公司今天的價值 = 未來 10 年它能賺到的所有錢，折算成今日的總和</strong>。<br>
-    不是看股價貴不貴，而是看公司<strong style="color:#00F5FF;">「賺錢能力」</strong>值不值得現在這個價格。
-  </div>
+    <strong style="color:#B77DFF;font-size:17px;">DCF（現金流折現）</strong>是巴菲特最推崇的估值法。
+    核心：<strong style="color:#FFD700;font-size:17px;">今日價值 = 未來10年現金流折算回今天的總和</strong>。</div>
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
     <div style="background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.18);border-radius:12px;padding:14px 16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:#00F5FF;letter-spacing:2px;margin-bottom:8px;">📐 計算邏輯（五步驟）</div>
@@ -1323,253 +1452,169 @@ def _t6(ticker, cp):
   </div>
   <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:rgba(0,245,255,0.65);
       padding:10px 14px;background:rgba(0,245,255,0.04);border-radius:8px;">
-    📐 公式：公允價值 = (年營收 × (1+g)^10 × 淨利率 × P/E) ÷ 股數(股) ÷ (1+折現率)^10<br>
+    📐 公式：公允價值 = (年營收 × (1+g)^10 × 淨利率 × P/E) ÷ 股數 ÷ (1+折現率)^10<br>
     📌 目前市價：<strong style="color:#00F5FF;font-size:15px;">{cp:.2f}</strong>
-    &nbsp;·&nbsp; 折現率 = 你要求的最低年化報酬率（通常 8%～12%）
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-    # ── 範例選單 (25檔) ───────────────────────────────────────────────────────
-    # preset: (label, rev, shares_M, eps, g, m, pe, dr)
-    DCF_PRESETS = {
-        "── 台股科技 ──":                    None,
-        "🇹🇼 台積電 2330  半導體龍頭":       (2161000, 25930, 48.0,  0.13, 0.37, 26, 0.10),
-        "🇹🇼 聯發科 2454  IC設計王":         (547000,  1585,  85.0,  0.10, 0.24, 20, 0.10),
-        "🇹🇼 鴻海 2317    電子代工":         (6162000, 13860, 10.5,  0.05, 0.03, 11, 0.10),
-        "🇹🇼 台達電 2308  電源/EV":          (380000,  2572,  14.0,  0.09, 0.09, 17, 0.10),
-        "🇹🇼 大立光 3008  光學鏡頭":         (62000,   134,   145.0, 0.07, 0.35, 24, 0.10),
-        "🇹🇼 廣達 2382    AI伺服器":         (1380000, 7767,  8.5,   0.18, 0.04, 15, 0.10),
-        "🇹🇼 緯創 3231    伺服器":           (1050000, 5475,  6.8,   0.15, 0.03, 13, 0.10),
-        "── 台股金融/傳產 ──":               None,
-        "🇹🇼 中信金 2891  金融控股":         (210000,  19800, 2.8,   0.06, 0.18, 11, 0.09),
-        "🇹🇼 長榮 2603    航運":             (320000,  14280, 16.5,  0.04, 0.28, 7,  0.10),
-        "🇹🇼 台塑 1301    石化":             (360000,  12645, 3.5,   0.03, 0.07, 9,  0.09),
-        "🇹🇼 統一 1216    食品消費":         (170000,  5679,  4.2,   0.04, 0.06, 13, 0.09),
-        "── 美股科技巨頭 ──":                None,
-        "🇺🇸 NVIDIA      AI晶片王":         (96300,   2460,  11.93, 0.40, 0.55, 32, 0.10),
-        "🇺🇸 Apple AAPL  消費電子":          (391000,  15200, 6.57,  0.07, 0.26, 26, 0.10),
-        "🇺🇸 Microsoft   雲端/AI":           (245000,  7430,  11.45, 0.13, 0.36, 28, 0.10),
-        "🇺🇸 Google GOOG 廣告/雲端":         (307000,  12280, 8.04,  0.12, 0.24, 20, 0.10),
-        "🇺🇸 Amazon AMZN 電商/AWS":          (590000,  10560, 3.98,  0.12, 0.08, 28, 0.10),
-        "🇺🇸 Meta        社群/AI":           (135000,  2530,  19.85, 0.15, 0.35, 20, 0.10),
-        "🇺🇸 Tesla TSLA  電動車":            (97690,   3190,  3.01,  0.18, 0.15, 38, 0.11),
-        "── 美股成長股 ──":                  None,
-        "🇺🇸 Palantir    數據AI":            (2860,    2150,  0.36,  0.24, 0.16, 55, 0.12),
-        "🇺🇸 CrowdStrike 資安":              (3660,    243,   2.93,  0.28, 0.18, 50, 0.12),
-        "🇺🇸 Datadog     雲端監控":          (2430,    323,   1.80,  0.22, 0.14, 48, 0.11),
-        "── 美股穩健/配息 ──":               None,
-        "🇺🇸 Berkshire   巴菲特控股":        (364000,  2176,  59.21, 0.05, 0.21, 13, 0.09),
-        "🇺🇸 Johnson&J   醫療消費":          (88000,   2410,  8.76,  0.04, 0.21, 17, 0.09),
-        "🇺🇸 Coca-Cola   飲料":              (46000,   4310,  2.47,  0.04, 0.23, 21, 0.09),
-        "🇺🇸 McDonald's  餐飲":              (25500,   730,   11.56, 0.05, 0.33, 22, 0.09),
-    }
+        DCF_PRESETS = {
+            "── 台股科技 ──":                    None,
+            "🇹🇼 台積電 2330  半導體龍頭":       (2161000, 25930, 48.0,  0.13, 0.37, 26, 0.10),
+            "🇹🇼 聯發科 2454  IC設計王":         (547000,  1585,  85.0,  0.10, 0.24, 20, 0.10),
+            "🇹🇼 鴻海 2317    電子代工":         (6162000, 13860, 10.5,  0.05, 0.03, 11, 0.10),
+            "🇹🇼 台達電 2308  電源/EV":          (380000,  2572,  14.0,  0.09, 0.09, 17, 0.10),
+            "🇹🇼 大立光 3008  光學鏡頭":         (62000,   134,   145.0, 0.07, 0.35, 24, 0.10),
+            "🇹🇼 廣達 2382    AI伺服器":         (1380000, 7767,  8.5,   0.18, 0.04, 15, 0.10),
+            "🇹🇼 緯創 3231    伺服器":           (1050000, 5475,  6.8,   0.15, 0.03, 13, 0.10),
+            "── 台股金融/傳產 ──":               None,
+            "🇹🇼 中信金 2891  金融控股":         (210000,  19800, 2.8,   0.06, 0.18, 11, 0.09),
+            "🇹🇼 長榮 2603    航運":             (320000,  14280, 16.5,  0.04, 0.28, 7,  0.10),
+            "🇹🇼 台塑 1301    石化":             (360000,  12645, 3.5,   0.03, 0.07, 9,  0.09),
+            "🇹🇼 統一 1216    食品消費":         (170000,  5679,  4.2,   0.04, 0.06, 13, 0.09),
+            "── 美股科技巨頭 ──":                None,
+            "🇺🇸 NVIDIA      AI晶片王":         (96300,   2460,  11.93, 0.40, 0.55, 32, 0.10),
+            "🇺🇸 Apple AAPL  消費電子":          (391000,  15200, 6.57,  0.07, 0.26, 26, 0.10),
+            "🇺🇸 Microsoft   雲端/AI":           (245000,  7430,  11.45, 0.13, 0.36, 28, 0.10),
+            "🇺🇸 Google GOOG 廣告/雲端":         (307000,  12280, 8.04,  0.12, 0.24, 20, 0.10),
+            "🇺🇸 Amazon AMZN 電商/AWS":          (590000,  10560, 3.98,  0.12, 0.08, 28, 0.10),
+            "🇺🇸 Meta        社群/AI":           (135000,  2530,  19.85, 0.15, 0.35, 20, 0.10),
+            "🇺🇸 Tesla TSLA  電動車":            (97690,   3190,  3.01,  0.18, 0.15, 38, 0.11),
+            "── 美股成長股 ──":                  None,
+            "🇺🇸 Palantir    數據AI":            (2860,    2150,  0.36,  0.24, 0.16, 55, 0.12),
+            "🇺🇸 CrowdStrike 資安":              (3660,    243,   2.93,  0.28, 0.18, 50, 0.12),
+            "🇺🇸 Datadog     雲端監控":          (2430,    323,   1.80,  0.22, 0.14, 48, 0.11),
+            "── 美股穩健/配息 ──":               None,
+            "🇺🇸 Berkshire   巴菲特控股":        (364000,  2176,  59.21, 0.05, 0.21, 13, 0.09),
+            "🇺🇸 Johnson&J   醫療消費":          (88000,   2410,  8.76,  0.04, 0.21, 17, 0.09),
+            "🇺🇸 Coca-Cola   飲料":              (46000,   4310,  2.47,  0.04, 0.23, 21, 0.09),
+            "🇺🇸 McDonald's  餐飲":              (25500,   730,   11.56, 0.05, 0.33, 22, 0.09),
+        }
 
-    st.markdown("""
+        st.markdown("""
 <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#B77DFF;
     letter-spacing:3px;margin:8px 0 10px;">⚡ 快速套用範例 — 選一檔自動填入</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(180,200,220,0.80);
-    margin-bottom:10px;">
-    從下方選單挑選任意個股，系統自動將該公司的真實財務數據填入所有欄位。
-    填入後你仍可以手動微調任何數字，做「如果...會怎樣」的情境測試。
-</div>
 """, unsafe_allow_html=True)
 
-    dcf_options = list(DCF_PRESETS.keys())
-    dcf_choice = st.selectbox(
-        "選擇範例股票", options=dcf_options, index=0,
-        key="dcf_preset", label_visibility="collapsed"
-    )
+        dcf_options = list(DCF_PRESETS.keys())
+        dcf_choice = st.selectbox("選擇範例股票", options=dcf_options, index=0,
+                                   key="dcf_preset", label_visibility="collapsed")
+        pv = DCF_PRESETS.get(dcf_choice)
+        if pv is not None and st.session_state.get("_dcf_preset_prev") != dcf_choice:
+            p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
+            st.session_state["val_rev"]    = float(p_rev)
+            st.session_state["val_shares"] = float(p_shares)
+            st.session_state["val_eps"]    = float(p_eps)
+            st.session_state["val_g"]      = float(p_g)
+            st.session_state["val_m"]      = float(p_m)
+            st.session_state["val_pe"]     = float(p_pe)
+            st.session_state["val_dr"]     = float(p_dr)
+            st.session_state["_dcf_preset_prev"] = dcf_choice
+            st.rerun()
 
-    # ── 自動填入：偵測選單變動，寫入 session_state 再 rerun ──────────────────
-    pv = DCF_PRESETS.get(dcf_choice)
-    if pv is not None and st.session_state.get("_dcf_preset_prev") != dcf_choice:
+        pv = DCF_PRESETS.get(dcf_choice)
+        if pv is None: pv = (50000, 5000, 10.0, 0.12, 0.15, 20, 0.10)
         p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
-        st.session_state["val_rev"]    = float(p_rev)
-        st.session_state["val_shares"] = float(p_shares)
-        st.session_state["val_eps"]    = float(p_eps)
-        st.session_state["val_g"]      = float(p_g)
-        st.session_state["val_m"]      = float(p_m)
-        st.session_state["val_pe"]     = float(p_pe)
-        st.session_state["val_dr"]     = float(p_dr)
-        st.session_state["_dcf_preset_prev"] = dcf_choice
-        st.rerun()
 
-    # Use current session_state as display values (already updated above)
-    pv = DCF_PRESETS.get(dcf_choice)
-    if pv is None:
-        pv = (50000, 5000, 10.0, 0.12, 0.15, 20, 0.10)
-    p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
-
-    if dcf_choice and DCF_PRESETS.get(dcf_choice) is not None:
-        st.markdown(f"""
+        if dcf_choice and DCF_PRESETS.get(dcf_choice) is not None:
+            st.markdown(f"""
 <div style="background:rgba(183,125,255,0.05);border:1px solid rgba(183,125,255,0.22);
     border-radius:10px;padding:10px 16px;margin:6px 0 14px;
     font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(183,125,255,0.8);">
   ✅ 已套用：<strong style="color:#B77DFF;">{dcf_choice}</strong>
-  &nbsp;｜ 年營收：{p_rev:,.0f}百萬
-  &nbsp;｜ 股數：{p_shares:,.0f}百萬股
-  &nbsp;｜ EPS：{p_eps}
-  &nbsp;｜ 成長率：{p_g*100:.0f}%
-  &nbsp;｜ 淨利率：{p_m*100:.0f}%
-  &nbsp;｜ P/E：{p_pe}x
-  &nbsp;｜ 折現率：{p_dr*100:.0f}%
+  &nbsp;｜ 年營收：{p_rev:,.0f}百萬 &nbsp;｜ 股數：{p_shares:,.0f}百萬股
+  &nbsp;｜ EPS：{p_eps} &nbsp;｜ 成長率：{p_g*100:.0f}%
+  &nbsp;｜ 淨利率：{p_m*100:.0f}% &nbsp;｜ P/E：{p_pe}x &nbsp;｜ 折現率：{p_dr*100:.0f}%
 </div>
 """, unsafe_allow_html=True)
 
-    # ── 參數輸入區 ────────────────────────────────────────────────────────────
-    st.markdown("""
+        st.markdown("""
 <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#B77DFF;
     letter-spacing:3px;margin:4px 0 14px;">📝 參數確認 / 手動調整</div>
 """, unsafe_allow_html=True)
 
-    # --- Row 1 ---
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
-    💰 年營收（百萬元）</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#FFD700;">TTM</strong> = 最近12個月合計營收。<br>
-    <strong style="color:#FFD700;">台股：</strong>百萬新台幣（年報→合併損益表→「營業收入」）<br>
-    <strong style="color:#FFD700;">美股：</strong>百萬美元（Yahoo Finance → Financials → Revenue TTM）<br>
-    <strong style="color:#FFD700;">常見量級：</strong>中小型台股 10,000～100,000；大型台股 100,000+
-</div>
-""", unsafe_allow_html=True)
-        rev = st.number_input("年營收", min_value=1.0, step=1000.0,
-                               format="%.0f", key="val_rev", label_visibility="collapsed")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">💰 年營收（百萬元）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+<strong style="color:#FFD700;">TTM</strong> = 最近12個月合計營收。台股：百萬新台幣（年報→損益表）；美股：百萬美元（Yahoo Finance → Financials）
+</div>""", unsafe_allow_html=True)
+            rev = st.number_input("年營收", min_value=1.0, step=1000.0,
+                                   format="%.0f", key="val_rev", label_visibility="collapsed")
 
-    with c2:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
-    📊 流通股數（百萬股）</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#FFD700;">定義：</strong>市場上可以自由買賣的股份總數（不含庫藏股）。<br>
-    <strong style="color:#FFD700;">台股查詢：</strong>集保中心 / 公司財報 / Goodinfo → 股本結構<br>
-    <strong style="color:#FFD700;">美股查詢：</strong>Yahoo Finance → Statistics → Shares Outstanding<br>
-    <strong style="color:#FFD700;">換算：</strong>台積電普通股 259.3 億股 = 25,930（百萬股）
-</div>
-""", unsafe_allow_html=True)
-        shares = st.number_input("流通股數 (M)", min_value=1.0, step=100.0,
-                                  format="%.0f", key="val_shares", label_visibility="collapsed")
+        with c2:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">📊 流通股數（百萬股）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+台股：集保中心 / Goodinfo；美股：Yahoo Finance → Statistics → Shares Outstanding。台積電 259.3億股 = 25,930百萬股
+</div>""", unsafe_allow_html=True)
+            shares = st.number_input("流通股數 (M)", min_value=1.0, step=100.0,
+                                      format="%.0f", key="val_shares", label_visibility="collapsed")
 
-    with c3:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">
-    💵 EPS TTM（每股盈餘）</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#FFD700;">定義：</strong>近12個月稅後淨利 ÷ 流通股數 = 每股賺多少錢。<br>
-    <strong style="color:#FFD700;">用途：</strong>本模型以 EPS 做驗算，確認與成長率/淨利率假設一致性。<br>
-    <strong style="color:#FFD700;">台股查詢：</strong>Goodinfo / 財報狗 → 每股盈餘（EPS）<br>
-    <strong style="color:#FFD700;">美股查詢：</strong>Yahoo Finance → Statistics → EPS (TTM)
-</div>
-""", unsafe_allow_html=True)
-        eps = st.number_input("EPS (TTM)", min_value=0.01, step=0.5,
-                               format="%.2f", key="val_eps", label_visibility="collapsed")
+        with c3:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">💵 EPS TTM（每股盈餘）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+近12個月稅後淨利 ÷ 流通股數。台股：Goodinfo / 財報狗；美股：Yahoo Finance → Statistics → EPS (TTM)
+</div>""", unsafe_allow_html=True)
+            eps = st.number_input("EPS (TTM)", min_value=0.01, step=0.5,
+                                   format="%.2f", key="val_eps", label_visibility="collapsed")
 
-    # --- Row 2 ---
-    c4, c5, c6, c7 = st.columns(4)
-    with c4:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
-    📈 年均成長率 CAGR</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#00F5FF;">意義：</strong>預估未來10年每年平均的「營收成長率」。<br>
-    <strong style="color:#00F5FF;">AI/半導體：</strong>0.15～0.40<br>
-    <strong style="color:#00F5FF;">科技平台：</strong>0.10～0.18<br>
-    <strong style="color:#00F5FF;">傳統產業：</strong>0.03～0.08<br>
-    <strong style="color:#00F5FF;">參考：</strong>近3年 YoY% 平均值
-</div>
-""", unsafe_allow_html=True)
-        g = st.number_input("成長率", min_value=0.0, max_value=2.0,
-                             step=0.01, format="%.2f", key="val_g", label_visibility="collapsed")
+        c4, c5, c6, c7 = st.columns(4)
+        with c4:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">📈 年均成長率 CAGR</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+AI/半導體：0.15～0.40；科技平台：0.10～0.18；傳統產業：0.03～0.08
+</div>""", unsafe_allow_html=True)
+            g = st.number_input("成長率", min_value=0.0, max_value=2.0,
+                                 step=0.01, format="%.2f", key="val_g", label_visibility="collapsed")
 
-    with c5:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
-    💹 淨利率 Net Margin</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#00F5FF;">意義：</strong>每賺100元營收最終留下多少淨利。<br>
-    <strong style="color:#00F5FF;">半導體：</strong>0.30～0.55<br>
-    <strong style="color:#00F5FF;">科技平台：</strong>0.20～0.36<br>
-    <strong style="color:#00F5FF;">電商/硬體：</strong>0.03～0.10<br>
-    <strong style="color:#00F5FF;">製造/傳產：</strong>0.03～0.08
-</div>
-""", unsafe_allow_html=True)
-        m = st.number_input("淨利率", min_value=0.0, max_value=1.0,
-                             step=0.01, format="%.2f", key="val_m", label_visibility="collapsed")
+        with c5:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">💹 淨利率 Net Margin</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+半導體：0.30～0.55；科技平台：0.20～0.36；電商/硬體：0.03～0.10
+</div>""", unsafe_allow_html=True)
+            m = st.number_input("淨利率", min_value=0.0, max_value=1.0,
+                                 step=0.01, format="%.2f", key="val_m", label_visibility="collapsed")
 
-    with c6:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
-    🏷️ 終端本益比 P/E</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#00F5FF;">意義：</strong>10年後市場給予的「合理估值倍數」。<br>
-    <strong style="color:#00F5FF;">高成長科技：</strong>35～60<br>
-    <strong style="color:#00F5FF;">科技龍頭：</strong>20～32<br>
-    <strong style="color:#00F5FF;">台電子/金融：</strong>10～20<br>
-    <strong style="color:#00F5FF;">傳統/原物料：</strong>6～12
-</div>
-""", unsafe_allow_html=True)
-        pe = st.number_input("終端 P/E", min_value=1.0, max_value=200.0,
-                              step=1.0, key="val_pe", label_visibility="collapsed")
+        with c6:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">🏷️ 終端本益比 P/E</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+高成長科技：35～60；科技龍頭：20～32；台電子/金融：10～20；傳統：6～12
+</div>""", unsafe_allow_html=True)
+            pe = st.number_input("終端 P/E", min_value=1.0, max_value=200.0,
+                                  step=1.0, key="val_pe", label_visibility="collapsed")
 
-    with c7:
-        st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
-    color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">
-    📉 折現率 Discount Rate</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);
-    line-height:1.8;margin-bottom:8px;">
-    <strong style="color:#00F5FF;">意義：</strong>你要求的「最低年化報酬率」，越高越保守。<br>
-    <strong style="color:#00F5FF;">穩健投資：</strong>0.08（8%）<br>
-    <strong style="color:#00F5FF;">一般標準：</strong>0.10（10%）<br>
-    <strong style="color:#00F5FF;">高風險溢價：</strong>0.12～0.15<br>
-    <strong style="color:#00F5FF;">巴菲特慣用：</strong>0.09～0.10
-</div>
-""", unsafe_allow_html=True)
-        dr = st.number_input("折現率", min_value=0.01, max_value=0.5,
-                              step=0.01, format="%.2f", key="val_dr", label_visibility="collapsed")
+        with c7:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">📉 折現率 Discount Rate</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+穩健：0.08（8%）；一般：0.10（10%）；高風險溢價：0.12～0.15
+</div>""", unsafe_allow_html=True)
+            dr = st.number_input("折現率", min_value=0.01, max_value=0.5,
+                                  step=0.01, format="%.2f", key="val_dr", label_visibility="collapsed")
 
-    # ── 計算按鈕 ──────────────────────────────────────────────────────────────
-    st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="t3-action">', unsafe_allow_html=True)
-    run_val = st.button("💎  執行智能估值計算", key="val_calc", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="t3-action">', unsafe_allow_html=True)
+        run_val = st.button("💎  執行 DCF 智能估值計算", key="val_calc", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if not run_val:
-        return
+        if not run_val:
+            return
 
-    st.toast("🚀 正在計算內在價值…", icon="⏳")
-    fair_value = calculate_smart_valuation(eps, rev, shares, g, m, pe, dr, 10)
+        st.toast("🚀 正在計算內在價值…", icon="⏳")
+        fair_value = calculate_smart_valuation(eps, rev, shares, g, m, pe, dr, 10)
 
-    if not fair_value or fair_value <= 0:
-        st.toast("⚠️ 計算失敗，請確認股數 > 0 且所有欄位已填寫", icon="⚡")
-        return
+        if not fair_value or fair_value <= 0:
+            st.toast("⚠️ 計算失敗，請確認股數 > 0 且所有欄位已填寫", icon="⚡")
+            return
 
-    upside    = (fair_value - cp) / cp * 100
-    up_col    = "#00FF7F" if upside > 20 else "#FFD700" if upside > 0 else "#FF3131"
-    verdict   = "🟢 明顯低估 — 具備買入價值" if upside > 20 else \
-                "🟡 合理偏低 — 可逢低佈局" if upside > 5 else \
-                "⚪ 接近合理價 — 觀察等待" if upside > -10 else \
-                "🔴 高估警示 — 建議等待回調"
+        upside  = (fair_value - cp) / cp * 100
+        up_col  = "#00FF7F" if upside > 20 else "#FFD700" if upside > 0 else "#FF3131"
+        verdict = "🟢 明顯低估 — 具備買入價值" if upside > 20 else \
+                  "🟡 合理偏低 — 可逢低佈局" if upside > 5 else \
+                  "⚪ 接近合理價 — 觀察等待" if upside > -10 else \
+                  "🔴 高估警示 — 建議等待回調"
 
-    # ── 主要結果卡片 ──────────────────────────────────────────────────────────
-    st.markdown(f"""
+        st.markdown(f"""
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;">
-
   <div style="background:rgba(183,125,255,0.07);border:1px solid rgba(183,125,255,0.3);
       border-top:3px solid #B77DFF;border-radius:16px;padding:24px 20px;text-align:center;">
     <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(183,125,255,0.6);
@@ -1579,84 +1624,452 @@ def _t6(ticker, cp):
     <div style="font-family:'JetBrains Mono',monospace;font-size:11px;
         color:rgba(183,125,255,0.5);">10年現金流折現 / 折現率 {dr*100:.0f}%</div>
   </div>
-
-  <div style="background:rgba(var(--up-rgb,0,255,127),0.06);
-      border:1px solid {up_col}44;border-top:3px solid {up_col};
+  <div style="border:1px solid {up_col}44;border-top:3px solid {up_col};
       border-radius:16px;padding:24px 20px;text-align:center;">
     <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
         color:rgba(200,215,230,0.4);letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">
-      📍 市價 {cp:.2f} vs 公允價值
-    </div>
+      📍 市價 {cp:.2f} vs 公允價值</div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:62px;color:{up_col};
         line-height:1;margin-bottom:6px;">{upside:+.1f}%</div>
-    <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:{up_col};
-        font-weight:700;">{verdict}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:{up_col};font-weight:700;">{verdict}</div>
   </div>
-
 </div>
 """, unsafe_allow_html=True)
 
-    # ── 多折現率敏感性分析 ────────────────────────────────────────────────────
-    st.markdown("""
-<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#00F5FF;
-    letter-spacing:3px;margin:16px 0 10px;">📊 折現率敏感性分析</div>
+        # 折現率敏感性分析
+        st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#00F5FF;
+    letter-spacing:3px;margin:16px 0 10px;">📊 折現率敏感性分析</div>""", unsafe_allow_html=True)
+
+        dr_range = [0.06, 0.08, 0.10, 0.12, 0.14, 0.15]
+        sens_rows = []
+        for d in dr_range:
+            fv = calculate_smart_valuation(eps, rev, shares, g, m, pe, d, 10)
+            up = (fv - cp) / cp * 100
+            sens_rows.append({"折現率": f"{d*100:.0f}%", "公允價值": round(fv, 2),
+                               "溢價/折價": round(up, 1), "顏色": "#00FF7F" if up > 0 else "#FF3131"})
+
+        sens_df = pd.DataFrame(sens_rows)
+        sens_chart = (
+            alt.Chart(sens_df).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+            .encode(
+                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=12)),
+                y=alt.Y("公允價值:Q", title="DCF 公允價值",
+                         axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
+                         scale=alt.Scale(zero=False)),
+                color=alt.Color("顏色:N", scale=None),
+                tooltip=["折現率", alt.Tooltip("公允價值:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
+            ).properties(height=240, background="rgba(0,0,0,0)",
+                         title=alt.TitleParams("不同折現率下的公允價值（橫線=當前市價）",
+                                                color="#FFD700", fontSize=12, font="JetBrains Mono"))
+        )
+        rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
+            color="#00F5FF", strokeDash=[6, 3], strokeWidth=2).encode(y="cp:Q")
+        st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+        st.altair_chart(_cfg(alt.layer(sens_chart, rule).properties(background="rgba(0,0,0,0)")),
+                        use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        summary = (
+            f"【智能估值摘要 — {ticker}】"
+            f"以 {dr*100:.0f}% 折現率、{g*100:.0f}% 成長率推算，"
+            f"10年DCF公允價值為 {fair_value:.2f}，"
+            f"{'低於' if fair_value < cp else '高於'}市價 {cp:.2f} 約 {abs(upside):.1f}%。"
+            f"結論：{verdict.split('—')[1].strip() if '—' in verdict else verdict}。"
+        )
+        if f"val_streamed_{ticker}" not in st.session_state:
+            st.write_stream(_stream_text(summary, speed=0.012))
+            st.session_state[f"val_streamed_{ticker}"] = True
+        else:
+            st.markdown(f'<div style="font-family:JetBrains Mono,monospace;font-size:11px;'
+                        f'color:rgba(180,200,220,0.55);line-height:1.8;padding:8px 0;">{summary}</div>',
+                        unsafe_allow_html=True)
+        st.toast("✅ DCF 估值完成！", icon="💎")
+
+    # ════════════════════════════════════════════════════════════
+    # MODE B: HyperGrowth 超高速成長型（尚未獲利）
+    # ════════════════════════════════════════════════════════════
+    else:
+        st.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(255,154,60,0.08),rgba(255,107,255,0.04));
+    border:1px solid rgba(255,154,60,0.35);border-left:4px solid #FF9A3C;
+    border-radius:16px;padding:24px 28px;margin:0 0 26px;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;color:#FF9A3C;margin-bottom:16px;">
+    🚀 HyperGrowth 成長路徑估值 — 完整操作說明</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;color:rgba(215,230,245,0.95);line-height:2.0;margin-bottom:14px;">
+    尚未獲利的公司<strong style="color:#FF9A3C;font-size:17px;">無法使用 P/E 和 DCF</strong>（分母淨利為負數）。
+    本模型改用<strong style="color:#FFD700;font-size:17px;">「成長路徑模擬」</strong>：逐年推算收入成長 →
+    毛利率改善 → 費用收斂 → 找到獲利轉折點（Breakeven Year）→ 用<strong style="color:#00F5FF;">終端 P/S 或 P/E</strong> 定價再折現。
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="background:rgba(255,107,255,0.07);border:1px solid rgba(255,107,255,0.25);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#FF6BFF;letter-spacing:2px;margin-bottom:6px;">📐 計算邏輯</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(210,225,240,0.85);line-height:1.9;">
+        ① 收入每年 × (1+成長率)<br>② 毛利率線性改善至目標<br>③ 費用佔收入比逐年下降<br>
+        ④ 找到<strong style="color:#FFD700;">獲利轉折年</strong><br>⑤ 終端價值折現回今日
+      </div>
+    </div>
+    <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.20);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#FFD700;letter-spacing:2px;margin-bottom:6px;">🔑 兩種終端定價</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(210,225,240,0.85);line-height:1.9;">
+        <strong style="color:#00FF7F;">已獲利 → P/E 定價</strong><br>終端淨利 × P/E ÷ 股數<br>
+        <strong style="color:#FF9A3C;">仍虧損 → P/S 定價</strong><br>終端收入 × P/S ÷ 股數
+      </div>
+    </div>
+    <div style="background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.18);border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#00F5FF;letter-spacing:2px;margin-bottom:6px;">⚠️ 適用標的</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(210,225,240,0.85);line-height:1.9;">
+        量子電腦：QBTS / IONQ / RGTI<br>AI基礎建設：ARQQ / SOUN<br>
+        生物科技：早期 mRNA/基因療法<br>航太新創：RKLB / ASTS
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,154,60,0.65);
+      padding:10px 14px;background:rgba(255,154,60,0.04);border-radius:8px;">
+    ⚡ 公式：終端價 = (Rev_N × PS_terminal 或 NetIncome_N × PE_terminal) ÷ 股數 ÷ (1+折現率)^N<br>
+    📌 目前市價：<strong style="color:#FF9A3C;font-size:15px;">{cp:.2f}</strong>
+    &nbsp;·&nbsp; 折現率建議 15%～25%（高不確定性溢價）
+  </div>
+</div>
 """, unsafe_allow_html=True)
 
-    dr_range = [0.06, 0.08, 0.10, 0.12, 0.14, 0.15]
-    sens_rows = []
-    for d in dr_range:
-        fv = calculate_smart_valuation(eps, rev, shares * 1e6, g, m, pe, d, 10)
-        up = (fv - cp) / cp * 100
-        sens_rows.append({"折現率": f"{d*100:.0f}%", "公允價值": round(fv, 2),
-                           "溢價/折價": round(up, 1), "顏色": "#00FF7F" if up > 0 else "#FF3131"})
+        # ── HyperGrowth 範例選單 ────────────────────────────────
+        # (rev_M, shares_M, rev_g, gm_now, gm_target, opex_pct, opex_improve, ps_terminal, pe_terminal, dr, years)
+        HG_PRESETS = {
+            "── 量子電腦 ──":                     None,
+            "⚛️ QBTS  D-Wave Quantum":           (8.0,    185.0,  0.65, 0.55, 0.75, 1.80, 0.15, 18.0, 80.0, 0.20, 7),
+            "⚛️ IONQ  量子雲端":                  (22.0,   310.0,  0.70, 0.60, 0.78, 1.50, 0.14, 20.0, 90.0, 0.20, 7),
+            "⚛️ RGTI  Rigetti":                  (12.0,   380.0,  0.75, 0.50, 0.72, 1.90, 0.16, 15.0, 75.0, 0.22, 7),
+            "⚛️ QUBT  Quantum Computing":         (4.0,    210.0,  0.80, 0.40, 0.68, 2.20, 0.18, 12.0, 70.0, 0.22, 7),
+            "── AI / 新興科技 ──":                None,
+            "🔊 SOUN  SoundHound AI":             (84.0,   440.0,  0.55, 0.60, 0.75, 1.20, 0.12, 15.0, 85.0, 0.18, 6),
+            "🔐 ARQQ  Arqit Quantum":             (1.5,    95.0,   0.90, 0.70, 0.85, 2.50, 0.20, 25.0, 100.0, 0.25, 8),
+            "🤖 BBAI  BigBear.ai":                (170.0,  170.0,  0.25, 0.25, 0.55, 0.95, 0.08, 8.0,  60.0, 0.18, 7),
+            "── 航太/太空新創 ──":                None,
+            "🚀 RKLB  Rocket Lab":                (436.0,  505.0,  0.35, 0.28, 0.55, 0.85, 0.09, 10.0, 70.0, 0.15, 7),
+            "📡 ASTS  AST SpaceMobile":           (5.0,    290.0,  1.20, 0.55, 0.80, 2.80, 0.22, 30.0, 100.0, 0.25, 8),
+            "── 生物科技/基因 ──":                None,
+            "🧬 BEAM  Beam Therapeutics":         (38.0,   72.0,   0.45, 0.80, 0.88, 2.20, 0.18, 25.0, 90.0, 0.18, 8),
+            "🧬 CRSP  CRISPR Therapeutics":       (350.0,  83.0,   0.35, 0.75, 0.85, 1.40, 0.14, 12.0, 65.0, 0.15, 7),
+        }
 
-    sens_df = pd.DataFrame(sens_rows)
-    sens_chart = (
-        alt.Chart(sens_df)
-        .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-        .encode(
-            x=alt.X("折現率:N", sort=None,
-                     axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=12)),
-            y=alt.Y("公允價值:Q", title="DCF 公允價值",
-                     axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
-                     scale=alt.Scale(zero=False)),
-            color=alt.Color("顏色:N", scale=None),
-            tooltip=["折現率", alt.Tooltip("公允價值:Q", format=".2f"),
-                     alt.Tooltip("溢價/折價:Q", format="+.1f")]
+        st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#FF9A3C;
+    letter-spacing:3px;margin:8px 0 10px;">⚡ 快速套用範例 — 選一檔自動填入</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(180,200,220,0.80);margin-bottom:10px;">
+以下均為<strong style="color:#FF9A3C;">尚未穩定獲利</strong>的高速成長標的，財務數字為參考估計，請自行驗證最新財報。
+</div>""", unsafe_allow_html=True)
+
+        hg_options = list(HG_PRESETS.keys())
+        hg_choice = st.selectbox("選擇範例股票", options=hg_options, index=0,
+                                  key="hg_preset", label_visibility="collapsed")
+        hgv = HG_PRESETS.get(hg_choice)
+        if hgv is not None and st.session_state.get("_hg_preset_prev") != hg_choice:
+            h_rev, h_shares, h_rg, h_gm, h_gmt, h_op, h_opi, h_ps, h_pe, h_dr, h_yr = hgv
+            st.session_state["hg_rev"]          = float(h_rev)
+            st.session_state["hg_shares"]       = float(h_shares)
+            st.session_state["hg_rev_g"]        = float(h_rg)
+            st.session_state["hg_gm_now"]       = float(h_gm)
+            st.session_state["hg_gm_target"]    = float(h_gmt)
+            st.session_state["hg_opex_pct"]     = float(h_op)
+            st.session_state["hg_opex_improve"] = float(h_opi)
+            st.session_state["hg_ps"]           = float(h_ps)
+            st.session_state["hg_pe"]           = float(h_pe)
+            st.session_state["hg_dr"]           = float(h_dr)
+            st.session_state["hg_years"]        = int(h_yr)
+            st.session_state["_hg_preset_prev"] = hg_choice
+            st.rerun()
+
+        hgv = HG_PRESETS.get(hg_choice)
+        if hgv is not None:
+            h_rev, h_shares, h_rg, h_gm, h_gmt, h_op, h_opi, h_ps, h_pe, h_dr, h_yr = hgv
+            st.markdown(f"""
+<div style="background:rgba(255,154,60,0.05);border:1px solid rgba(255,154,60,0.22);
+    border-radius:10px;padding:10px 16px;margin:6px 0 14px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,154,60,0.85);">
+  ✅ 已套用：<strong style="color:#FF9A3C;">{hg_choice}</strong>
+  &nbsp;｜ 年收入：{h_rev}M &nbsp;｜ 股數：{h_shares}M股
+  &nbsp;｜ 成長率：{h_rg*100:.0f}% &nbsp;｜ 毛利率：{h_gm*100:.0f}%→{h_gmt*100:.0f}%
+  &nbsp;｜ 費用率：{h_op*100:.0f}% &nbsp;｜ 推演：{h_yr}年
+</div>
+""", unsafe_allow_html=True)
+
+        st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#FF9A3C;
+    letter-spacing:3px;margin:4px 0 14px;">📝 參數確認 / 手動調整</div>""", unsafe_allow_html=True)
+
+        hc1, hc2, hc3 = st.columns(3)
+        with hc1:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">💰 年收入（百萬美元/元）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+TTM 年化收入（不需是淨利）。QBTS≈8M、IONQ≈22M。查詢：Yahoo Finance → Financials → Revenue
+</div>""", unsafe_allow_html=True)
+            hg_rev = st.number_input("年收入 (M)", min_value=0.1, step=1.0,
+                                      format="%.1f", key="hg_rev", label_visibility="collapsed")
+
+        with hc2:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">📊 流通股數（百萬股）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+<strong style="color:#FF3131;">注意股本稀釋！</strong>成長型公司每次融資都會增加股數。建議預留 5%～15% 稀釋空間。
+</div>""", unsafe_allow_html=True)
+            hg_shares = st.number_input("流通股數 (M)", min_value=1.0, step=10.0,
+                                         format="%.0f", key="hg_shares", label_visibility="collapsed")
+
+        with hc3:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:6px;">📅 推演年限（年）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+建議 5～8年。量子/航太：7～8年；AI新創：5～6年；生技新藥：7～10年
+</div>""", unsafe_allow_html=True)
+            hg_years = st.number_input("推演年限", min_value=3, max_value=10, step=1,
+                                        key="hg_years", label_visibility="collapsed")
+
+        hc4, hc5, hc6 = st.columns(3)
+        with hc4:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">📈 年均收入成長率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+超高速（量子/AI）：0.60～1.20；高速：0.40～0.60；快速：0.25～0.40
+</div>""", unsafe_allow_html=True)
+            hg_rev_g = st.number_input("收入成長率", min_value=0.05, max_value=3.0,
+                                        step=0.05, format="%.2f", key="hg_rev_g", label_visibility="collapsed")
+
+        with hc5:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">💹 毛利率（現在 → 目標）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Finance → Gross Profit %
+</div>""", unsafe_allow_html=True)
+            hgc5a, hgc5b = st.columns(2)
+            with hgc5a:
+                hg_gm_now = st.number_input("毛利率(現)", min_value=0.0, max_value=1.0,
+                                             step=0.01, format="%.2f", key="hg_gm_now", label_visibility="collapsed")
+            with hgc5b:
+                hg_gm_target = st.number_input("毛利率(目標)", min_value=0.0, max_value=1.0,
+                                                step=0.01, format="%.2f", key="hg_gm_target", label_visibility="collapsed")
+
+        with hc6:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:6px;">🔥 費用率（現在） + 年降幅</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+費用率 = 總營業費用 ÷ 收入（早期常超過 100%）。年降幅：0.10～0.20 為常見
+</div>""", unsafe_allow_html=True)
+            hgc6a, hgc6b = st.columns(2)
+            with hgc6a:
+                hg_opex_pct = st.number_input("費用率(現)", min_value=0.1, max_value=5.0,
+                                               step=0.05, format="%.2f", key="hg_opex_pct", label_visibility="collapsed")
+            with hgc6b:
+                hg_opex_improve = st.number_input("年降幅", min_value=0.0, max_value=0.5,
+                                                   step=0.01, format="%.2f", key="hg_opex_improve", label_visibility="collapsed")
+
+        hc7, hc8, hc9 = st.columns(3)
+        with hc7:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,107,255,0.9);letter-spacing:1px;margin-bottom:6px;">🏷️ 終端 P/S 倍數（仍虧損時用）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+超早期量子：15～30x；成熟SaaS：8～15x。參考同類公司現在的 P/S 中位數
+</div>""", unsafe_allow_html=True)
+            hg_ps = st.number_input("終端 P/S", min_value=1.0, max_value=100.0,
+                                     step=1.0, format="%.1f", key="hg_ps", label_visibility="collapsed")
+
+        with hc8:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,107,255,0.9);letter-spacing:1px;margin-bottom:6px;">🏷️ 終端 P/E 倍數（已轉盈時用）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+成長龍頭轉盈早期：60～100x；穩定後：30～60x。參考類似成熟期公司
+</div>""", unsafe_allow_html=True)
+            hg_pe = st.number_input("終端 P/E", min_value=1.0, max_value=200.0,
+                                     step=1.0, format="%.1f", key="hg_pe", label_visibility="collapsed")
+
+        with hc9:
+            st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,107,255,0.9);letter-spacing:1px;margin-bottom:6px;">📉 折現率（高風險溢價）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(190,210,230,0.85);line-height:1.8;margin-bottom:8px;">
+量子/航太：0.20～0.25；AI新創：0.15～0.20；生技早期：0.18～0.25。越早期越高。
+</div>""", unsafe_allow_html=True)
+            hg_dr = st.number_input("折現率", min_value=0.05, max_value=0.50,
+                                     step=0.01, format="%.2f", key="hg_dr", label_visibility="collapsed")
+
+        st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="t3-action">', unsafe_allow_html=True)
+        run_hg = st.button("🚀  執行 HyperGrowth 成長路徑推演", key="hg_calc", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if not run_hg:
+            return
+
+        st.toast("🚀 正在模擬成長路徑…", icon="⏳")
+        hg_result = calculate_hypergrowth_valuation(
+            hg_rev, hg_shares, hg_rev_g,
+            hg_gm_now, hg_gm_target,
+            hg_opex_pct, hg_opex_improve,
+            hg_ps, hg_pe, hg_dr, int(hg_years)
         )
-        .properties(height=240,
-                     title=alt.TitleParams("不同折現率下的公允價值（橫線=當前市價）",
-                                            color="#FFD700", fontSize=12, font="JetBrains Mono"))
-    )
-    rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
-        color="#00F5FF", strokeDash=[6, 3], strokeWidth=2
-    ).encode(y="cp:Q")
 
-    sens_layer = alt.layer(sens_chart, rule).properties(background="rgba(0,0,0,0)")
+        if hg_result is None:
+            st.toast("⚠️ 計算失敗，請確認所有欄位已填寫", icon="⚡")
+            return
 
-    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(sens_layer), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        tp      = hg_result['terminal_price']
+        tp_raw  = hg_result['terminal_price_raw']
+        by      = hg_result['breakeven_year']
+        method  = hg_result['used_method']
+        proj_df = hg_result['projections']
 
-    # ── Typewriter 摘要 ───────────────────────────────────────────────────────
-    summary = (
-        f"【智能估值摘要 — {ticker}】"
-        f"以 {dr*100:.0f}% 折現率、{g*100:.0f}% 成長率推算，"
-        f"10年DCF公允價值為 {fair_value:.2f}，"
-        f"{'低於' if fair_value < cp else '高於'}市價 {cp:.2f} 約 {abs(upside):.1f}%。"
-        f"結論：{verdict.split('—')[1].strip() if '—' in verdict else verdict}。"
-        f"折現率敏感性顯示：6%折現下公允價值 {calculate_smart_valuation(eps,rev,shares*1e6,g,m,pe,0.06,10):.2f}，"
-        f"15%折現下 {calculate_smart_valuation(eps,rev,shares*1e6,g,m,pe,0.15,10):.2f}，差距顯著，請審慎設定折現率假設。"
-    )
-    if f"val_streamed_{ticker}" not in st.session_state:
-        st.write_stream(_stream_text(summary, speed=0.012))
-        st.session_state[f"val_streamed_{ticker}"] = True
-    else:
-        st.markdown(f'<div style="font-family:JetBrains Mono,monospace;font-size:11px;'
-                    f'color:rgba(180,200,220,0.55);line-height:1.8;padding:8px 0;">{summary}</div>',
-                    unsafe_allow_html=True)
+        upside  = (tp - cp) / cp * 100 if cp > 0 else 0
+        up_col  = "#00FF7F" if upside > 30 else "#FFD700" if upside > 0 else "#FF3131"
+        by_str  = f"第 {by} 年" if by else f"推演期內未獲利（採 P/S）"
+        by_col  = "#00FF7F" if by else "#FF9A3C"
+        verdict = "🟢 強力低估 — 高成長兌現則超額回報" if upside > 50 else \
+                  "🟡 合理偏低 — 成長路徑需持續驗證" if upside > 10 else \
+                  "⚪ 接近合理 — 市場已充分定價" if upside > -20 else \
+                  "🔴 高估警示 — 成長預期已過度折現入股價"
 
-    st.toast("✅ 智能估值完成！", icon="💎")
+        # 主要結果 KPI
+        st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0;">
+  <div style="background:rgba(255,154,60,0.07);border:1px solid rgba(255,154,60,0.3);
+      border-top:3px solid #FF9A3C;border-radius:16px;padding:22px 18px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(255,154,60,0.6);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">🚀 HyperGrowth 推算目標價</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:#FF9A3C;
+        line-height:1;margin-bottom:8px;">{tp:.2f}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,154,60,0.55);">
+        {int(hg_years)}年後原始估值 {tp_raw:.2f} → 折現率 {hg_dr*100:.0f}%^{int(hg_years)} 折現</div>
+  </div>
+  <div style="border:1px solid {up_col}44;border-top:3px solid {up_col};
+      border-radius:16px;padding:22px 18px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(200,215,230,0.4);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">📍 市價 {cp:.2f} vs 推算目標</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:{up_col};
+        line-height:1;margin-bottom:8px;">{upside:+.1f}%</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:{up_col};font-weight:700;">{verdict}</div>
+  </div>
+  <div style="background:rgba(0,255,127,0.05);border:1px solid rgba(0,255,127,0.2);
+      border-top:3px solid {by_col};border-radius:16px;padding:22px 18px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(200,215,230,0.4);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">⚡ 獲利轉折點</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:{by_col};
+        line-height:1;margin-bottom:8px;">{by_str}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(200,215,230,0.45);">
+        終端定價方式：{method} 法</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 逐年成長路徑表格
+        st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#FF9A3C;
+    letter-spacing:3px;margin:16px 0 10px;">📈 逐年成長路徑模擬</div>""", unsafe_allow_html=True)
+
+        rows_html = ""
+        for _, row in proj_df.iterrows():
+            yr = int(row['Year'])
+            ni_col = "#00FF7F" if row['NetIncome'] > 0 else "#FF6B6B"
+            prof_badge = '<span style="color:#00FF7F;font-weight:700;">✅ 獲利</span>' \
+                         if row['Profitable'] else '<span style="color:#FF6B6B;">🔴 虧損</span>'
+            rows_html += f"""
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+  <td style="padding:8px 10px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FF9A3C;">Y+{yr}</td>
+  <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#00F5FF;">{row['Revenue']:,.1f}M</td>
+  <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#FFD700;">{row['GrossMargin']:.1f}%</td>
+  <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:{ni_col};">{row['NetIncome']:,.1f}M</td>
+  <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:{ni_col};">{row['NetMargin']:.1f}%</td>
+  <td style="padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#00F5FF;">{row['EPS_proj']:.3f}</td>
+  <td style="padding:8px 10px;">{prof_badge}</td>
+</tr>"""
+
+        st.markdown(f"""
+<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,154,60,0.15);border-radius:14px;overflow:hidden;margin:10px 0;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:rgba(255,154,60,0.08);border-bottom:1px solid rgba(255,154,60,0.25);">
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,154,60,0.7);letter-spacing:2px;text-align:left;">年度</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);letter-spacing:2px;text-align:left;">年收入</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,215,0,0.7);letter-spacing:2px;text-align:left;">毛利率</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,107,107,0.7);letter-spacing:2px;text-align:left;">淨利/虧損</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,107,107,0.7);letter-spacing:2px;text-align:left;">淨利率</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(0,245,255,0.7);letter-spacing:2px;text-align:left;">預測EPS</th>
+        <th style="padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(200,215,230,0.5);letter-spacing:2px;text-align:left;">狀態</th>
+      </tr>
+    </thead>
+    <tbody>{rows_html}</tbody>
+  </table>
+</div>
+""", unsafe_allow_html=True)
+
+        # 收入成長 + 淨利路徑圖
+        proj_chart_df = proj_df.copy()
+        proj_chart_df['年度'] = proj_chart_df['Year'].apply(lambda x: f"Y+{x}")
+        proj_chart_df['NetIncome_plot'] = proj_chart_df['NetIncome'].clip(lower=proj_chart_df['Revenue'] * -2)
+
+        rev_bars = alt.Chart(proj_chart_df).mark_bar(
+            cornerRadiusTopLeft=6, cornerRadiusTopRight=6, opacity=0.7, color='#FF9A3C'
+        ).encode(
+            x=alt.X('年度:N', sort=None, axis=alt.Axis(labelColor='#888', labelFontSize=13)),
+            y=alt.Y('Revenue:Q', title='百萬元', axis=alt.Axis(labelColor='#556677', titleColor='#445566'), scale=alt.Scale(zero=True)),
+            tooltip=[alt.Tooltip('年度:N'), alt.Tooltip('Revenue:Q', title='收入', format=',.1f')]
+        )
+        ni_line = alt.Chart(proj_chart_df).mark_line(
+            color='#00FF7F', strokeWidth=3, point=alt.OverlayMarkDef(color='#00FF7F', size=80)
+        ).encode(
+            x='年度:N',
+            y=alt.Y('NetIncome_plot:Q'),
+            tooltip=[alt.Tooltip('年度:N'), alt.Tooltip('NetIncome:Q', title='淨利', format=',.1f')]
+        )
+        zero_rule = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+            color='#FF3131', strokeDash=[4, 4], strokeWidth=1.5).encode(y='y:Q')
+
+        combo = (rev_bars + ni_line + zero_rule).properties(
+            height=260, background='rgba(0,0,0,0)',
+            title=alt.TitleParams('年收入（橘柱）與淨利路徑（綠線）— 紅線=損益平衡點',
+                                   color='#FF9A3C', fontSize=12, font='JetBrains Mono')
+        )
+        st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+        st.altair_chart(_cfg(combo), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # 折現率敏感性分析
+        st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:#FF6BFF;
+    letter-spacing:3px;margin:16px 0 10px;">📊 折現率敏感性分析</div>""", unsafe_allow_html=True)
+
+        hg_dr_range = [0.10, 0.13, 0.15, 0.18, 0.20, 0.25]
+        hg_sens_rows = []
+        for d in hg_dr_range:
+            r = calculate_hypergrowth_valuation(
+                hg_rev, hg_shares, hg_rev_g, hg_gm_now, hg_gm_target,
+                hg_opex_pct, hg_opex_improve, hg_ps, hg_pe, d, int(hg_years))
+            fv = r['terminal_price'] if r else 0
+            up = (fv - cp) / cp * 100 if cp > 0 else 0
+            hg_sens_rows.append({"折現率": f"{d*100:.0f}%", "推算目標價": round(fv, 2),
+                                  "溢價/折價": round(up, 1), "顏色": "#00FF7F" if up > 0 else "#FF3131"})
+
+        hg_sens_df = pd.DataFrame(hg_sens_rows)
+        hg_sens_chart = (
+            alt.Chart(hg_sens_df).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+            .encode(
+                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=12)),
+                y=alt.Y("推算目標價:Q", title="折現後目標價",
+                         axis=alt.Axis(labelColor="#556677", titleColor="#445566"), scale=alt.Scale(zero=False)),
+                color=alt.Color("顏色:N", scale=None),
+                tooltip=["折現率", alt.Tooltip("推算目標價:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
+            ).properties(height=240, background="rgba(0,0,0,0)",
+                         title=alt.TitleParams("不同折現率下的推算目標價（橫線=當前市價）",
+                                                color="#FF9A3C", fontSize=12, font="JetBrains Mono"))
+        )
+        hg_rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
+            color="#00F5FF", strokeDash=[6, 3], strokeWidth=2).encode(y="cp:Q")
+        st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+        st.altair_chart(_cfg(alt.layer(hg_sens_chart, hg_rule).properties(background="rgba(0,0,0,0)")),
+                        use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        summary = (
+            f"【HyperGrowth 估值摘要 — {ticker}】"
+            f"以每年 {hg_rev_g*100:.0f}% 收入成長率推演 {int(hg_years)} 年，"
+            f"{'第'+str(by)+'年轉盈，採 P/E '+str(int(hg_pe))+'x 定價' if by else '推演期內未轉盈，採終端 P/S '+str(hg_ps)+'x 定價'}。"
+            f"折現率 {hg_dr*100:.0f}%，推算目標價 {tp:.2f}，"
+            f"{'高於' if tp > cp else '低於'}市價 {cp:.2f} 約 {abs(upside):.1f}%。"
+            f"⚠️ 此類高度投機標的，不確定性極高，務必分散倉位。"
+        )
+        if f"hg_streamed_{ticker}" not in st.session_state:
+            st.write_stream(_stream_text(summary, speed=0.012))
+            st.session_state[f"hg_streamed_{ticker}"] = True
+        else:
+            st.markdown(f'<div style="font-family:JetBrains Mono,monospace;font-size:11px;'
+                        f'color:rgba(180,200,220,0.55);line-height:1.8;padding:8px 0;">{summary}</div>',
+                        unsafe_allow_html=True)
+
+        st.toast("✅ HyperGrowth 推演完成！", icon="🚀")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 7: ELLIOTT 5-WAVE (艾略特五波)
