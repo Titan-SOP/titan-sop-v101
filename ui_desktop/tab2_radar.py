@@ -1,5 +1,5 @@
 # ui_desktop/tab2_radar.py
-# Titan SOP V300 — 獵殺雷達 (Kill Radar) + 戰略兵工廠 (Strategic Arsenal)
+# Titan SOP V300 — 可轉債獵殺雷達 (Kill Radar) + 戰略兵工廠 (Strategic Arsenal)
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  "DIRECTOR'S CUT V300" + SURGICAL ARSENAL TRANSPLANT            ║
 # ║  ✅ NEW Section 2.0: 籌碼序幕 (Chips Prologue)                    ║
@@ -58,7 +58,7 @@ def _show_tactical_guide():
     st.markdown("""
 <div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#C8D8E8;line-height:1.8;">
 
-### 🎯 歡迎進入獵殺雷達
+### 🎯 歡迎進入可轉債專區
 
 本模組是 Titan OS 的**核心狙擊系統**，執行全市場普查與精準打擊：
 
@@ -1452,7 +1452,7 @@ def render_2_3():
     if conv_col and prem_col and vol_col:
         tab1_w13, tab2_w13, tab3_w13 = st.tabs([
             "**☠️ 籌碼鬆動 (主力落跑)**",
-            "**⚠️ 高溢價 (肉少湯喝)**",
+            "**⚠️ 高溢價 (肉少湯多)**",
             "**🧊 流動性陷阱 (殭屍債)**"
         ])
 
