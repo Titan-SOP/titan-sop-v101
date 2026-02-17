@@ -41,26 +41,26 @@ def _stream_text(text, speed=0.018):
 @st.dialog("🔰 戰術指導 — Macro Risk Command Center")
 def _show_tactical_guide():
     st.markdown("""
-<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#C8D8E8;line-height:1.8;">
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:#E8F0F8;line-height:1.8;">
 
-### 🛡️ 歡迎進入宏觀風控指揮中心
+<h3 style="color:#FFFFFF;font-family:'Rajdhani',sans-serif;font-weight:700;margin-bottom:8px;">🛡️ 歡迎進入宏觀風控指揮中心</h3>
 
-本模組是 Titan OS 的**戰略核心**，整合 7 大子系統即時監控市場脈動：
+本模組是 Titan OS 的<span style="color:#FFD700;font-weight:700;">戰略核心</span>，整合 7 大子系統即時監控市場脈動：
 
-**🚦 1.1 風控儀表 (MACRO HUD)**
-三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。
+<p style="margin:10px 0 4px;"><span style="color:#FFFFFF;font-weight:700;">🚦 1.1 風控儀表 (MACRO HUD)</span><br>
+三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。</p>
 
-**🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈**
-高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖即時呈現全市場 CB 籌碼壓力，PR90 過熱線精準辨識危險區。
+<p style="margin:10px 0 4px;"><span style="color:#FFFFFF;font-weight:700;">🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈</span><br>
+高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖即時呈現全市場 CB 籌碼壓力，PR90 過熱線精準辨識危險區。</p>
 
-**🔥 1.4 族群熱度 (SECTOR MAP)**
-台股 11 大族群 × 動態熱力矩陣 — 一眼辨識哪個板塊在吸金、哪個板塊在失血。結合近 3 個月相對強度與資金輪動信號，精準鎖定主力進駐的族群（共 20 大板塊全覆蓋）。
+<p style="margin:10px 0 4px;"><span style="color:#FFFFFF;font-weight:700;">🔥 1.4 族群熱度 (SECTOR MAP)</span><br>
+台股 11 大族群 × 動態熱力矩陣 — 一眼辨識哪個板塊在吸金、哪個板塊在失血。結合近 3 個月相對強度與資金輪動信號，精準鎖定主力進駐的族群（共 20 大板塊全覆蓋）。</p>
 
-**💹 1.5 成交重心 / 👑 1.6 趨勢雷達**
-全市場 TOP 100 成交重心即時掃描 + 高價權值股趨勢追蹤，附帶 87MA 扣抵預測與亞當理論反射路徑。
+<p style="margin:10px 0 4px;"><span style="color:#FFFFFF;font-weight:700;">💹 1.5 成交重心 / 👑 1.6 趨勢雷達</span><br>
+全市場 TOP 100 成交重心即時掃描 + 高價權值股趨勢追蹤，附帶 87MA 扣抵預測與亞當理論反射路徑。</p>
 
-**🎯 1.7 台指獵殺 (WTX Predator)**
-獨門戰法 — 利用過去 12 個月結算慣性推導本月台指期虛擬 K 棒，精準鎖定 1B/2B/3B/HR 結算目標價。
+<p style="margin:10px 0 4px;"><span style="color:#FFFFFF;font-weight:700;">🎯 1.7 台指獵殺 (WTX Predator)</span><br>
+獨門戰法 — 利用過去 12 個月結算慣性推導本月台指期虛擬 K 棒，精準鎖定 1B/2B/3B/HR 結算目標價。</p>
 
 </div>""", unsafe_allow_html=True)
     if st.button("✅ 收到，進入戰情室 (Roger That)", type="primary", use_container_width=True):
