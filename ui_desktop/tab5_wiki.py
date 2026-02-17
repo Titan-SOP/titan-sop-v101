@@ -597,12 +597,19 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str):
     for need in ["Holder","Shares","Value","PctHeld"]:
         if need not in hdf.columns: hdf[need]=None
     hdf=hdf.head(10)
-    # Normalize numeric columns: unwrap any numpy scalars, then coerce to float
+    # Normalize numeric columns — safely extract a single Python scalar from any cell type
+    def _to_scalar(x):
+        try:
+            if x is None: return None
+            if isinstance(x, (int, float)): return x
+            if isinstance(x, pd.Series): x = x.iloc[0]
+            elif isinstance(x, np.ndarray): x = x.flat[0]
+            if hasattr(x, "item"): return float(x.item())
+            return float(x)
+        except Exception:
+            return None
     for _nc in ["Shares","Value","PctHeld"]:
-        hdf[_nc] = pd.to_numeric(
-            hdf[_nc].apply(lambda x: x.item() if hasattr(x,"item") else x),
-            errors="coerce"
-        )
+        hdf[_nc] = pd.to_numeric(hdf[_nc].apply(_to_scalar), errors="coerce")
 
     _sec28("TOP 10 INSTITUTIONAL HOLDERS")
     rank_colors=["#FFD700","#C0C0C0","#CD7F32"]+["#B77DFF"]*7
