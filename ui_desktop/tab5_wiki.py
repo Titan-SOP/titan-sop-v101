@@ -169,7 +169,16 @@ def _fetch(symbol: str):
             mf_holders = pd.DataFrame()
         return h1, h3, info, holders, mf_holders, None
     except Exception as e:
-        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), str(e)
+        err_msg = str(e)
+        # Detect yfinance / Yahoo Finance rate-limit errors (HTTP 429)
+        if any(kw in err_msg.lower() for kw in ["429", "too many requests", "rate limit", "ratelimit"]):
+            friendly = (
+                "⏳ Yahoo Finance 請求過於頻繁 (429 Too Many Requests)。"
+                " 請稍待 30～60 秒後再重新鎖定目標。"
+                " 若持續發生，可嘗試更換代號後再切回，或稍後再試。"
+            )
+            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), friendly
+        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err_msg
 
 
 # ARK ETF holdings fetcher
@@ -315,8 +324,8 @@ def _nav():
     box-shadow:{glow};overflow:hidden;position:relative;">
   {top}
   <div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
 </div>""", unsafe_allow_html=True)
             if st.button(f"▶ {sid}", key=f"t5_nav_{sid}", use_container_width=True):
                 st.session_state.t5_active = sid
@@ -1273,7 +1282,8 @@ def render():
 
     if err:
         # 🎯 FEATURE 2: Replace st.error and st.info with st.toast
-        st.toast(f"❌ {err}", icon="💀")
+        icon = "⏳" if "429" in err or "頻繁" in err else "💀"
+        st.toast(f"❌ {err}", icon=icon)
         st.toast("ℹ️ 💡 美股: AAPL · NVDA  |  台股直接輸入: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
         _nav()
         if st.session_state.get("t5_active")=="5.6": _s56()
