@@ -1015,11 +1015,14 @@ def render_1_1_hud():
                     )
                     
                     # Typewriter Summary
+                    spx_str = f"{spx:,.0f}" if spx and not pd.isna(spx) else "N/A"
+                    dxy_str = f"{dxy:.2f}" if dxy and not pd.isna(dxy) else "N/A"
+                    
                     hud_summary = (
                         f"【全域戰情總覽】信號燈：{sig_text}。"
                         f"VIX 恐慌指數 {vix:.2f}{'⚠️ 警戒' if vix > 20 else ' ✅ 正常'}。"
-                        f"S&P 500 {spx:,.0f if spx and not pd.isna(spx) else 'N/A'}。"
-                        f"美元指數 DXY {dxy:.2f if dxy and not pd.isna(dxy) else 'N/A'}。"
+                        f"S&P 500 {spx_str}。"
+                        f"美元指數 DXY {dxy_str}。"
                     )
                     if 'hud_streamed' not in st.session_state:
                         st.write_stream(_stream_text(hud_summary, speed=0.015))
