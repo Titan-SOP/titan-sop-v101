@@ -780,223 +780,661 @@ def _cfg(chart):
     )
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 TAB 1: DUAL-TRACK DEDUCTION PREVIEW (雙軌扣抵預演)
+# 🎯 TAB 1: DUAL-TRACK DEDUCTION PREVIEW (雙軌扣抵預演) — 第一性原則重建
+# ══════════════════════════════════════════════════════════════
+# 扣抵原理：N日均線 = 近N日收盤價總和 ÷ N
+# 明天的均線 = 今天均線 + (今日新收盤 - N日前收盤) ÷ N
+# 核心推演：比較「今日收盤」vs「N日前收盤（即將被扣掉的舊值）」
+#   今日 > 舊值 → 明天均線上揚（扣低拉升）
+#   今日 < 舊值 → 明天均線下彎（扣高壓抑）
 # ══════════════════════════════════════════════════════════════
 def _t1(sdf, ticker, cp, m87, m87p5, m284):
-    """T1: Dual-Track MA Deduction Preview with Prediction Arrows"""
-    st.toast("🚀 正在執行雙軌扣抵運算... / Engaging Deduction Engine...", icon="⏳")
-    
+    """T1: Dual-Track MA Deduction — First Principles Full Engine"""
+    st.toast("🚀 雙軌扣抵推演引擎啟動中…", icon="⏳")
+
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-lbl">🔮 DUAL-TRACK DEDUCTION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">🔮 DUAL-TRACK DEDUCTION ENGINE</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-sub">雙軌扣抵預演系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">雙軌扣抵預演系統 · 第一性原則推演</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Calculate deduction scenarios
+
     if len(sdf) < 300:
-        st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
         st.toast("⚠️ 歷史數據不足 300 天，無法精確計算年線扣抵。", icon="⚡")
         return
-    
-    # AI Analysis with Typewriter Effect
-    st.markdown("### 🧠 AI 戰術分析")
+
+    # ── 核心計算：扣抵數據建構 ───────────────────────────────────────
+    df = sdf[['Close']].copy()
+    df['MA87']       = df['Close'].rolling(87).mean()
+    df['MA284']      = df['Close'].rolling(284).mean()
+    df['扣抵值_87']   = df['Close'].shift(87)    # 即將被MA87扣掉的舊收盤
+    df['扣抵值_284']  = df['Close'].shift(284)   # 即將被MA284扣掉的舊收盤
+    df = df.dropna()
+
+    # ── 未來30日扣抵推演表 ──────────────────────────────────────────
+    # 未來第i天的MA87，取決於「第i天新收盤」vs「87天前的舊收盤（已知）」
+    # 假設股價維持現價(cp)不變，推算均線走勢
+    future_rows_87  = []
+    future_rows_284 = []
+    last_ma87  = float(df['MA87'].iloc[-1])
+    last_ma284 = float(df['MA284'].iloc[-1])
+    closes     = df['Close'].values
+
+    for i in range(1, 31):
+        # 即將被扣掉的舊值（已知歷史數據）
+        old87  = float(df['Close'].iloc[-(87  - i)] if i < 87  else closes[-1])
+        old284 = float(df['Close'].iloc[-(284 - i)] if i < 284 else closes[-1])
+
+        delta87  = (cp - old87)  / 87
+        delta284 = (cp - old284) / 284
+
+        last_ma87  += delta87
+        last_ma284 += delta284
+
+        future_rows_87.append({
+            '天數': f'+{i}天',
+            '推估MA87':    round(last_ma87, 2),
+            '被扣舊值_87': round(old87, 2),
+            '扣抵差額_87': round(cp - old87, 2),
+            '方向_87':     '↑ 上揚' if cp > old87 else '↓ 下彎',
+        })
+        future_rows_284.append({
+            '天數': f'+{i}天',
+            '推估MA284':    round(last_ma284, 2),
+            '被扣舊值_284': round(old284, 2),
+            '扣抵差額_284': round(cp - old284, 2),
+            '方向_284':     '↑ 上揚' if cp > old284 else '↓ 下彎',
+        })
+
+    fut87_df  = pd.DataFrame(future_rows_87)
+    fut284_df = pd.DataFrame(future_rows_284)
+
+    # ── 均線保持持平所需的「保平價」 ──────────────────────────────────
+    # MA(N) 明天持平 → 今日收盤 = 87天前的舊收盤
+    breakeven_87  = float(df['扣抵值_87'].iloc[-1])
+    breakeven_284 = float(df['扣抵值_284'].iloc[-1])
+
+    # ── 扣抵壓力評分（未來30天中，下彎天數佔比）──────────────────────
+    down87_pct  = sum(1 for r in future_rows_87  if '↓' in r['方向_87'])  / 30 * 100
+    down284_pct = sum(1 for r in future_rows_284 if '↓' in r['方向_284']) / 30 * 100
+
+    # ── 均線多空關係 ──────────────────────────────────────────────────
+    slope_87   = m87 - m87p5
+    ma_gap_pct = (m87 - m284) / m284 * 100
+    ma_align   = '多頭排列' if m87 > m284 else '空頭排列'
+    align_color = '#00FF7F' if m87 > m284 else '#FF3131'
+
+    # ── 戰術分析（AI Typewriter）─────────────────────────────────────
+    st.markdown("### 🧠 扣抵第一性原則 · 戰術推演")
     st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
-    
-    analysis_text = f"""
+    analysis = f"""
 ═══════════════════════════════════════════════════════════
-🎯 TITAN TACTICAL ANALYSIS — {ticker}
+🔮 TITAN DEDUCTION ENGINE v3.0 — {ticker}
+   現價: ${cp:.2f}  │  MA87: ${m87:.2f}  │  MA284: ${m284:.2f}
 ═══════════════════════════════════════════════════════════
 
-📊 CURRENT POSITION
-   Price: ${cp:.2f}
-   MA87 (Seasonal): ${m87:.2f}
-   MA284 (Annual): ${m284:.2f}
-   
-🎲 DEDUCTION FORECAST
-   The dual-track system is analyzing 87-day and 284-day moving average 
-   deduction patterns. Historical data shows that when MA87 crosses MA284,
-   a trend reversal signal with {85 if m87 > m284 else 72}% accuracy emerges.
-   
-⚡ TACTICAL RECOMMENDATION
-   {"🟢 LONG POSITION — MA87 is above MA284, indicating bullish momentum. " if m87 > m284 else "🔴 SHORT BIAS — MA87 is below MA284, indicating bearish pressure. "}
-   Monitor the deduction points below for optimal entry/exit timing.
-   
+【一、扣抵原理精解】
+  移動平均線的漲跌，由一個簡單公式決定：
+    ΔMA(N) = (今日收盤 − N日前收盤) ÷ N
+  這意味著均線的走向，在 N 天前就已被「鎖定」。
+  我們能精確預判未來 30 天的均線趨勢，無需預測股價。
+
+【二、MA87 季線扣抵現況】
+  今日將扣掉的舊收盤：      ${breakeven_87:.2f}
+  現價 vs 扣抵值差額：      {cp - breakeven_87:+.2f}
+  明日MA87方向：            {'↑ 上揚（現價高於扣抵值，買方佔優）' if cp >= breakeven_87 else '↓ 下彎（現價低於扣抵值，賣方壓抑）'}
+  保平價（MA87持平需達到）： ${breakeven_87:.2f}
+  未來30天下彎比例：        {down87_pct:.0f}%  → {'⚠️ 季線壓力沉重' if down87_pct > 60 else '✅ 季線支撐有效' if down87_pct < 40 else '🟡 季線方向拉鋸'}
+
+【三、MA284 年線扣抵現況】
+  今日將扣掉的舊收盤：      ${breakeven_284:.2f}
+  現價 vs 扣抵值差額：      {cp - breakeven_284:+.2f}
+  明日MA284方向：           {'↑ 上揚（長期底部支撐強化中）' if cp >= breakeven_284 else '↓ 下彎（年線長期壓力持續累積）'}
+  保平價（MA284持平需達到）：${breakeven_284:.2f}
+  未來30天下彎比例：        {down284_pct:.0f}%  → {'⚠️ 年線長期壓制' if down284_pct > 60 else '✅ 年線底部墊高' if down284_pct < 40 else '🟡 年線鬆動待確認'}
+
+【四、雙軌多空結構】
+  均線排列：  {ma_align}（MA87 vs MA284 差距 {ma_gap_pct:+.1f}%）
+  MA87斜率：  {slope_87:+.2f}（{'加速上揚' if slope_87 > 1 else '緩步上揚' if slope_87 > 0 else '緩步下彎' if slope_87 > -1 else '加速下彎'}）
+
+【五、操作戰術推演】
+  {'🟢 多頭結構確立：均線多頭排列，季線向上，扣抵壓力輕，逢回佈局。' if ma_align == '多頭排列' and down87_pct < 50 else '🔴 空頭結構確立：均線空頭排列，雙線均受扣抵壓力，持股需降低水位。' if ma_align == '空頭排列' and down87_pct > 50 else '🟡 轉折觀察期：雙軌扣抵訊號分歧，等待方向確認後再行動。'}
+  關鍵觀察：若股價能守住 ${min(breakeven_87, breakeven_284):.2f}（雙軌保平線低者），則均線不惡化。
+
 ═══════════════════════════════════════════════════════════
 """
-    
-    st.write_stream(_stream_text(analysis_text, speed=0.002))
+    st.write_stream(_stream_text(analysis, speed=0.002))
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Deduction Direction Prediction Card
-    slope_87 = m87 - m87p5
-    direction = "上揚 ↗️" if slope_87 > 0 else "下彎 ↘️"
-    direction_color = "#00FF7F" if slope_87 > 0 else "#FF3131"
-    
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────
+    slope_txt   = f"{'↑' if slope_87 > 0 else '↓'} {abs(slope_87):.2f}/天"
+    slope_color = '#00FF7F' if slope_87 > 0 else '#FF3131'
+    gap87_color = '#00FF7F' if cp >= breakeven_87  else '#FF3131'
+    gap284_color= '#00FF7F' if cp >= breakeven_284 else '#FF3131'
+
     st.markdown(f"""
-    <div class="t3-kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:18px;">
         <div class="t3-kpi-card" style="--kc:#00F5FF;">
-            <div class="t3-kpi-lbl">MA87 DIRECTION</div>
-            <div class="t3-kpi-val" style="font-size:36px; color:{direction_color};">{direction}</div>
-            <div class="t3-kpi-sub">斜率: {slope_87:.2f}</div>
-        </div>
-        <div class="t3-kpi-card" style="--kc:#FFD700;">
-            <div class="t3-kpi-lbl">DEDUCTION DAYS</div>
-            <div class="t3-kpi-val" style="font-size:36px;">87</div>
-            <div class="t3-kpi-sub">季線扣抵週期</div>
+            <div class="t3-kpi-lbl">MA87 保平價</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{gap87_color};">${breakeven_87:.2f}</div>
+            <div class="t3-kpi-sub">現價差 {cp-breakeven_87:+.2f}</div>
         </div>
         <div class="t3-kpi-card" style="--kc:#FF9A3C;">
-            <div class="t3-kpi-lbl">DEDUCTION DAYS</div>
-            <div class="t3-kpi-val" style="font-size:36px;">284</div>
-            <div class="t3-kpi-sub">年線扣抵週期</div>
+            <div class="t3-kpi-lbl">MA284 保平價</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{gap284_color};">${breakeven_284:.2f}</div>
+            <div class="t3-kpi-sub">現價差 {cp-breakeven_284:+.2f}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FFD700;">
+            <div class="t3-kpi-lbl">MA87 斜率</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{slope_color};">{slope_txt}</div>
+            <div class="t3-kpi-sub">季線動能</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:{align_color};">
+            <div class="t3-kpi-lbl">均線排列</div>
+            <div class="t3-kpi-val" style="font-size:26px; color:{align_color};">{ma_align}</div>
+            <div class="t3-kpi-sub">差距 {ma_gap_pct:+.1f}%</div>
+        </div>
+    </div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom:24px;">
+        <div class="t3-kpi-card" style="--kc:#00F5FF;">
+            <div class="t3-kpi-lbl">MA87 未來30天 下彎壓力</div>
+            <div class="t3-kpi-val" style="font-size:34px; color:{'#FF3131' if down87_pct>60 else '#00FF7F' if down87_pct<40 else '#FFD700'};">{down87_pct:.0f}%</div>
+            <div class="t3-kpi-sub">{'⚠️ 壓力沉重' if down87_pct>60 else '✅ 支撐有效' if down87_pct<40 else '🟡 方向拉鋸'}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF9A3C;">
+            <div class="t3-kpi-lbl">MA284 未來30天 下彎壓力</div>
+            <div class="t3-kpi-val" style="font-size:34px; color:{'#FF3131' if down284_pct>60 else '#00FF7F' if down284_pct<40 else '#FFD700'};">{down284_pct:.0f}%</div>
+            <div class="t3-kpi-sub">{'⚠️ 年線長壓' if down284_pct>60 else '✅ 年線底墊高' if down284_pct<40 else '🟡 年線待確認'}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Calculate deduction points
-    df_87 = sdf[['Close']].copy()
-    df_87['MA87'] = df_87['Close'].rolling(87).mean()
-    df_87['Deduct_87'] = df_87['Close'].shift(87)
-    df_87 = df_87.dropna().tail(60)
-    
-    df_284 = sdf[['Close']].copy()
-    df_284['MA284'] = df_284['Close'].rolling(284).mean()
-    df_284['Deduct_284'] = df_284['Close'].shift(284)
-    df_284 = df_284.dropna().tail(60)
-    
-    # Chart: MA87 Deduction
-    st.markdown("#### 📈 MA87 (季線) 扣抵軌跡")
-    df_87_reset = df_87.reset_index()
-    df_87_reset['Date'] = pd.to_datetime(df_87_reset['Date'])
-    
-    base_87 = alt.Chart(df_87_reset).mark_line(color='#00F5FF', strokeWidth=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('MA87:Q', title='MA87 價格')
+
+    # ── 圖一：近60日 雙軌扣抵全景圖 ──────────────────────────────────
+    st.markdown("#### 📊 雙軌扣抵全景圖（近60日 · 現價 vs 被扣舊值）")
+    chart_df = df[['Close', 'MA87', 'MA284', '扣抵值_87', '扣抵值_284']].tail(60).reset_index()
+    chart_df['Date'] = pd.to_datetime(chart_df['Date'])
+
+    c_close  = alt.Chart(chart_df).mark_line(color='#FFFFFF', strokeWidth=2).encode(
+        x=alt.X('Date:T', title='日期', axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        y=alt.Y('Close:Q', title='價格', axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        tooltip=[alt.Tooltip('Date:T', title='日期'), alt.Tooltip('Close:Q', title='收盤', format='.2f')]
     )
-    
-    deduct_87 = alt.Chart(df_87_reset).mark_line(color='#FFD700', strokeWidth=2, strokeDash=[5, 5]).encode(
-        x='Date:T',
-        y='Deduct_87:Q'
+    c_ma87   = alt.Chart(chart_df).mark_line(color='#00F5FF', strokeWidth=2.5).encode(
+        x='Date:T', y='MA87:Q',
+        tooltip=[alt.Tooltip('MA87:Q', title='MA87', format='.2f')]
     )
-    
+    c_ma284  = alt.Chart(chart_df).mark_line(color='#FF9A3C', strokeWidth=2.5).encode(
+        x='Date:T', y='MA284:Q',
+        tooltip=[alt.Tooltip('MA284:Q', title='MA284', format='.2f')]
+    )
+    c_d87    = alt.Chart(chart_df).mark_line(color='#FFD700', strokeWidth=1.5, strokeDash=[6, 3]).encode(
+        x='Date:T', y='扣抵值_87:Q',
+        tooltip=[alt.Tooltip('扣抵值_87:Q', title='87日前價', format='.2f')]
+    )
+    c_d284   = alt.Chart(chart_df).mark_line(color='#FF6BFF', strokeWidth=1.5, strokeDash=[6, 3]).encode(
+        x='Date:T', y='扣抵值_284:Q',
+        tooltip=[alt.Tooltip('扣抵值_284:Q', title='284日前價', format='.2f')]
+    )
+    combo_chart = (c_close + c_ma87 + c_ma284 + c_d87 + c_d284).properties(
+        height=320,
+        title=alt.TitleParams(
+            '白=收盤  青=MA87  橘=MA284  金虛=87日前扣抵值  紫虛=284日前扣抵值',
+            color='#aaa', fontSize=18, font='JetBrains Mono'
+        )
+    )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(base_87 + deduct_87), use_container_width=True)
+    st.altair_chart(_cfg(combo_chart), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Chart: MA284 Deduction
-    st.markdown("#### 📉 MA284 (年線) 扣抵軌跡")
-    df_284_reset = df_284.reset_index()
-    df_284_reset['Date'] = pd.to_datetime(df_284_reset['Date'])
-    
-    base_284 = alt.Chart(df_284_reset).mark_line(color='#FF3131', strokeWidth=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('MA284:Q', title='MA284 價格')
+
+    # ── 圖二：未來30日 MA87 推估軌跡（假設股價維持現價）──────────────
+    st.markdown("#### 🔮 MA87 未來30日推估軌跡（假設現價維持不變）")
+    fut87_df['顏色'] = fut87_df['方向_87'].apply(lambda x: '#00FF7F' if '↑' in x else '#FF3131')
+
+    bars87 = alt.Chart(fut87_df).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        x=alt.X('天數:N', sort=None, axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        y=alt.Y('扣抵差額_87:Q', title='扣抵差額（現價−舊值）',
+                axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        color=alt.Color('顏色:N', scale=None),
+        tooltip=[
+            alt.Tooltip('天數:N', title='天數'),
+            alt.Tooltip('推估MA87:Q', title='預估MA87', format='.2f'),
+            alt.Tooltip('被扣舊值_87:Q', title='被扣舊值', format='.2f'),
+            alt.Tooltip('扣抵差額_87:Q', title='差額', format='+.2f'),
+            alt.Tooltip('方向_87:N', title='方向'),
+        ]
     )
-    
-    deduct_284 = alt.Chart(df_284_reset).mark_line(color='#FF9A3C', strokeWidth=2, strokeDash=[5, 5]).encode(
-        x='Date:T',
-        y='Deduct_284:Q'
+    zero_rule = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+        color='#555', strokeDash=[4, 4], strokeWidth=1.5
+    ).encode(y='y:Q')
+    ma87_line = alt.Chart(fut87_df).mark_line(color='#00F5FF', strokeWidth=2.5).encode(
+        x=alt.X('天數:N', sort=None),
+        y=alt.Y('推估MA87:Q', title=''),
+        tooltip=[alt.Tooltip('推估MA87:Q', title='推估MA87', format='.2f')]
     )
-    
+    fut87_chart = alt.layer(bars87, zero_rule).resolve_scale(y='shared').properties(
+        height=260,
+        title=alt.TitleParams(
+            f'綠柱=均線上揚  紅柱=均線下彎（假設現價維持 ${cp:.2f}）',
+            color='#00F5FF', fontSize=18, font='JetBrains Mono'
+        )
+    )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(base_284 + deduct_284), use_container_width=True)
+    st.altair_chart(_cfg(fut87_chart), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.toast("✅ 雙軌扣抵分析完成 / Deduction Analysis Complete", icon="🎯")
+
+    # ── 圖三：未來30日 MA284 推估軌跡 ─────────────────────────────────
+    st.markdown("#### 🔮 MA284 未來30日推估軌跡（假設現價維持不變）")
+    fut284_df['顏色'] = fut284_df['方向_284'].apply(lambda x: '#00FF7F' if '↑' in x else '#FF3131')
+
+    bars284 = alt.Chart(fut284_df).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        x=alt.X('天數:N', sort=None, axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        y=alt.Y('扣抵差額_284:Q', title='扣抵差額（現價−舊值）',
+                axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        color=alt.Color('顏色:N', scale=None),
+        tooltip=[
+            alt.Tooltip('天數:N', title='天數'),
+            alt.Tooltip('推估MA284:Q', title='預估MA284', format='.2f'),
+            alt.Tooltip('被扣舊值_284:Q', title='被扣舊值', format='.2f'),
+            alt.Tooltip('扣抵差額_284:Q', title='差額', format='+.2f'),
+            alt.Tooltip('方向_284:N', title='方向'),
+        ]
+    )
+    zero_rule2 = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+        color='#555', strokeDash=[4, 4], strokeWidth=1.5
+    ).encode(y='y:Q')
+    fut284_chart = alt.layer(bars284, zero_rule2).resolve_scale(y='shared').properties(
+        height=260,
+        title=alt.TitleParams(
+            f'綠柱=年線上揚  紅柱=年線下彎（假設現價維持 ${cp:.2f}）',
+            color='#FF9A3C', fontSize=18, font='JetBrains Mono'
+        )
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(fut284_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 扣抵明細表（未來10天）────────────────────────────────────────
+    st.markdown("#### 📋 扣抵明細表（未來10個交易日）")
+    table_data = []
+    for i in range(10):
+        r87  = future_rows_87[i]
+        r284 = future_rows_284[i]
+        table_data.append({
+            '天數':         r87['天數'],
+            'MA87被扣舊值': f"${r87['被扣舊值_87']:.2f}",
+            'MA87推估值':   f"${r87['推估MA87']:.2f}",
+            'MA87方向':     r87['方向_87'],
+            'MA284被扣舊值':f"${r284['被扣舊值_284']:.2f}",
+            'MA284推估值':  f"${r284['推估MA284']:.2f}",
+            'MA284方向':    r284['方向_284'],
+        })
+    st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
+
+    st.toast("✅ 雙軌扣抵完整推演完成", icon="🎯")
+
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 TAB 2: ADAM THEORY (亞當理論)
+# 🎯 TAB 2: ADAM THEORY (亞當理論) — 第一性原則重建
+# ══════════════════════════════════════════════════════════════
+# 亞當理論核心（Welles Wilder）：
+#   1. 市場永遠走阻力最小的路徑
+#   2. Swing High / Swing Low：前後各N根K棒均比當根低/高，才算有效擺動點
+#   3. 雙擺確認法：同方向連續兩個擺動點（雙高/雙低）確認趨勢
+#   4. 投影法則：以最近一段擺動幅度，等量投影下一個目標位
+#   5. 第一失守法：價格跌破最近擺動低點 → 趨勢逆轉信號
+#   6. Adam角度：擺動幅度 ÷ 時間跨度 = 趨勢強度角
 # ══════════════════════════════════════════════════════════════
 def _t2(sdf, ticker):
-    """T2: Adam Theory - Double Swing Analysis"""
-    st.toast("🚀 正在執行亞當理論運算... / Engaging Adam Engine...", icon="⏳")
-    
+    """T2: Adam Theory — First Principles Full Engine"""
+    st.toast("🚀 亞當理論擺動引擎啟動中…", icon="⏳")
+
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-lbl">📐 ADAM THEORY ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">📐 ADAM THEORY ENGINE v3.0</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-sub">雙重擺盪分析系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">亞當雙擺分析 · 第一性原則重建</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # AI Analysis
-    st.markdown("### 🧠 AI 戰術分析")
+
+    if len(sdf) < 80:
+        st.toast("⚠️ 歷史數據不足，無法計算亞當擺動。", icon="⚡")
+        return
+
+    # ── 核心計算：擺動點偵測 ──────────────────────────────────────────
+    # 條件：前後各5根K棒的高/低點均不超過當根，才認定為有效擺動點
+    lookback = 200
+    df = sdf[['Close', 'High', 'Low']].tail(lookback).reset_index()
+    df['Date'] = pd.to_datetime(df['Date'])
+    n = len(df)
+    wing = 5  # 左右各5根確認
+
+    swing_highs = []
+    swing_lows  = []
+
+    for i in range(wing, n - wing):
+        hi_window = df['High'].iloc[i - wing: i + wing + 1]
+        lo_window = df['Low'].iloc[i  - wing: i + wing + 1]
+        if df['High'].iloc[i] == hi_window.max():
+            swing_highs.append({'idx': i, 'Date': df['Date'].iloc[i],
+                                  'Price': df['High'].iloc[i], 'Type': 'High'})
+        if df['Low'].iloc[i] == lo_window.min():
+            swing_lows.append({'idx': i, 'Date': df['Date'].iloc[i],
+                                 'Price': df['Low'].iloc[i], 'Type': 'Low'})
+
+    sh_df = pd.DataFrame(swing_highs)
+    sl_df = pd.DataFrame(swing_lows)
+
+    # 取最近4個擺動高點 & 低點
+    sh_recent = sh_df.tail(4).reset_index(drop=True) if len(sh_df) >= 2 else sh_df
+    sl_recent = sl_df.tail(4).reset_index(drop=True) if len(sl_df) >= 2 else sl_df
+
+    cp = float(df['Close'].iloc[-1])
+
+    # ── 雙擺確認法 ────────────────────────────────────────────────────
+    # 雙高（Higher High + Higher Low）→ 多頭確認
+    # 雙低（Lower High + Lower Low）→ 空頭確認
+    double_bull = False
+    double_bear = False
+    hh_text = ll_text = "不足2個擺動點，無法確認"
+
+    if len(sh_recent) >= 2:
+        hh = sh_recent['Price'].iloc[-1] > sh_recent['Price'].iloc[-2]
+        hl = sl_recent['Price'].iloc[-1] > sl_recent['Price'].iloc[-2] if len(sl_recent) >= 2 else False
+        lh = sh_recent['Price'].iloc[-1] < sh_recent['Price'].iloc[-2]
+        ll = sl_recent['Price'].iloc[-1] < sl_recent['Price'].iloc[-2] if len(sl_recent) >= 2 else False
+        double_bull = hh and hl
+        double_bear = lh and ll
+        hh_text = f"最新擺高 ${sh_recent['Price'].iloc[-1]:.2f} {'>' if hh else '<'} 前擺高 ${sh_recent['Price'].iloc[-2]:.2f}"
+        ll_text  = f"最新擺低 ${sl_recent['Price'].iloc[-1]:.2f} {'>' if hl else '<'} 前擺低 ${sl_recent['Price'].iloc[-2]:.2f}" if len(sl_recent) >= 2 else "低點數據不足"
+
+    # ── 投影目標計算 ──────────────────────────────────────────────────
+    # 找最近的一段完整波段（擺高→擺低 or 擺低→擺高），等量投影
+    proj_target_up   = None
+    proj_target_down = None
+    swing_amplitude  = None
+    swing_days       = None
+    adam_angle       = None
+
+    if len(sh_recent) >= 1 and len(sl_recent) >= 1:
+        last_hi = sh_recent.iloc[-1]
+        last_lo = sl_recent.iloc[-1]
+        swing_amplitude = abs(last_hi['Price'] - last_lo['Price'])
+        swing_days      = abs((last_hi['Date'] - last_lo['Date']).days)
+        adam_angle      = swing_amplitude / max(swing_days, 1)
+
+        # 多頭投影：從最低點向上等量投影
+        proj_target_up   = last_lo['Price'] + swing_amplitude
+        # 空頭投影：從最高點向下等量投影
+        proj_target_down = last_hi['Price'] - swing_amplitude
+
+    # ── 第一失守判斷 ──────────────────────────────────────────────────
+    # 跌破最近擺動低點 → 警示
+    first_loss_level = float(sl_recent['Price'].iloc[-1]) if len(sl_recent) >= 1 else None
+    first_loss_breach = cp < first_loss_level if first_loss_level else False
+
+    # 突破最近擺動高點 → 突破確認
+    breakout_level  = float(sh_recent['Price'].iloc[-1]) if len(sh_recent) >= 1 else None
+    breakout_confirm = cp > breakout_level if breakout_level else False
+
+    # ── 趨勢強度評分（0~100）─────────────────────────────────────────
+    score = 50
+    if double_bull:  score += 20
+    if double_bear:  score -= 20
+    if breakout_confirm: score += 15
+    if first_loss_breach: score -= 15
+    if len(sh_recent) >= 2 and sh_recent['Price'].iloc[-1] > sh_recent['Price'].iloc[-2]: score += 10
+    if len(sl_recent) >= 2 and sl_recent['Price'].iloc[-1] > sl_recent['Price'].iloc[-2]: score += 10
+    score = max(0, min(100, score))
+
+    trend_label = '強勢多頭' if score >= 75 else '偏多' if score >= 55 else '偏空' if score >= 35 else '強勢空頭'
+    trend_color = '#00FF7F' if score >= 65 else '#FF3131' if score <= 35 else '#FFD700'
+
+    # ── AI 戰術分析 ────────────────────────────────────────────────────
+    st.markdown("### 🧠 亞當理論 · 第一性原則戰術推演")
     st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
-    
-    analysis_text = """
+    proj_text_up   = f"${proj_target_up:.2f}"   if proj_target_up   else "計算中"
+    proj_text_down = f"${proj_target_down:.2f}"  if proj_target_down else "計算中"
+    amp_text       = f"${swing_amplitude:.2f}"   if swing_amplitude  else "N/A"
+    angle_text     = f"{adam_angle:.2f}/日"      if adam_angle       else "N/A"
+    fl_text        = f"${first_loss_level:.2f}"  if first_loss_level else "N/A"
+    bo_text        = f"${breakout_level:.2f}"    if breakout_level   else "N/A"
+
+    analysis = f"""
 ═══════════════════════════════════════════════════════════
-🎯 ADAM THEORY ANALYSIS
+📐 ADAM THEORY ENGINE v3.0 — {ticker}   現價: ${cp:.2f}
+   趨勢強度評分: {score}/100  →  {trend_label}
 ═══════════════════════════════════════════════════════════
 
-📊 METHODOLOGY
-   Adam Theory focuses on identifying double swing patterns in price action.
-   The system detects significant highs and lows, then projects symmetrical
-   moves to predict future price targets.
-   
-⚡ SWING DETECTION
-   Analyzing historical price data to identify major turning points...
-   Double swing patterns indicate potential reversal zones with high probability.
-   
-🎲 PROJECTION ACCURACY
-   Historical backtests show 78% accuracy in trend reversal prediction when
-   double swings align with volume confirmation signals.
-   
+【一、亞當理論第一性原則】
+  核心命題：市場永遠走阻力最小的路徑。
+  擺動點不是簡單的最高/最低，而是前後各{wing}根K棒均被當根穿越後，
+  才能確認為有效轉折。虛假突破將被自動過濾。
+
+【二、有效擺動點偵測結果（wing={wing}）】
+  識別擺動高點數量：{len(sh_df)} 個  │  最近4個已提取分析
+  識別擺動低點數量：{len(sl_df)} 個  │  最近4個已提取分析
+  最新擺動高點：{sh_recent['Price'].iloc[-1]:.2f} @ {sh_recent['Date'].iloc[-1].strftime('%Y-%m-%d') if len(sh_recent)>0 else 'N/A'}
+  最新擺動低點：{sl_recent['Price'].iloc[-1]:.2f} @ {sl_recent['Date'].iloc[-1].strftime('%Y-%m-%d') if len(sl_recent)>0 else 'N/A'}
+
+【三、雙擺確認法（Double Swing Confirmation）】
+  擺動高點比較：{hh_text}
+  擺動低點比較：{ll_text}
+  雙擺確認結果：{'✅ 多頭雙擺確認（Higher High + Higher Low），趨勢向上有效' if double_bull else '✅ 空頭雙擺確認（Lower High + Lower Low），趨勢向下有效' if double_bear else '🟡 雙擺方向分歧，市場仍處盤整區間，等待確認'}
+
+【四、等量投影目標（Adam Projection）】
+  最近波段振幅：  {amp_text}
+  波段時間跨度：  {swing_days if swing_days else 'N/A'} 個交易日
+  Adam角度：      {angle_text}（振幅÷時間，越大代表趨勢越陡峭）
+  多頭投影目標：  {proj_text_up}  （擺動低點 + 等量振幅）
+  空頭投影目標：  {proj_text_down}  （擺動高點 − 等量振幅）
+
+【五、第一失守法則（First Loss Rule）】
+  關鍵支撐（最近擺低）：{fl_text}
+  突破確認位（最近擺高）：{bo_text}
+  現價 vs 第一失守線：{'🔴 已跌破第一失守線！趨勢逆轉警示，應立即減倉或出場。' if first_loss_breach else f'✅ 守住 {fl_text}，多頭結構未破壞。'}
+  現價 vs 突破確認位：{'✅ 已突破擺動高點！多頭確認，可追漲或加碼。' if breakout_confirm else f'🟡 尚未突破 {bo_text}，突破前宜觀望。'}
+
+【六、操作戰術推演】
+  {'🟢 多頭策略：雙擺確認，可在回測擺動低點附近佈多，目標看多頭投影 ' + proj_text_up + '，停損設最近擺低 ' + fl_text if double_bull else '🔴 空頭策略：雙擺空頭確認，逢反彈高點減碼，目標看空頭投影 ' + proj_text_down + '，停損設最近擺高 ' + bo_text if double_bear else '🟡 盤整策略：雙擺未確認，等突破 ' + bo_text + ' 再多，跌破 ' + fl_text + ' 再空。'}
+
 ═══════════════════════════════════════════════════════════
 """
-    
-    st.write_stream(_stream_text(analysis_text, speed=0.002))
+    st.write_stream(_stream_text(analysis, speed=0.002))
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Calculate swings
-    if len(sdf) < 60:
-        st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
-        st.toast("⚠️ 歷史數據不足，無法計算亞當雙擺。", icon="⚡")
-        return
-    
-    tail_df = sdf[['Close']].tail(120).reset_index()
-    tail_df['Date'] = pd.to_datetime(tail_df['Date'])
-    
-    # Find highest and lowest points
-    max_idx = tail_df['Close'].idxmax()
-    min_idx = tail_df['Close'].idxmin()
-    
-    max_price = tail_df.loc[max_idx, 'Close']
-    min_price = tail_df.loc[min_idx, 'Close']
-    max_date = tail_df.loc[max_idx, 'Date']
-    min_date = tail_df.loc[min_idx, 'Date']
-    
-    # Chart
-    base = alt.Chart(tail_df).mark_line(color='#00F5FF', strokeWidth=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('Close:Q', title='收盤價')
-    )
-    
-    high_point = alt.Chart(pd.DataFrame([{'Date': max_date, 'Close': max_price}])).mark_point(
-        color='#FF3131', size=200, shape='triangle-down'
-    ).encode(x='Date:T', y='Close:Q')
-    
-    low_point = alt.Chart(pd.DataFrame([{'Date': min_date, 'Close': min_price}])).mark_point(
-        color='#00FF7F', size=200, shape='triangle-up'
-    ).encode(x='Date:T', y='Close:Q')
-    
-    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(base + high_point + low_point), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Display swing points
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────
     st.markdown(f"""
-    <div class="t3-kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
-        <div class="t3-kpi-card" style="--kc:#FF3131;">
-            <div class="t3-kpi-lbl">HIGH SWING</div>
-            <div class="t3-kpi-val" style="font-size:36px;">${max_price:.2f}</div>
-            <div class="t3-kpi-sub">{max_date.strftime('%Y-%m-%d')}</div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:18px;">
+        <div class="t3-kpi-card" style="--kc:{trend_color};">
+            <div class="t3-kpi-lbl">趨勢強度評分</div>
+            <div class="t3-kpi-val" style="font-size:34px; color:{trend_color};">{score}<span style="font-size:16px">/100</span></div>
+            <div class="t3-kpi-sub">{trend_label}</div>
         </div>
         <div class="t3-kpi-card" style="--kc:#00FF7F;">
-            <div class="t3-kpi-lbl">LOW SWING</div>
-            <div class="t3-kpi-val" style="font-size:36px;">${min_price:.2f}</div>
-            <div class="t3-kpi-sub">{min_date.strftime('%Y-%m-%d')}</div>
+            <div class="t3-kpi-lbl">多頭投影目標</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#00FF7F;">{proj_text_up}</div>
+            <div class="t3-kpi-sub">等量波段投影</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF3131;">
+            <div class="t3-kpi-lbl">空頭投影目標</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#FF3131;">{proj_text_down}</div>
+            <div class="t3-kpi-sub">等量波段投影</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FFD700;">
+            <div class="t3-kpi-lbl">Adam角度</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#FFD700;">{angle_text}</div>
+            <div class="t3-kpi-sub">振幅÷時間</div>
+        </div>
+    </div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:24px;">
+        <div class="t3-kpi-card" style="--kc:#00F5FF;">
+            <div class="t3-kpi-lbl">第一失守線（支撐）</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#FF3131' if first_loss_breach else '#00FF7F'};">{fl_text}</div>
+            <div class="t3-kpi-sub">{'🔴 已失守！' if first_loss_breach else '✅ 守住中'}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF9A3C;">
+            <div class="t3-kpi-lbl">突破確認位（阻力）</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if breakout_confirm else '#FF9A3C'};">{bo_text}</div>
+            <div class="t3-kpi-sub">{'✅ 已突破！' if breakout_confirm else '🟡 待突破'}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF6BFF;">
+            <div class="t3-kpi-lbl">雙擺確認</div>
+            <div class="t3-kpi-val" style="font-size:26px; color:{'#00FF7F' if double_bull else '#FF3131' if double_bear else '#FFD700'};">{'✅ 多頭雙擺' if double_bull else '✅ 空頭雙擺' if double_bear else '🟡 未確認'}</div>
+            <div class="t3-kpi-sub">HH+HL / LH+LL</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.toast("✅ 亞當理論分析完成 / Adam Analysis Complete", icon="🎯")
+
+    # ── 圖一：主圖 — 擺動點標記全景圖 ───────────────────────────────
+    st.markdown("#### 📊 亞當理論擺動點全景圖（近200日）")
+
+    base_line = alt.Chart(df).mark_line(color='#00F5FF', strokeWidth=2).encode(
+        x=alt.X('Date:T', title='日期', axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        y=alt.Y('Close:Q', title='收盤價', scale=alt.Scale(zero=False),
+                axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        tooltip=[alt.Tooltip('Date:T', title='日期'), alt.Tooltip('Close:Q', title='收盤', format='.2f')]
+    )
+
+    charts = [base_line]
+
+    if len(sh_recent) > 0:
+        sh_plot = sh_recent.copy()
+        sh_plot['label'] = sh_plot['Price'].apply(lambda p: f"H ${p:.2f}")
+        sh_mark = alt.Chart(sh_plot).mark_point(
+            color='#FF3131', size=200, shape='triangle-down', filled=True
+        ).encode(
+            x='Date:T', y=alt.Y('Price:Q'),
+            tooltip=[alt.Tooltip('Date:T', title='日期'), alt.Tooltip('Price:Q', title='擺高', format='.2f')]
+        )
+        sh_text = alt.Chart(sh_plot).mark_text(
+            color='#FF3131', fontSize=18, font='JetBrains Mono', dy=-18, fontWeight='bold'
+        ).encode(x='Date:T', y=alt.Y('Price:Q'), text='label:N')
+        charts += [sh_mark, sh_text]
+
+    if len(sl_recent) > 0:
+        sl_plot = sl_recent.copy()
+        sl_plot['label'] = sl_plot['Price'].apply(lambda p: f"L ${p:.2f}")
+        sl_mark = alt.Chart(sl_plot).mark_point(
+            color='#00FF7F', size=200, shape='triangle-up', filled=True
+        ).encode(
+            x='Date:T', y=alt.Y('Price:Q'),
+            tooltip=[alt.Tooltip('Date:T', title='日期'), alt.Tooltip('Price:Q', title='擺低', format='.2f')]
+        )
+        sl_text = alt.Chart(sl_plot).mark_text(
+            color='#00FF7F', fontSize=18, font='JetBrains Mono', dy=18, fontWeight='bold'
+        ).encode(x='Date:T', y=alt.Y('Price:Q'), text='label:N')
+        charts += [sl_mark, sl_text]
+
+    # 加入第一失守線 & 突破確認位水平線
+    if first_loss_level:
+        fl_rule = alt.Chart(pd.DataFrame({'y': [first_loss_level]})).mark_rule(
+            color='#FF3131', strokeDash=[6, 3], strokeWidth=2
+        ).encode(y='y:Q')
+        charts.append(fl_rule)
+
+    if breakout_level:
+        bo_rule = alt.Chart(pd.DataFrame({'y': [breakout_level]})).mark_rule(
+            color='#00FF7F', strokeDash=[6, 3], strokeWidth=2
+        ).encode(y='y:Q')
+        charts.append(bo_rule)
+
+    # 加入投影目標水平線
+    if proj_target_up:
+        pu_rule = alt.Chart(pd.DataFrame({'y': [proj_target_up]})).mark_rule(
+            color='#FFD700', strokeDash=[4, 4], strokeWidth=1.5
+        ).encode(y='y:Q')
+        charts.append(pu_rule)
+
+    if proj_target_down:
+        pd_rule = alt.Chart(pd.DataFrame({'y': [proj_target_down]})).mark_rule(
+            color='#FF6BFF', strokeDash=[4, 4], strokeWidth=1.5
+        ).encode(y='y:Q')
+        charts.append(pd_rule)
+
+    full_chart = alt.layer(*charts).properties(
+        height=380,
+        title=alt.TitleParams(
+            '▲綠=擺低  ▼紅=擺高  紅虛=第一失守線  綠虛=突破確認  金虛=多頭目標  紫虛=空頭目標',
+            color='#aaa', fontSize=18, font='JetBrains Mono'
+        )
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(full_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖二：擺動點波動幅度歷史條圖 ────────────────────────────────
+    if len(sh_df) >= 2 and len(sl_df) >= 2:
+        st.markdown("#### 📊 歷史波段振幅統計（近10個擺動高點）")
+
+        amp_rows = []
+        sh_list = sh_df.tail(10).reset_index(drop=True)
+        sl_list = sl_df.reset_index(drop=True)
+
+        for i in range(len(sh_list)):
+            hi_date = sh_list['Date'].iloc[i]
+            # 找最近在此擺高之前的擺低
+            prior_lows = sl_list[sl_list['Date'] < hi_date]
+            if len(prior_lows) == 0:
+                continue
+            lo = prior_lows.iloc[-1]
+            amp = sh_list['Price'].iloc[i] - lo['Price']
+            days_span = (hi_date - lo['Date']).days
+            amp_rows.append({
+                '波段':    f"#{i+1} {lo['Date'].strftime('%m/%d')}→{hi_date.strftime('%m/%d')}",
+                '振幅':    round(amp, 2),
+                '天數':    days_span,
+                'Adam角度': round(amp / max(days_span, 1), 3),
+                '顏色':    '#00FF7F' if amp > 0 else '#FF3131'
+            })
+
+        if amp_rows:
+            amp_df = pd.DataFrame(amp_rows)
+            amp_bars = alt.Chart(amp_df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+                x=alt.X('波段:N', sort=None, axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa', labelAngle=-30)),
+                y=alt.Y('振幅:Q', title='波段振幅（$）',
+                        axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+                color=alt.Color('顏色:N', scale=None),
+                tooltip=[
+                    alt.Tooltip('波段:N', title='波段'),
+                    alt.Tooltip('振幅:Q', title='振幅', format='.2f'),
+                    alt.Tooltip('天數:Q', title='天數'),
+                    alt.Tooltip('Adam角度:Q', title='Adam角度', format='.3f'),
+                ]
+            ).properties(
+                height=240,
+                title=alt.TitleParams(
+                    '歷史波段振幅 — 越高代表趨勢越強勁',
+                    color='#FFD700', fontSize=18, font='JetBrains Mono'
+                )
+            )
+            avg_amp = amp_df['振幅'].mean()
+            avg_rule = alt.Chart(pd.DataFrame({'y': [avg_amp]})).mark_rule(
+                color='#FFD700', strokeDash=[5, 3], strokeWidth=2
+            ).encode(y='y:Q')
+            st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+            st.altair_chart(_cfg(alt.layer(amp_bars, avg_rule).properties(height=240,
+                title=alt.TitleParams('歷史波段振幅 — 金虛線=平均振幅', color='#FFD700', fontSize=18, font='JetBrains Mono')
+            )), use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 擺動點明細表 ───────────────────────────────────────────────────
+    st.markdown("#### 📋 近期擺動點明細")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**擺動高點（最近4個）**")
+        if len(sh_recent) > 0:
+            sh_show = sh_recent[['Date', 'Price']].copy()
+            sh_show.columns = ['日期', '擺動高點']
+            sh_show['日期'] = sh_show['日期'].dt.strftime('%Y-%m-%d')
+            sh_show['擺動高點'] = sh_show['擺動高點'].apply(lambda x: f"${x:.2f}")
+            st.dataframe(sh_show, use_container_width=True, hide_index=True)
+    with col2:
+        st.markdown("**擺動低點（最近4個）**")
+        if len(sl_recent) > 0:
+            sl_show = sl_recent[['Date', 'Price']].copy()
+            sl_show.columns = ['日期', '擺動低點']
+            sl_show['日期'] = sl_show['日期'].dt.strftime('%Y-%m-%d')
+            sl_show['擺動低點'] = sl_show['擺動低點'].apply(lambda x: f"${x:.2f}")
+            st.dataframe(sl_show, use_container_width=True, hide_index=True)
+
+    st.toast("✅ 亞當理論完整推演完成", icon="🎯")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 3: DAILY CANDLESTICK + RSI (日K + RSI)
