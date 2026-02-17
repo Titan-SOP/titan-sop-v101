@@ -899,68 +899,100 @@ def _calculate_futures_targets():
 
 def render_1_1_hud():
     # ═══════════════════════════════════════════════════════════════════════════
-    # [NEW] GLOBAL OVERWATCH — S&P 500 / USD/TWD / DXY
+    # [REFACTORED] UNIFIED GLOBAL OVERWATCH - No CB File Required
     # ═══════════════════════════════════════════════════════════════════════════
     st.markdown("### 🔭 全域戰情中心")
 
     # 1. Manual Trigger Button
     if "macro_init" not in st.session_state:
-        if st.button("🚀 啟動全域監控 (S&P500 / TWD / DXY)", use_container_width=True):
+        if st.button("🚀 啟動全域監控 (SPX / TWD / DXY / VIX)", use_container_width=True, type="primary"):
             st.session_state.macro_init = True
             st.rerun()
         return  # Stop here if not initialized
 
-    # 2. Global Data Fetching & Display
-    with st.spinner("📡 連線全球數據中..."):
+    # 2. Fetch ALL Global Data (including VIX)
+    with st.spinner("📡 連線全球戰情數據中..."):
         try:
-            # Fetch Data (S&P 500, USD/TWD, DXY)
-            tickers = {"^GSPC": "S&P 500", "TWD=X": "USD/TWD", "DX-Y.NYB": "DXY"}
-            g_df = yf.download(list(tickers.keys()), period="3mo", progress=False)['Close']
+            # Fetch: S&P 500, USD/TWD, DXY, VIX
+            tickers = ["^GSPC", "TWD=X", "DX-Y.NYB", "^VIX"]
+            raw_df = yf.download(tickers, period="3mo", progress=False)
             
-            if not g_df.empty:
-                current = g_df.iloc[-1]
-                prev = g_df.iloc[-2]
+            # Handle MultiIndex DataFrame from yfinance
+            if not raw_df.empty:
+                # Extract Close prices - handle both single and multi-ticker cases
+                if 'Close' in raw_df.columns:
+                    g_df = raw_df['Close']
+                else:
+                    g_df = raw_df
                 
-                # Metrics
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    val = current.get("^GSPC", 0)
-                    delta = (val - prev.get("^GSPC", 0)) / prev.get("^GSPC", 1)
-                    st.metric("🇺🇸 S&P 500", f"{val:,.0f}", f"{delta:.2%}")
-                with c2:
-                    val = current.get("TWD=X", 0)
-                    delta = (val - prev.get("TWD=X", 0)) / prev.get("TWD=X", 1)
-                    st.metric("🇹🇼 USD/TWD", f"{val:.2f}", f"{delta:.2%}", delta_color="inverse")
-                with c3:
-                    val = current.get("DX-Y.NYB", 0)
-                    delta = (val - prev.get("DX-Y.NYB", 0)) / prev.get("DX-Y.NYB", 1)
-                    st.metric("💵 DXY (美元)", f"{val:.2f}", f"{delta:.2%}", delta_color="inverse")
-                
-                st.divider()
-        except Exception as e:
-            st.error(f"Global Data Error: {e}")
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # [PRESERVED] ORIGINAL VIX GAUGE + MACRO RISK ENGINE LOGIC
-    # ═══════════════════════════════════════════════════════════════════════════
-    
-    # ─── 1.1 HERO BILLBOARD ──────────────────────────────────────────────────
-    _sec_header("🚦", "宏觀風控儀表", "MACRO HUD")
-    macro, _, _ = _load_engines()
-    df      = st.session_state.get('df', pd.DataFrame())
-    df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
-
-    if not df.empty:
-        md  = _get_macro_data(macro, df_hash)
-        sig = md['signal']
-        col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
-        sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
-        parts    = sig_text.split("：")
-        sig_main = parts[0] if parts else sig_text
-        sig_desc = parts[1] if len(parts) > 1 else ""
-
-        # ── HERO BILLBOARD ──
-        st.markdown(f"""
+                # Get latest and previous values
+                if len(g_df) > 1:
+                    current = g_df.iloc[-1]
+                    prev = g_df.iloc[-2]
+                    
+                    # Display Global Metrics in 4 columns
+                    c1, c2, c3, c4 = st.columns(4)
+                    
+                    with c1:
+                        spx = current.get("^GSPC", None)
+                        spx_prev = prev.get("^GSPC", None)
+                        if spx is not None and spx_prev is not None and not pd.isna(spx):
+                            delta = (spx - spx_prev) / spx_prev if spx_prev != 0 else 0
+                            st.metric("🇺🇸 S&P 500", f"{spx:,.0f}", f"{delta:.2%}")
+                        else:
+                            st.metric("🇺🇸 S&P 500", "N/A", "0.00%")
+                    
+                    with c2:
+                        twd = current.get("TWD=X", None)
+                        twd_prev = prev.get("TWD=X", None)
+                        if twd is not None and twd_prev is not None and not pd.isna(twd):
+                            delta = (twd - twd_prev) / twd_prev if twd_prev != 0 else 0
+                            st.metric("🇹🇼 USD/TWD", f"{twd:.3f}", f"{delta:.2%}", delta_color="inverse")
+                        else:
+                            st.metric("🇹🇼 USD/TWD", "N/A", "0.00%")
+                    
+                    with c3:
+                        dxy = current.get("DX-Y.NYB", None)
+                        dxy_prev = prev.get("DX-Y.NYB", None)
+                        if dxy is not None and dxy_prev is not None and not pd.isna(dxy):
+                            delta = (dxy - dxy_prev) / dxy_prev if dxy_prev != 0 else 0
+                            st.metric("💵 DXY", f"{dxy:.2f}", f"{delta:.2%}", delta_color="inverse")
+                        else:
+                            st.metric("💵 DXY", "N/A", "0.00%")
+                    
+                    with c4:
+                        vix = current.get("^VIX", None)
+                        vix_prev = prev.get("^VIX", None)
+                        if vix is not None and not pd.isna(vix):
+                            delta = (vix - vix_prev) if vix_prev is not None else 0
+                            vix_col = "inverse" if delta < 0 else "normal"
+                            st.metric("🌪️ VIX", f"{vix:.2f}", f"{delta:+.2f}", delta_color=vix_col)
+                        else:
+                            vix = 20.0  # Fallback
+                            st.metric("🌪️ VIX", f"{vix:.2f}", "N/A")
+                    
+                    st.divider()
+                    
+                    # ═══════════════════════════════════════════════════════════════
+                    # VIX-Based Signal Logic (No CB Required)
+                    # ═══════════════════════════════════════════════════════════════
+                    _sec_header("🚦", "宏觀風控儀表", "MACRO HUD")
+                    
+                    # Determine Signal based on VIX
+                    if vix < 15:
+                        sig, sig_text = "GREEN_LIGHT", "🟢 綠燈：積極進攻"
+                    elif vix < 20:
+                        sig, sig_text = "YELLOW_LIGHT", "🟡 黃燈：區間操作"
+                    else:
+                        sig, sig_text = "RED_LIGHT", "🔴 紅燈：現金為王"
+                    
+                    col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
+                    parts = sig_text.split("：")
+                    sig_main = parts[0] if parts else sig_text
+                    sig_desc = parts[1] if len(parts) > 1 else ""
+                    
+                    # Hero Billboard
+                    st.markdown(f"""
 <div class="hero-container" style="--hero-color:{col};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
   <div style="display:inline-flex;align-items:center;margin-bottom:6px;">
     <span class="hero-pulse" style="--hero-color:{col};--hero-rgb:{rgb};"></span>
@@ -969,46 +1001,48 @@ def render_1_1_hud():
   <div class="hero-subtitle">{sig_desc}</div>
   <div class="hero-badge">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
 </div>""", unsafe_allow_html=True)
-
-        # [UPGRADE #2] Toast for signal
-        st.toast(f"{sig_main} — {sig_desc}", icon="🚦")
-
-        # ── 4-KPI ROW ──────────────────────────────────────────────────────
-        vix      = md['vix']
-        pr90     = md['price_distribution']['pr90']
-        ptt      = md['ptt_ratio']
-        ptt_txt  = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
-        vix_col  = "#FF3131" if vix > 30 else "#FFD700" if vix > 20 else "#00FF7F"
-        pr90_col = "#FF3131" if pr90 > 130 else "#FFD700" if pr90 > 115 else "#00F5FF"
-        ptt_col  = "#FF3131" if (ptt != -1.0 and ptt > 50) else "#00FF7F"
-
-        _kpi_row(
-            ("SIGNAL",   sig_main,      sig_desc,               col),
-            ("VIX",      f"{vix:.2f}",  ">30 DANGER · >20 WARN", vix_col),
-            ("PR90",     f"{pr90:.1f}", ">130 OVERHEATED",        pr90_col),
-            ("PTT BEAR", ptt_txt,       ">50% RED SIGNAL",        ptt_col),
-        )
-
-        # [UPGRADE #3] Typewriter for HUD summary
-        hud_summary = (
-            f"【戰情總覽】信號燈：{sig_text}。"
-            f"VIX 恐慌指數 {vix:.2f}{'⚠️ 警戒' if vix > 20 else ' 正常'}。"
-            f"PR90 籌碼壓力 {pr90:.1f}{'🔴 過熱' if pr90 > 130 else ' 正常'}。"
-            f"PTT 散戶看空比 {ptt_txt}。"
-        )
-        if 'hud_streamed' not in st.session_state:
-            st.write_stream(_stream_text(hud_summary, speed=0.015))
-            st.session_state['hud_streamed'] = True
-        else:
-            st.caption(hud_summary)
-
-        # ── TSE DEEP-DIVE ──────────────────────────────────────────────────
-        tse     = md['tse_analysis']
-        deducts = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
-        st.markdown(f"""
-<div style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.052);border-radius:16px;padding:18px 20px 16px;margin-top:4px;">
+                    
+                    # Toast notification
+                    st.toast(f"{sig_main} — {sig_desc}", icon="🚦")
+                    
+                    # VIX Analysis Cards
+                    vix_col = "#FF3131" if vix > 30 else "#FFD700" if vix > 20 else "#00FF7F"
+                    
+                    _kpi_row(
+                        ("SIGNAL", sig_main, sig_desc, col),
+                        ("VIX", f"{vix:.2f}", ">30 DANGER · >20 WARN", vix_col),
+                        ("MARKET", "GLOBAL", "No CB File Needed", "#00F5FF"),
+                    )
+                    
+                    # Typewriter Summary
+                    hud_summary = (
+                        f"【全域戰情總覽】信號燈：{sig_text}。"
+                        f"VIX 恐慌指數 {vix:.2f}{'⚠️ 警戒' if vix > 20 else ' ✅ 正常'}。"
+                        f"S&P 500 {spx:,.0f if spx and not pd.isna(spx) else 'N/A'}。"
+                        f"美元指數 DXY {dxy:.2f if dxy and not pd.isna(dxy) else 'N/A'}。"
+                    )
+                    if 'hud_streamed' not in st.session_state:
+                        st.write_stream(_stream_text(hud_summary, speed=0.015))
+                        st.session_state['hud_streamed'] = True
+                    else:
+                        st.caption(hud_summary)
+                    
+                    # Optional: Show CB-dependent analysis if available
+                    df = st.session_state.get('df', pd.DataFrame())
+                    if not df.empty:
+                        st.info("💡 檢測到 CB 清單，顯示進階分析...")
+                        macro, _, _ = _load_engines()
+                        df_hash = f"{len(df)}_{list(df.columns)}"
+                        md = _get_macro_data(macro, df_hash)
+                        
+                        # TSE Deep-Dive (if CB exists)
+                        tse = md.get('tse_analysis', {})
+                        if tse:
+                            deducts = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
+                            st.markdown(f"""
+<div style="background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.052);border-radius:16px;padding:18px 20px 16px;margin-top:16px;">
   <div style="font-family:var(--f-mono);font-size:8px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:13px;">
-    🇹🇼 Taiwan Weighted Index — Deep Analysis
+    🇹🇼 Taiwan Weighted Index — CB Deep Analysis
   </div>
   <div class="tse-grid">
     <div class="tse-chip">
@@ -1032,13 +1066,17 @@ def render_1_1_hud():
   </div>
   <div class="tse-deduct">扣抵與斜率 — {deducts}</div>
 </div>""", unsafe_allow_html=True)
+                
+                else:
+                    st.warning("⚠️ 數據不足，請稍後重試")
+        
+        except Exception as e:
+            st.error(f"❌ 全域數據獲取失敗: {e}")
+            import traceback
+            with st.expander("🔍 錯誤追蹤"):
+                st.code(traceback.format_exc())
 
-    else:
-        st.markdown("""
-<div class="hero-container">
-  <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
-  <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
-</div>""", unsafe_allow_html=True)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
