@@ -3301,7 +3301,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
                      alt.Tooltip("推算目標價:Q", format=".2f"),
                      alt.Tooltip("溢價折價:Q", format="+.1f")]
         )
-        .properties(height=250, background="rgba(0,0,0,0)",
+        .properties(height=250,
                     title=alt.TitleParams("折現率敏感性 — 水平線=當前市價",
                                           color="#FF6BFF", fontSize=12, font="JetBrains Mono"))
     )
