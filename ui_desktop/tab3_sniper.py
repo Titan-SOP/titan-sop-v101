@@ -1317,7 +1317,7 @@ def _t6(ticker, cp):
             tooltip=["折現率", alt.Tooltip("公允價值:Q", format=".2f"),
                      alt.Tooltip("溢價/折價:Q", format="+.1f")]
         )
-        .properties(height=240, background="rgba(0,0,0,0)",
+        .properties(height=240,
                      title=alt.TitleParams("不同折現率下的公允價值（橫線=當前市價）",
                                             color="#FFD700", fontSize=12, font="JetBrains Mono"))
     )
@@ -1325,8 +1325,10 @@ def _t6(ticker, cp):
         color="#00F5FF", strokeDash=[6, 3], strokeWidth=2
     ).encode(y="cp:Q")
 
+    sens_layer = alt.layer(sens_chart, rule).properties(background="rgba(0,0,0,0)")
+
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(sens_chart + rule), use_container_width=True)
+    st.altair_chart(_cfg(sens_layer), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Typewriter 摘要 ───────────────────────────────────────────────────────
