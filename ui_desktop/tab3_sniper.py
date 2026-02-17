@@ -2484,32 +2484,32 @@ def _t6(ticker, cp):
     hg_col     = "#FF9A3C" if not is_dcf else "rgba(200,215,230,0.55)"
 
     with mc1:
-        if st.button("💎 DCF 估值  ·  適用已獲利公司", key="mode_dcf", use_container_width=True):
-            st.session_state["val_mode"] = "DCF"
-            st.rerun()
         st.markdown(f"""
 <div style="position:relative;background:{dcf_bg};border:{dcf_border};border-radius:14px;
-    padding:16px 20px;margin-top:-38px;pointer-events:none;z-index:1;">
+    padding:16px 20px;margin-bottom:-48px;pointer-events:none;z-index:1;">
   <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:{dcf_col};letter-spacing:2px;">💎 DCF 現金流折現</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(200,215,230,0.65);margin-top:4px;">
     台積電 · NVIDIA · Apple · 聯發科<br>
     <span style="color:{dcf_col};font-weight:600;">適用：EPS > 0 的獲利公司</span>
   </div>
 </div>""", unsafe_allow_html=True)
+        if st.button("💎 DCF 估值  ·  適用已獲利公司", key="mode_dcf", use_container_width=True):
+            st.session_state["val_mode"] = "DCF"
+            st.rerun()
 
     with mc2:
-        if st.button("🚀 HyperGrowth  ·  適用虧損高速成長", key="mode_hg", use_container_width=True):
-            st.session_state["val_mode"] = "HyperGrowth"
-            st.rerun()
         st.markdown(f"""
 <div style="position:relative;background:{hg_bg};border:{hg_border};border-radius:14px;
-    padding:16px 20px;margin-top:-38px;pointer-events:none;z-index:1;">
+    padding:16px 20px;margin-bottom:-48px;pointer-events:none;z-index:1;">
   <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:{hg_col};letter-spacing:2px;">🚀 HyperGrowth 成長推演</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:13px;color:rgba(200,215,230,0.65);margin-top:4px;">
     QBTS · IONQ · RGTI · ARQQ · RKLB<br>
     <span style="color:{hg_col};font-weight:600;">適用：尚未獲利的超高速成長股</span>
   </div>
 </div>""", unsafe_allow_html=True)
+        if st.button("🚀 HyperGrowth  ·  適用虧損高速成長", key="mode_hg", use_container_width=True):
+            st.session_state["val_mode"] = "HyperGrowth"
+            st.rerun()
 
     st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
 
@@ -4800,17 +4800,12 @@ def render():
             top_line = f'<div style="position:absolute;top:0;left:15%;right:15%;height:2px;background:{accent};border-radius:0 0 2px 2px;opacity:{1 if is_a else 0};"></div>' if is_a else ""
 
             with col:
-                # ── invisible button first (sits under the card visually) ──
-                if st.button(label, key=f"p3_{key}", use_container_width=True):
-                    st.session_state.t3_active = key
-                    st.rerun()
-
-                # ── poster card overlays the button, pointer-events:none ──
+                # ── poster card drawn FIRST (visual layer) ──
                 st.markdown(f"""
 <div style="position:relative;height:128px;background:{bg_c};border:{brd};
     border-radius:14px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:6px;box-shadow:{glow};
-    margin-top:-38px;pointer-events:none;z-index:1;overflow:hidden;">
+    margin-bottom:-56px;pointer-events:none;z-index:1;overflow:hidden;">
   {top_line}
   <div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
@@ -4818,6 +4813,11 @@ def render():
   <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tag_c};
       letter-spacing:2px;text-transform:uppercase;">{tag}</div>
 </div>""", unsafe_allow_html=True)
+
+                # ── invisible button underneath (hit layer) ──
+                if st.button(label, key=f"p3_{key}", use_container_width=True):
+                    st.session_state.t3_active = key
+                    st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
         
