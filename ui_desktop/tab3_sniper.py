@@ -1471,7 +1471,7 @@ def _t5(ticker, cp):
         .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
         .encode(
             x=alt.X("情境:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566",
-                                                         labelFontSize=13, labelFont="Rajdhani")),
+                                                         labelFontSize=15, labelFont="Rajdhani")),
             y=alt.Y("目標價:Q", title="目標股價",
                     axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
                     scale=alt.Scale(zero=False)),
@@ -1482,7 +1482,7 @@ def _t5(ticker, cp):
             height=280,
             background="rgba(0,0,0,0)",
             title=alt.TitleParams(f"ARK 三情境目標價對比 ({int(years)}年後)", color="#FFD700",
-                                   fontSize=12, font="JetBrains Mono")
+                                   fontSize=14, font="JetBrains Mono")
         )
     )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
@@ -1818,7 +1818,7 @@ AI/半導體：0.15～0.40；科技平台：0.10～0.18；傳統產業：0.03～
         sens_chart = (
             alt.Chart(sens_df).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
             .encode(
-                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=12)),
+                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=15)),
                 y=alt.Y("公允價值:Q", title="DCF 公允價值",
                          axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
                          scale=alt.Scale(zero=False)),
@@ -1826,7 +1826,7 @@ AI/半導體：0.15～0.40；科技平台：0.10～0.18；傳統產業：0.03～
                 tooltip=["折現率", alt.Tooltip("公允價值:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
             ).properties(height=240,
                          title=alt.TitleParams("不同折現率下的公允價值（橫線=當前市價）",
-                                                color="#FFD700", fontSize=12, font="JetBrains Mono"))
+                                                color="#FFD700", fontSize=14, font="JetBrains Mono"))
         )
         rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
             color="#00F5FF", strokeDash=[6, 3], strokeWidth=2).encode(y="cp:Q")
@@ -2161,7 +2161,7 @@ SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Fin
         rev_bars = alt.Chart(proj_chart_df).mark_bar(
             cornerRadiusTopLeft=6, cornerRadiusTopRight=6, opacity=0.7, color='#FF9A3C'
         ).encode(
-            x=alt.X('年度:N', sort=None, axis=alt.Axis(labelColor='#888', labelFontSize=13)),
+            x=alt.X('年度:N', sort=None, axis=alt.Axis(labelColor='#888', labelFontSize=15)),
             y=alt.Y('Revenue:Q', title='百萬元', axis=alt.Axis(labelColor='#556677', titleColor='#445566'), scale=alt.Scale(zero=True)),
             tooltip=[alt.Tooltip('年度:N'), alt.Tooltip('Revenue:Q', title='收入', format=',.1f')]
         )
@@ -2178,7 +2178,7 @@ SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Fin
         combo = (rev_bars + ni_line + zero_rule).properties(
             height=260, background='rgba(0,0,0,0)',
             title=alt.TitleParams('年收入（橘柱）與淨利路徑（綠線）— 紅線=損益平衡點',
-                                   color='#FF9A3C', fontSize=12, font='JetBrains Mono')
+                                   color='#FF9A3C', fontSize=14, font='JetBrains Mono')
         )
         st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
         st.altair_chart(_cfg(combo), use_container_width=True)
@@ -2203,14 +2203,14 @@ SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Fin
         hg_sens_chart = (
             alt.Chart(hg_sens_df).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
             .encode(
-                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=12)),
+                x=alt.X("折現率:N", sort=None, axis=alt.Axis(labelColor="#778899", titleColor="#445566", labelFontSize=15)),
                 y=alt.Y("推算目標價:Q", title="折現後目標價",
                          axis=alt.Axis(labelColor="#556677", titleColor="#445566"), scale=alt.Scale(zero=False)),
                 color=alt.Color("顏色:N", scale=None),
                 tooltip=["折現率", alt.Tooltip("推算目標價:Q", format=".2f"), alt.Tooltip("溢價/折價:Q", format="+.1f")]
             ).properties(height=240,
                          title=alt.TitleParams("不同折現率下的推算目標價（橫線=當前市價）",
-                                                color="#FF9A3C", fontSize=12, font="JetBrains Mono"))
+                                                color="#FF9A3C", fontSize=14, font="JetBrains Mono"))
         )
         hg_rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
             color="#00F5FF", strokeDash=[6, 3], strokeWidth=2).encode(y="cp:Q")
@@ -2344,7 +2344,7 @@ def _t7(sdf):
         ).encode(x='Date:T', y='Price:Q')
         
         sim_labels = alt.Chart(sim[sim['Label'] != 'Origin']).mark_text(
-            dy=-30, color='#FF6BFF', fontSize=12, fontWeight='bold'
+            dy=-30, color='#FF6BFF', fontSize=14, fontWeight='bold'
         ).encode(x='Date:T', y='Price:Q', text='Label')
         
         chart_combined = chart_combined + sim_line + sim_points + sim_labels
@@ -2982,7 +2982,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         .encode(
             x=alt.X("情境:N", sort=None,
                     axis=alt.Axis(labelColor="#778899", titleColor="#445566",
-                                  labelFontSize=12, labelFont="Rajdhani")),
+                                  labelFontSize=15, labelFont="Rajdhani")),
             y=alt.Y("目標價:Q", title="推算目標股價",
                     axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
                     scale=alt.Scale(zero=False)),
@@ -2993,7 +2993,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
             height=280,
             background="rgba(0,0,0,0)",
             title=alt.TitleParams(f"五情境推算目標價對比 ({int(ms_years)}年後折現)",
-                                   color="#FFD700", fontSize=12, font="JetBrains Mono")
+                                   color="#FFD700", fontSize=14, font="JetBrains Mono")
         )
     )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
@@ -3072,7 +3072,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         opacity=0.65, color='#FF9A3C'
     ).encode(
         x=alt.X('年度:N', sort=None,
-                axis=alt.Axis(labelColor='#888', labelFontSize=13, labelFont='Rajdhani')),
+                axis=alt.Axis(labelColor='#888', labelFontSize=15, labelFont='Rajdhani')),
         y=alt.Y('Revenue:Q', title='百萬美元',
                 axis=alt.Axis(labelColor='#556677', titleColor='#445566'),
                 scale=alt.Scale(zero=True)),
@@ -3095,7 +3095,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
     combo_ms = (rev_b + ebitda_l + zero_l).resolve_scale(y='independent').properties(
         height=270, background='rgba(0,0,0,0)',
         title=alt.TitleParams('收入路徑（橘柱）× EBITDA（綠線）· 紅線=損益平衡',
-                               color='#FF9A3C', fontSize=12, font='JetBrains Mono')
+                               color='#FF9A3C', fontSize=14, font='JetBrains Mono')
     )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
     st.altair_chart(_cfg(combo_ms), use_container_width=True)
@@ -3247,7 +3247,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
         .encode(
             x=alt.X("類別:N", sort=None,
-                    axis=alt.Axis(labelColor="#778899", labelFontSize=12, labelFont="Rajdhani")),
+                    axis=alt.Axis(labelColor="#778899", labelFontSize=15, labelFont="Rajdhani")),
             y=alt.Y("滲透率%:Q", title="市場滲透率 (%)",
                     axis=alt.Axis(labelColor="#556677", titleColor="#445566")),
             color=alt.Color("顏色:N", scale=None),
@@ -3255,7 +3255,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         )
         .properties(height=240, background="rgba(0,0,0,0)",
                     title=alt.TitleParams("TAM 滲透率對比（現在 vs 市值隱含 vs 10%目標）",
-                                          color="#00FF7F", fontSize=12, font="JetBrains Mono"))
+                                          color="#00FF7F", fontSize=14, font="JetBrains Mono"))
     )
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
     st.altair_chart(_cfg(tam_ch), use_container_width=True)
@@ -3292,7 +3292,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
         .encode(
             x=alt.X("折現率:N", sort=None,
-                    axis=alt.Axis(labelColor="#778899", labelFontSize=12)),
+                    axis=alt.Axis(labelColor="#778899", labelFontSize=15)),
             y=alt.Y("推算目標價:Q", title="折現後目標價",
                     axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
                     scale=alt.Scale(zero=False)),
@@ -3303,7 +3303,7 @@ color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
         )
         .properties(height=250,
                     title=alt.TitleParams("折現率敏感性 — 水平線=當前市價",
-                                          color="#FF6BFF", fontSize=12, font="JetBrains Mono"))
+                                          color="#FF6BFF", fontSize=14, font="JetBrains Mono"))
     )
     ms_rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
         color="#00F5FF", strokeDash=[6, 3], strokeWidth=2
