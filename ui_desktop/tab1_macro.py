@@ -50,8 +50,11 @@ def _show_tactical_guide():
 **🚦 1.1 風控儀表 (MACRO HUD)**
 三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。
 
-**🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈 / 🗺️ 1.4 族群熱度**
-高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖 + 族群資金流向，一眼判斷主力資金去向。
+**🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈**
+高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖即時呈現全市場 CB 籌碼壓力，PR90 過熱線精準辨識危險區。
+
+**🔥 1.4 族群熱度 (SECTOR MAP)**
+台股 11 大族群 × 動態熱力矩陣 — 一眼辨識哪個板塊在吸金、哪個板塊在失血。結合近 3 個月相對強度與資金輪動信號，精準鎖定主力進駐的族群。
 
 **💹 1.5 成交重心 / 👑 1.6 趨勢雷達**
 全市場 TOP 100 成交重心即時掃描 + 高價權值股趨勢追蹤，附帶 87MA 扣抵預測與亞當理論反射路徑。
@@ -85,7 +88,7 @@ SUB_MODULES = [
     ("1.1", "🚦", "風控儀表",  "MACRO HUD"),
     ("1.2", "🌡️", "多空溫度",  "THERMO"),
     ("1.3", "📊", "籌碼分佈",  "PR90"),
-    ("1.4", "🗺️", "族群熱度",  "HEATMAP"),
+    ("1.4", "🔥", "族群熱度",  "SECTOR MAP"),
     ("1.5", "💹", "成交重心",  "VOLUME"),
     ("1.6", "👑", "趨勢雷達",  "RADAR"),
     ("1.7", "🎯", "台指獵殺",  "PREDATOR"),
@@ -1160,184 +1163,372 @@ def render_1_3_pr90():
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_1_4_heatmap():  # Keep function name for compatibility
+def render_1_4_heatmap():
     """
-    🌊 GLOBAL LIQUIDITY TIDES (全球資金潮汐)
-    Monitor interest rates, currencies, and real assets flow direction
+    🔥 1.4 台股族群熱度矩陣 (SECTOR HEAT MAP)
+    11大族群 × 動態資金輪動偵測 — 第一性原則重建
+    Data: yfinance 抓取族群代理 ETF + 個股，計算 3M 相對強度 × 近期動能
     """
-    st.markdown("### 🌊 全球資金潮汐 (Global Liquidity Tides)")
-    st.caption("監測 [利率]、[匯率] 與 [實體資產] 的資金流動方向")
+    _sec_header("🔥", "台股族群熱度矩陣", "SECTOR HEAT MAP")
 
-    # 1. Manual Trigger (Lazy Loading)
-    if not st.session_state.get('tides_active', False):
-        if st.button("🔄 啟動潮汐偵測 (Scan Liquidity)", key="btn_tides", 
-                     use_container_width=True, type="primary"):
-            st.session_state.tides_active = True
-            st.rerun()
+    # ── Sector CSS injected once ──────────────────────────────────────────────
+    st.markdown("""
+<style>
+/* SECTOR HEAT MAP — extra styles */
+.sector-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 18px 0 24px;
+}
+.sector-card {
+    position: relative;
+    border-radius: 18px;
+    padding: 20px 16px 16px;
+    border: 1px solid rgba(255,255,255,0.065);
+    background: rgba(255,255,255,0.018);
+    overflow: hidden;
+    transition: transform .2s cubic-bezier(.25,.8,.25,1), box-shadow .2s ease;
+    cursor: default;
+}
+.sector-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.55);
+}
+.sector-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%,
+        var(--sc-glow) 0%, transparent 65%);
+    pointer-events: none;
+}
+.sc-rank {
+    position: absolute; top: 10px; right: 14px;
+    font-family: var(--f-display); font-size: 40px; font-weight: 900;
+    color: rgba(255,255,255,0.04); line-height: 1;
+}
+.sc-emoji { font-size: 30px; line-height: 1; margin-bottom: 10px; }
+.sc-name {
+    font-family: var(--f-body); font-size: 16px; font-weight: 700;
+    color: #DDE; margin-bottom: 4px; letter-spacing: 0.3px;
+}
+.sc-ticker {
+    font-family: var(--f-mono); font-size: 9px; color: #445566;
+    letter-spacing: 2px; margin-bottom: 14px; text-transform: uppercase;
+}
+.sc-change {
+    font-family: var(--f-display); font-size: 42px; line-height: 1;
+    font-weight: 900; margin-bottom: 4px;
+}
+.sc-bar-bg {
+    height: 4px; border-radius: 3px; background: rgba(255,255,255,0.05);
+    margin-top: 12px; overflow: hidden;
+}
+.sc-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: var(--sc-color);
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.sc-signal {
+    font-family: var(--f-mono); font-size: 9px; font-weight: 700;
+    letter-spacing: 2px; margin-top: 8px; text-transform: uppercase;
+    color: var(--sc-color);
+}
+/* Top heat glow strip */
+.heat-strip {
+    height: 3px; border-radius: 3px;
+    background: linear-gradient(90deg, transparent, var(--sc-color) 50%, transparent);
+    position: absolute; top: 0; left: 10%; right: 10%;
+}
+/* Summary banner */
+.sector-summary {
+    border-radius: 16px; padding: 18px 22px;
+    background: rgba(255,255,255,0.018);
+    border: 1px solid rgba(255,255,255,0.055);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 24px;
+    flex-wrap: wrap;
+}
+.ss-item { text-align: center; }
+.ss-label {
+    font-family: var(--f-mono); font-size: 8px; color: #445566;
+    letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 4px;
+}
+.ss-value {
+    font-family: var(--f-display); font-size: 32px; line-height: 1;
+}
+.rotation-badge {
+    margin-left: auto;
+    font-family: var(--f-body); font-size: 14px; font-weight: 700;
+    padding: 10px 20px; border-radius: 24px;
+    border: 1px solid var(--rb-color);
+    color: var(--rb-color);
+    background: rgba(var(--rb-rgb), 0.06);
+    letter-spacing: 0.5px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+    # ── 11 Major Taiwan Sector Proxies (ETF + Indices) ────────────────────────
+    SECTORS = [
+        # (name_zh, ticker, emoji, category)
+        ("半導體",      "2330.TW",  "💎", "科技"),   # TSMC as proxy (dominant)
+        ("電子零組件",  "2317.TW",  "⚡", "科技"),   # Hon Hai / Foxconn
+        ("金融保險",    "2882.TW",  "🏦", "金融"),   # 國泰金
+        ("航運",        "2603.TW",  "🚢", "傳產"),   # 長榮
+        ("電動車/電池", "2308.TW",  "🔋", "科技"),   # Delta Electronics
+        ("鋼鐵",        "2002.TW",  "🏗️", "傳產"),  # 中鋼
+        ("生技醫療",    "4966.TW",  "🧬", "生技"),   # 新景岳 proxy
+        ("光電",        "2474.TW",  "💡", "科技"),   # 可成
+        ("建材營造",    "2882.TW",  "🏠", "傳產"),   # 使用金融作代理 (2882)
+        ("塑化石化",    "1301.TW",  "🛢️", "傳產"), # 台塑
+        ("電信",        "2412.TW",  "📡", "電信"),   # 中華電
+    ]
+    # Override to avoid exact duplicates — use unique proxies
+    SECTORS = [
+        ("半導體",      "2330.TW",  "💎", "科技"),
+        ("電子/電腦",   "2317.TW",  "⚡", "科技"),
+        ("金融保險",    "2882.TW",  "🏦", "金融"),
+        ("航運",        "2603.TW",  "🚢", "傳產"),
+        ("電動車/電池", "2308.TW",  "🔋", "科技"),
+        ("鋼鐵",        "2002.TW",  "🏗️", "傳產"),
+        ("生技醫療",    "4966.TW",  "🧬", "生技"),
+        ("光電",        "2474.TW",  "💡", "科技"),
+        ("塑化石化",    "1301.TW",  "🛢️", "傳產"),
+        ("電信",        "2412.TW",  "📡", "電信"),
+        ("台股大盤",    "^TWII",    "🇹🇼", "指數"),
+    ]
+
+    # ── Trigger button ────────────────────────────────────────────────────────
+    if not st.session_state.get('sector_map_active', False):
+        col_btn, _ = st.columns([1, 2])
+        with col_btn:
+            st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
+            if st.button("🔥  SCAN SECTOR HEAT MAP", key="btn_sector_scan",
+                         use_container_width=True):
+                st.toast("🔥 掃描族群熱度中…", icon="⏳")
+                st.session_state.sector_map_active = True
+                st.session_state.pop('sector_data', None)  # force refresh
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="empty-state"><div class="empty-icon">🔥</div>'
+            '<div class="empty-text">AWAITING SECTOR SCAN COMMAND</div></div>',
+            unsafe_allow_html=True
+        )
         return
 
-    # 2. Data Fetching - 9 Global Assets
-    with st.spinner("📡 正在攔截全球資金訊號..."):
-        try:
-            # Define tickers with friendly names
-            tickers = {
-                "🇺🇸 美債10Y": "^TNX",
-                "🏦 Fed利率(13W)": "^IRX",
-                "💵 美元指數": "DX-Y.NYB",
-                "🇹🇼 台幣匯率": "TWD=X",
-                "🥇 黃金 (Gold)": "GC=F",
-                "🥈 白銀 (Silver)": "SI=F",
-                "🛢️ 原油 (Oil)": "CL=F",
-                "📈 標普500": "^GSPC",
-                "🇹🇼 台股加權": "^TWII"
-            }
-            
-            # Fetch data (last 3 months)
-            ticker_symbols = list(tickers.values())
-            raw_df = yf.download(ticker_symbols, period="3mo", progress=False)
-            
-            # Handle data extraction
-            if 'Close' in raw_df.columns:
-                df = raw_df['Close']
-            else:
-                df = raw_df
-            
-            # Rename columns to friendly names
-            inv_tickers = {v: k for k, v in tickers.items()}
-            df = df.rename(columns=inv_tickers)
-            
-            if df.empty or len(df) < 2:
-                st.error("❌ 無法取得數據，請稍後重試")
+    # ── Fetch & compute ───────────────────────────────────────────────────────
+    if 'sector_data' not in st.session_state:
+        with st.spinner("🛰️  INTERCEPTING SECTOR CAPITAL FLOWS…"):
+            tickers_list = [s[1] for s in SECTORS]
+            try:
+                raw = yf.download(tickers_list, period="3mo",
+                                   auto_adjust=True, progress=False)
+                close_df = raw['Close'] if 'Close' in raw.columns else raw
+
+                results = []
+                for name_zh, ticker, emoji, category in SECTORS:
+                    if ticker not in close_df.columns:
+                        continue
+                    series = close_df[ticker].dropna()
+                    if len(series) < 5:
+                        continue
+
+                    # ── Core metrics (first-principles) ──
+                    price_now   = float(series.iloc[-1])
+                    price_1w    = float(series.iloc[-5])   if len(series) > 5  else price_now
+                    price_1m    = float(series.iloc[-22])  if len(series) > 22 else float(series.iloc[0])
+                    price_3m    = float(series.iloc[0])
+
+                    chg_1w  = (price_now - price_1w)  / price_1w  * 100
+                    chg_1m  = (price_now - price_1m)  / price_1m  * 100
+                    chg_3m  = (price_now - price_3m)  / price_3m  * 100
+
+                    # ── Momentum score (normalized composite) ──
+                    # Weight: 3M=40%, 1M=40%, 1W=20%
+                    momentum = chg_3m * 0.40 + chg_1m * 0.40 + chg_1w * 0.20
+
+                    # ── Signal classification ──
+                    if momentum > 8:    signal = "🔥 強力流入"
+                    elif momentum > 3:  signal = "📈 緩步流入"
+                    elif momentum > -3: signal = "⚖️ 資金持平"
+                    elif momentum > -8: signal = "📉 緩步流出"
+                    else:               signal = "❄️ 大幅流出"
+
+                    results.append({
+                        "name":     name_zh,
+                        "ticker":   ticker,
+                        "emoji":    emoji,
+                        "category": category,
+                        "price":    price_now,
+                        "chg_1w":   chg_1w,
+                        "chg_1m":   chg_1m,
+                        "chg_3m":   chg_3m,
+                        "momentum": momentum,
+                        "signal":   signal,
+                    })
+
+                # Sort by momentum desc
+                results.sort(key=lambda x: x['momentum'], reverse=True)
+                for i, r in enumerate(results):
+                    r['rank'] = i + 1
+
+                st.session_state.sector_data = results
+                st.toast(f"✅ 族群熱度掃描完成！共 {len(results)} 個板塊", icon="🔥")
+            except Exception as e:
+                st.error(f"❌ 族群資料擷取失敗: {e}")
+                st.session_state.sector_map_active = False
                 return
 
-            # 3. Top Row Metrics (4 Key Indicators)
-            latest = df.iloc[-1]
-            prev = df.iloc[-2]
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                # US 10Y Yield (The Anchor)
-                us10y = latest.get("🇺🇸 美債10Y", 0)
-                us10y_prev = prev.get("🇺🇸 美債10Y", 0)
-                us10y_delta = us10y - us10y_prev
-                st.metric("🇺🇸 美債10Y", f"{us10y:.2f}%", f"{us10y_delta:+.2f}%")
-            
-            with col2:
-                # USD/TWD (The Flow)
-                twd = latest.get("🇹🇼 台幣匯率", 0)
-                twd_prev = prev.get("🇹🇼 台幣匯率", 1)
-                twd_delta = (twd - twd_prev) / twd_prev if twd_prev != 0 else 0
-                st.metric("🇹🇼 USD/TWD", f"{twd:.3f}", f"{twd_delta:.2%}", delta_color="inverse")
-            
-            with col3:
-                # Gold (The Hedge)
-                gold = latest.get("🥇 黃金 (Gold)", 0)
-                gold_prev = prev.get("🥇 黃金 (Gold)", 1)
-                gold_delta = (gold - gold_prev) / gold_prev if gold_prev != 0 else 0
-                st.metric("🥇 黃金", f"${gold:,.0f}", f"{gold_delta:.2%}")
-            
-            with col4:
-                # Oil (The Inflation)
-                oil = latest.get("🛢️ 原油 (Oil)", 0)
-                oil_prev = prev.get("🛢️ 原油 (Oil)", 1)
-                oil_delta = (oil - oil_prev) / oil_prev if oil_prev != 0 else 0
-                st.metric("🛢️ 原油", f"${oil:.2f}", f"{oil_delta:.2%}")
+    results = st.session_state.get('sector_data', [])
+    if not results:
+        st.toast("⚠️ 無有效族群數據", icon="⚡")
+        return
 
-            # 4. Yield Curve Warning (The Siren)
-            st.divider()
-            us10y_val = latest.get("🇺🇸 美債10Y", 0)
-            fed13w_val = latest.get("🏦 Fed利率(13W)", 0)
-            spread = us10y_val - fed13w_val
-            
-            if spread < 0:
-                st.error(
-                    f"🔴 **嚴重警訊：殖利率曲線倒掛 (Inverted)** | "
-                    f"利差: {spread:.2f}% (市場預期衰退/降息)"
-                )
-            else:
-                st.success(
-                    f"🟢 **資金結構正常 (Normal Curve)** | "
-                    f"利差: {spread:.2f}% (利於長期投資)"
-                )
+    # ── Refresh button ────────────────────────────────────────────────────────
+    col_ref, _ = st.columns([1, 4])
+    with col_ref:
+        st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
+        if st.button("🔄  重新掃描", key="btn_sector_refresh"):
+            st.session_state.pop('sector_data', None)
+            st.toast("🔄 重新掃描中…", icon="⏳")
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-            # 5. The Battle Map (Normalized Trend Chart)
-            st.divider()
-            st.markdown("#### ⚔️ 資產走勢對決 (Normalized 3-Month Comparison)")
-            st.caption("所有資產標準化至起始點 0%，顯示相對漲跌幅")
-            
-            # Default selection (must exist in columns)
-            default_cols = ["🇺🇸 美債10Y", "🇹🇼 台幣匯率", "🥇 黃金 (Gold)", "🇹🇼 台股加權"]
-            default_cols = [c for c in default_cols if c in df.columns]
-            
-            # Multi-select for asset comparison
-            selected_assets = st.multiselect(
-                "選擇對比資產 (Select Assets):",
-                options=df.columns.tolist(),
-                default=default_cols,
-                key="tides_multiselect"
-            )
-            
-            if selected_assets:
-                # Normalize: (Price / Start_Price - 1) * 100
-                norm_df = df[selected_assets].copy()
-                for col in norm_df.columns:
-                    if norm_df[col].iloc[0] != 0:
-                        norm_df[col] = (norm_df[col] / norm_df[col].iloc[0] - 1) * 100
-                
-                # Create Plotly line chart
-                fig = px.line(
-                    norm_df,
-                    x=norm_df.index,
-                    y=norm_df.columns,
-                    markers=False,
-                    labels={"value": "相對漲跌幅 (%)", "variable": "資產"}
-                )
-                
-                fig.update_layout(
-                    template="plotly_dark",
-                    height=480,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(8,12,18,0.6)',
-                    font=dict(family='Rajdhani', size=12, color='#B0C0D0'),
-                    hovermode="x unified",
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="center",
-                        x=0.5,
-                        bgcolor='rgba(0,0,0,0.3)',
-                        bordercolor='rgba(255,255,255,0.1)',
-                        borderwidth=1
-                    ),
-                    xaxis=dict(
-                        showgrid=True,
-                        gridcolor='rgba(255,255,255,0.05)',
-                        zeroline=False
-                    ),
-                    yaxis=dict(
-                        showgrid=True,
-                        gridcolor='rgba(255,255,255,0.05)',
-                        zeroline=True,
-                        zerolinecolor='rgba(255,215,0,0.3)',
-                        zerolinewidth=2
-                    ),
-                    margin=dict(l=20, r=20, t=60, b=20)
-                )
-                
-                st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                st.info("💡 請至少選擇一個資產進行對比")
+    # ── Summary KPI Row ───────────────────────────────────────────────────────
+    hot_sectors  = [r for r in results if r['momentum'] > 3]
+    cold_sectors = [r for r in results if r['momentum'] < -3]
+    best         = results[0]
+    worst        = results[-1]
+    avg_mom      = sum(r['momentum'] for r in results) / len(results)
 
-        except Exception as e:
-            st.error(f"❌ Tides System Failure: {e}")
-            import traceback
-            with st.expander("🔍 Debug Trace"):
-                st.code(traceback.format_exc())
+    # Rotation signal
+    if avg_mom > 5:      rb_label, rb_col, rb_rgb = "🚀 全面進攻期", "#00FF7F", "0,255,127"
+    elif avg_mom > 0:    rb_label, rb_col, rb_rgb = "📈 資金緩步入市", "#FFD700", "255,215,0"
+    elif avg_mom > -5:   rb_label, rb_col, rb_rgb = "⚖️ 資金觀望輪動", "#00F5FF", "0,245,255"
+    else:                rb_label, rb_col, rb_rgb = "❄️ 全面撤退期", "#FF3131", "255,49,49"
 
+    _kpi_row(
+        ("HOT SECTORS",  str(len(hot_sectors)),  f"動能 > +3% 族群",            "#FF3131"),
+        ("COLD SECTORS", str(len(cold_sectors)), f"動能 < −3% 族群",            "#26A69A"),
+        ("TOP SECTOR",   best['emoji'],          f"{best['name']} {best['chg_3m']:+.1f}%", "#FFD700"),
+        ("AVG MOMENTUM", f"{avg_mom:+.1f}",      rb_label,                      rb_col),
+    )
+
+    # ── HEAT GRID — 11 Sector Cards ───────────────────────────────────────────
+    st.markdown('<div class="sector-grid">', unsafe_allow_html=True)
+    cards_html = ""
+    for r in results:
+        mom = r['momentum']
+        chg_display = r['chg_3m']  # 3-month as headline change
+
+        # Color mapping: heat → red, cold → teal, neutral → gold
+        if mom > 8:    sc_color, sc_rgb, sc_glow_a = "#FF3131", "255,49,49",   "0.15"
+        elif mom > 3:  sc_color, sc_rgb, sc_glow_a = "#FF8C42", "255,140,66",  "0.10"
+        elif mom > 0:  sc_color, sc_rgb, sc_glow_a = "#FFD700", "255,215,0",   "0.08"
+        elif mom > -3: sc_color, sc_rgb, sc_glow_a = "#00F5FF", "0,245,255",   "0.06"
+        elif mom > -8: sc_color, sc_rgb, sc_glow_a = "#26A69A", "38,166,154",  "0.08"
+        else:          sc_color, sc_rgb, sc_glow_a = "#6C757D", "108,117,125", "0.04"
+
+        # Bar width: normalize momentum to 0–100%
+        bar_w = min(100, max(3, (mom + 20) / 40 * 100))
+
+        # Arrow for display
+        arrow = "▲" if chg_display >= 0 else "▼"
+        chg_color = sc_color
+
+        cards_html += f"""
+<div class="sector-card" style="--sc-color:{sc_color};--sc-glow:rgba({sc_rgb},{sc_glow_a});">
+  <div class="heat-strip"></div>
+  <div class="sc-rank">{r['rank']}</div>
+  <div class="sc-emoji">{r['emoji']}</div>
+  <div class="sc-name">{r['name']}</div>
+  <div class="sc-ticker">{r['ticker']} · {r['category']}</div>
+  <div class="sc-change" style="color:{chg_color};">{arrow}{abs(chg_display):.1f}%</div>
+  <div style="font-family:var(--f-mono);font-size:9px;color:#445566;letter-spacing:1px;margin-top:2px;">
+    1W: <span style="color:{sc_color};">{r['chg_1w']:+.1f}%</span>
+    &nbsp;·&nbsp;
+    1M: <span style="color:{sc_color};">{r['chg_1m']:+.1f}%</span>
+  </div>
+  <div class="sc-bar-bg">
+    <div class="sc-bar-fill" style="width:{bar_w:.0f}%;"></div>
+  </div>
+  <div class="sc-signal">{r['signal']}</div>
+</div>"""
+
+    st.markdown(cards_html + '</div>', unsafe_allow_html=True)
+
+    # ── Plotly Horizontal Bar — Momentum Ranking ──────────────────────────────
+    st.markdown(
+        '<div style="font-family:var(--f-display);font-size:20px;color:#00F5FF;'
+        'letter-spacing:3px;margin:20px 0 8px;">MOMENTUM RANKING  ·  3-MONTH</div>',
+        unsafe_allow_html=True
+    )
+
+    sorted_results = sorted(results, key=lambda x: x['momentum'])
+    names  = [f"{r['emoji']} {r['name']}" for r in sorted_results]
+    moms   = [r['momentum'] for r in sorted_results]
+    colors = []
+    for m in moms:
+        if m > 8:    colors.append("#FF3131")
+        elif m > 3:  colors.append("#FF8C42")
+        elif m > 0:  colors.append("#FFD700")
+        elif m > -3: colors.append("#00F5FF")
+        elif m > -8: colors.append("#26A69A")
+        else:        colors.append("#556677")
+
+    fig = go.Figure(go.Bar(
+        x=moms, y=names,
+        orientation='h',
+        marker=dict(color=colors, line=dict(width=0)),
+        text=[f"{m:+.1f}%" for m in moms],
+        textposition='outside',
+        textfont=dict(family='JetBrains Mono', size=11, color='rgba(180,200,220,0.7)'),
+        hovertemplate='%{y}<br>動能分數: %{x:+.2f}%<extra></extra>'
+    ))
+    fig.add_vline(x=0, line_color='rgba(255,215,0,0.35)', line_width=2)
+    fig.update_layout(
+        height=max(320, len(sorted_results) * 36),
+        template="plotly_dark",
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,12,18,0.5)',
+        font=dict(family='JetBrains Mono', color='#667788'),
+        margin=dict(l=10, r=80, t=12, b=12),
+        xaxis=dict(
+            showgrid=True, gridcolor='rgba(255,255,255,0.04)',
+            zeroline=False, title_text='',
+            tickfont=dict(color='#334455')
+        ),
+        yaxis=dict(showgrid=False, tickfont=dict(color='#8899AA', size=13)),
+        bargap=0.28,
+    )
+    st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Rotation Intel (Typewriter) ───────────────────────────────────────────
+    rotation_text = (
+        f"【族群資金輪動偵測】市場整體動能指數 {avg_mom:+.1f}%，判定：{rb_label}。\n"
+        f"最強族群：{best['emoji']} {best['name']} (3M {best['chg_3m']:+.1f}%，{best['signal']})。\n"
+        f"最弱族群：{worst['emoji']} {worst['name']} (3M {worst['chg_3m']:+.1f}%，{worst['signal']})。\n"
+        f"共 {len(hot_sectors)} 個族群資金流入 / {len(cold_sectors)} 個族群資金流出。操作建議：聚焦 TOP 3 族群，迴避末 3 族群。"
+    )
+    cache_key = f"sector_streamed_{len(results)}_{best['ticker']}"
+    if cache_key not in st.session_state:
+        st.write_stream(_stream_text(rotation_text, speed=0.012))
+        st.session_state[cache_key] = True
+    else:
+        st.markdown(
+            f'<div style="font-family:var(--f-mono);font-size:11px;color:rgba(180,200,220,0.55);'
+            f'line-height:1.8;padding:10px 0;">{rotation_text}</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown(
+        f'<div class="titan-foot">Sector Heat Map V300 &nbsp;·&nbsp; '
+        f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>',
+        unsafe_allow_html=True
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1528,7 +1719,7 @@ _POSTER_ACCENT = {
     "1.1": "#00F5FF",
     "1.2": "#FF6B6B",
     "1.3": "#FFD700",
-    "1.4": "#00FF7F",
+    "1.4": "#FF5722",
     "1.5": "#FFA07A",
     "1.6": "#9370DB",
     "1.7": "#FF3131",
