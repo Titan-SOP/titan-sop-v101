@@ -597,19 +597,22 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str):
     for need in ["Holder","Shares","Value","PctHeld"]:
         if need not in hdf.columns: hdf[need]=None
     hdf=hdf.head(10)
+    # Normalize numeric columns: unwrap any numpy scalars, then coerce to float
+    for _nc in ["Shares","Value","PctHeld"]:
+        hdf[_nc] = pd.to_numeric(
+            hdf[_nc].apply(lambda x: x.item() if hasattr(x,"item") else x),
+            errors="coerce"
+        )
 
     _sec28("TOP 10 INSTITUTIONAL HOLDERS")
     rank_colors=["#FFD700","#C0C0C0","#CD7F32"]+["#B77DFF"]*7
     for i,(_,row) in enumerate(hdf.iterrows()):
         holder=str(row.get("Holder","Unknown")); shares=row.get("Shares"); value=row.get("Value"); pct=row.get("PctHeld")
         rc=rank_colors[i]
-        # Convert to scalar to avoid pandas Series ambiguity
-        try: shares = float(shares) if shares is not None and not pd.isna(shares) else None
-        except: shares = None
-        try: value = float(value) if value is not None and not pd.isna(value) else None
-        except: value = None
-        try: pct = float(pct) if pct is not None and not pd.isna(pct) else None
-        except: pct = None
+        # Values are already float or NaN after normalization
+        shares = float(shares) if shares is not None and not (isinstance(shares, float) and pd.isna(shares)) else None
+        value  = float(value)  if value  is not None and not (isinstance(value,  float) and pd.isna(value))  else None
+        pct    = float(pct)    if pct    is not None and not (isinstance(pct,    float) and pd.isna(pct))    else None
         sh_s=(f"{shares/1e9:.2f}B" if shares and shares>1e9 else f"{shares/1e6:.1f}M" if shares and shares>1e6 else f"{int(shares):,}" if shares else "N/A")
         vl_s=(f"${value/1e9:.2f}B" if value and value>1e9 else f"${value/1e6:.0f}M" if value and value>1e6 else "N/A")
         pc_s=(f"{pct*100:.2f}%" if pct is not None and pct < 1 else f"{pct:.2f}%" if pct is not None else "—")
@@ -619,9 +622,7 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str):
     _sec28("HOLDER CONCENTRATION CHART")
     ca_col,cb_col=st.columns([1,1])
     with ca_col:
-        pct_data=hdf[["Holder","PctHeld"]].copy()
-        pct_data["PctHeld"]=pd.to_numeric(pct_data["PctHeld"],errors="coerce")
-        pct_data=pct_data.dropna().head(5)
+        pct_data=hdf[["Holder","PctHeld"]].dropna().head(5)
         if len(pct_data)>=2:
             st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:9px;color:rgba(183,125,255,.3);letter-spacing:3px;margin-bottom:6px;">DONUT — TOP 5 BY % HELD</div>',unsafe_allow_html=True)
             donut=alt.Chart(pct_data).mark_arc(innerRadius=45,outerRadius=110).encode(theta=alt.Theta("PctHeld:Q"),color=alt.Color("Holder:N",scale=alt.Scale(range=["#B77DFF","#00F5FF","#FFD700","#00FF7F","#FF9A3C"]),legend=alt.Legend(labelColor="#aaa",titleColor="#aaa",labelFontSize=10)),tooltip=["Holder:N",alt.Tooltip("PctHeld:Q",format=".4f")]).properties(background="transparent",height=260).configure_view(strokeOpacity=0)
@@ -629,9 +630,7 @@ def _s55(holders: pd.DataFrame, info: dict, symbol: str):
         else:
             st.info("持股比例數據不足。")
     with cb_col:
-        sh_data=hdf[["Holder","Shares"]].copy()
-        sh_data["Shares"]=pd.to_numeric(sh_data["Shares"],errors="coerce")
-        sh_data=sh_data.dropna().head(8)
+        sh_data=hdf[["Holder","Shares"]].dropna().head(8)
         if not sh_data.empty:
             st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:9px;color:rgba(0,245,255,.3);letter-spacing:3px;margin-bottom:6px;">BAR — TOP 8 BY SHARES</div>',unsafe_allow_html=True)
             bar=alt.Chart(sh_data).mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4,opacity=0.85).encode(x=alt.X("Shares:Q",axis=alt.Axis(labelColor="#555",gridColor="#1a1a2a")),y=alt.Y("Holder:N",sort="-x",axis=alt.Axis(labelColor="#aaa",labelLimit=150)),color=alt.Color("Holder:N",scale=alt.Scale(range=["#B77DFF","#8B5CF6","#7C3AED","#6D28D9","#5B21B6","#4C1D95","#3730A3","#312E81"]),legend=None)).properties(background="transparent",height=260).configure_view(strokeOpacity=0)
