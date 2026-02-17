@@ -723,16 +723,31 @@ def _detailed_report(row, title="📄 查看詳細分析報告 (Detailed Report)
 def render_2_0(df):
     """
     Section 2.0: Battlefield Map (Price vs Premium)
+    第一性原則：CB 市場的本質是「風險報酬座標系」。
+    X軸溢價率 = 你為未來轉換權利付出的成本。
+    Y軸市價   = 你現在承擔的資金規模。
+    左下角 = 低成本 + 低風險 = 黃金獵殺區。
     """
     st.markdown("""
-    <div class="hero-container" style="padding:20px; margin-bottom:20px;">
-        <div class="hero-val" style="font-size:40px!important;">🔭 MARKET BATTLEFIELD</div>
-        <div class="hero-lbl">CB 價格與溢價率戰略分佈圖</div>
-    </div>
-    """, unsafe_allow_html=True)
+<div style="padding:20px 24px 18px;margin-bottom:20px;
+            background:linear-gradient(180deg,rgba(10,10,18,0) 0%,rgba(0,0,0,0.75) 100%);
+            border:1px solid rgba(255,255,255,0.07);border-radius:18px;text-align:center;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:4px;
+              color:#FFF;text-shadow:0 0 28px rgba(147,112,219,0.45);">
+    🔭 MARKET BATTLEFIELD MAP
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
+              color:rgba(147,112,219,0.5);letter-spacing:3px;text-transform:uppercase;margin-top:6px;">
+    CB 價格 × 溢價率 × 已轉換比例 — 全市場籌碼座標系
+  </div>
+</div>""", unsafe_allow_html=True)
 
     if df is None or df.empty:
-        st.info("📡 等待 CB 數據上傳... / Waiting for Data Upload")
+        st.markdown(
+            '<div class="t2-empty"><div class="t2-empty-icon">🎯</div>'
+            '<div class="t2-empty-text">Upload CB List to Activate Battlefield Map</div></div>',
+            unsafe_allow_html=True
+        )
         return
 
     # 1. 智能欄位識別 (Smart Column Mapping)
@@ -794,7 +809,7 @@ def render_2_0(df):
         st.warning("⚠️ 找不到名稱欄位，將使用 code 作為標識")
         col_name = 'code' if 'code' in df.columns else cols[0]
     
-    st.success(f"✅ 成功識別欄位：價格={col_price}, 溢價={col_prem}, 名稱={col_name}")
+    # 欄位確認後靜默繼續，無需 toast 成功訊息汙染 UI
     
     # 2. 數據清洗
     try:
@@ -828,6 +843,20 @@ def render_2_0(df):
         st.error(f"❌ 數據解析失敗: {e}")
         st.info(f"問題欄位：價格欄={col_price}, 溢價欄={col_prem}")
         return
+
+    # ─ 第一性原則框架說明 ─────────────────────────────────────────────
+    st.markdown("""
+<div style="background:rgba(0,0,0,0.32);border:1px solid rgba(147,112,219,0.15);
+     border-left:3px solid rgba(147,112,219,0.55);border-radius:14px;
+     padding:14px 20px;margin-bottom:18px;font-family:var(--f-mono);
+     font-size:10px;color:rgba(200,215,230,0.65);line-height:1.9;">
+<span style="color:#9370DB;font-weight:700;letter-spacing:2px;">█ 第一性原則 — 如何讀懂這張戰場地圖？</span><br><br>
+CB 的本質是「債券保底 + 認股期權」的複合體。這張圖把兩個最關鍵的變數攤開：<br>
+→ <span style="color:#00F5FF;">X軸（溢價率）</span>：你為「轉換期權」多付的成本。溢價越低 = 期權越便宜 = 連動性越強。<br>
+→ <span style="color:#FFD700;">Y軸（市價）</span>：你實際需要投入的資金規模。越接近 100 元 = 下行風險越小。<br>
+→ <span style="color:#00FF7F;">左下角青色框（SNIPER ZONE）</span>：同時滿足「低成本」+「低風險」= 風險報酬比最優。<br><br>
+<span style="color:#9370DB;">操作守則：只在 SNIPER ZONE 內尋找標的，其他區域要有明確理由才能考慮。</span>
+</div>""", unsafe_allow_html=True)
 
     # 3. 繪製神級圖表 (God-Tier Plotly)
     # 檢查是否有已轉換比例欄位 (可選)
@@ -922,25 +951,29 @@ def render_2_0(df):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # 4. 瓦爾基里戰情分析 (Typewriter)
-    # 計算簡單統計
-    low_price_cnt = len(plot_df[plot_df[col_price] < 110])
-    low_prem_cnt = len(plot_df[plot_df[col_prem] < 10])
+    # 4. 瓦爾基里戰情分析 (Typewriter) — 有緩存守衛，切換回來不重播
+    low_price_cnt  = len(plot_df[plot_df[col_price] < 110])
+    low_prem_cnt   = len(plot_df[plot_df[col_prem]  < 10])
     sniper_targets = len(plot_df[(plot_df[col_price] < 115) & (plot_df[col_prem] < 10)])
-    
-    analysis_text = f"""
-    [SYSTEM SCAN COMPLETE]
-    --------------------------------------------------
-    目前市場總目標數： {len(plot_df)} 檔
-    --------------------------------------------------
-    🔍 價格偵測 (Price < 110) : {low_price_cnt} 檔位於低位防禦區。
-    🔍 溢價偵測 (Prem < 10%)  : {low_prem_cnt} 檔具備高連動特性。
-    ⚡ 鎖定獵殺目標 (Sniper)  : {sniper_targets} 檔同時符合 [價格<115 + 溢價<10%]。
-    --------------------------------------------------
-    建議策略：請優先檢視左下角 [青色區域] 標的，該區具備最高風險報酬比。
-    """
-    
-    st.write_stream(stream_generator(analysis_text))
+
+    analysis_text = (
+        f"【戰場地圖掃描完成】共收錄 {len(plot_df)} 檔 CB。"
+        f"防禦低位區 (市價<110)：{low_price_cnt} 檔；"
+        f"高連動區 (溢價<10%)：{low_prem_cnt} 檔；"
+        f"⚡ 黃金獵殺區 (市價<115 + 溢價<10%)：{sniper_targets} 檔。"
+        f"操作建議：優先檢視左下角青色框區域標的，風險報酬比最優。"
+    )
+    bfm_key = f"bfm_streamed_{len(plot_df)}"
+    if bfm_key not in st.session_state:
+        st.write_stream(stream_generator(analysis_text))
+        st.session_state[bfm_key] = True
+    else:
+        st.markdown(
+            f'<div style="font-family:var(--f-mono);font-size:11px;'
+            f'color:rgba(180,200,220,0.55);line-height:1.8;padding:8px 0;">'
+            f'{analysis_text}</div>',
+            unsafe_allow_html=True
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -955,6 +988,19 @@ def render_2_1(df: pd.DataFrame):
                     '<div class="t2-empty-text">Upload CB List to Activate Census</div></div>',
                     unsafe_allow_html=True)
         return
+
+    # ── 第一性原則導言 ─────────────────────────────────────────────────────
+    st.markdown("""
+<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(0,245,255,0.12);
+     border-left:3px solid rgba(0,245,255,0.42);border-radius:14px;
+     padding:12px 18px;margin-bottom:16px;font-family:var(--f-mono);
+     font-size:10px;color:rgba(190,210,230,0.6);line-height:1.8;">
+<span style="color:#00F5FF;font-weight:700;letter-spacing:2px;">█ SOP 黃金三角篩選邏輯</span><br>
+→ <span style="color:#FFD700;">價格 &lt;120</span>：確保下行風險可控（100元有轉換保護），溢價空間不過高。<br>
+→ <span style="color:#FFD700;">87MA &gt; 284MA</span>：中期多頭排列確認正股上升動能，CB 轉換價值在持續增長。<br>
+→ <span style="color:#FFD700;">已轉換率 &lt;30%</span>：籌碼乾淨，市場浮籌少，不會被大量轉換壓制。<br>
+三個條件缺一不可，全通過 = 「時間在你這邊」的標的。
+</div>""", unsafe_allow_html=True)
 
     st.caption("此模組執行「全市場雙軌普查 (.TW/.TWO)」，並同步更新全系統連動資料庫。")
 
@@ -1355,15 +1401,17 @@ def render_2_1(df: pd.DataFrame):
                 for l2 in sorted_l2:
                     sub_df = l2_groups.get_group(l2).sort_values('bias', ascending=False)
                     st.markdown(f"**{l2}**")
-                    cols = st.columns(3)
-                    for _, row in sub_df.iterrows():
-                        color = "red" if row['bias'] > 0 else "#00FF00"
-                        st.markdown(
-                            f"<span style='color:{color};font-weight:bold;'>"
-                            f"{row.get('code','')} {row['name']}</span> "
-                            f"<span style='color:#aaa;font-size:.9em;'>({row['bias_label']})</span>",
-                            unsafe_allow_html=True
-                        )
+                    cols_cycle = [col for col in st.columns(3)]
+                    for idx, (_, srow) in enumerate(sub_df.iterrows()):
+                        # 台灣股市慣例：紅＝股價在均線之上（多頭），青綠＝在均線之下（偏弱）
+                        color = "#FF9A3C" if srow['bias'] > 0 else "#26A69A"
+                        with cols_cycle[idx % 3]:
+                            st.markdown(
+                                f"<span style='color:{color};font-weight:bold;'>"
+                                f"{srow.get('code','')} {srow['name']}</span> "
+                                f"<span style='color:#667788;font-size:.9em;'>({srow['bias_label']})</span>",
+                                unsafe_allow_html=True
+                            )
                     st.markdown("---")
 
 
@@ -1435,6 +1483,19 @@ def render_2_3():
         return
 
     scan = st.session_state['scan_results']
+
+    # ── 第一性原則導言 ─────────────────────────────────────────────────────
+    st.markdown("""
+<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,49,49,0.12);
+     border-left:3px solid rgba(255,49,49,0.42);border-radius:14px;
+     padding:12px 18px;margin-bottom:16px;font-family:var(--f-mono);
+     font-size:10px;color:rgba(190,210,230,0.6);line-height:1.8;">
+<span style="color:#FF6B6B;font-weight:700;letter-spacing:2px;">█ 負面表列的第一性原則 — 知道「不能碰誰」比知道「要買誰」更重要</span><br>
+→ <span style="color:#FF9A3C;">籌碼鬆動 (&gt;30% 轉換)</span>：主力已提前兌現，剩餘持有者多為散戶，缺乏支撐。<br>
+→ <span style="color:#FF9A3C;">高溢價 (&gt;20%)</span>：期權成本過高，正股需大漲才能到達獲利點，賠率不佳。<br>
+→ <span style="color:#FF9A3C;">流動性陷阱 (&lt;10張)</span>：進得去，出不來——停損時可能造成大幅滑價損失。
+</div>""", unsafe_allow_html=True)
+
     st.caption("此區塊為「負面表列」清單，旨在警示符合特定風險條件的標的，提醒您「避開誰」。")
 
     conv_col   = 'converted_ratio' if 'converted_ratio' in scan.columns else \
@@ -1504,10 +1565,19 @@ def render_2_3():
                 st.markdown('<div class="t2-warn-ok">✅ 目前無標的觸發「流動性陷阱」警示。</div>',
                             unsafe_allow_html=True)
     else:
-        st.toast(
-            "⚠️ 掃描結果缺少風險分析欄位 (converted_ratio/conv_rate, premium, avg_volume)",
-            icon="⚡"
-        )
+        st.markdown("""
+<div style="border:1px solid rgba(255,215,0,0.22);background:rgba(255,215,0,0.03);
+            border-left:3px solid #FFD700;border-radius:14px;padding:16px 20px;">
+  <div style="font-family:var(--f-body);font-size:15px;font-weight:700;
+              color:#E8C400;margin-bottom:8px;">⚠️ 風險分析欄位缺失</div>
+  <div style="font-family:var(--f-mono);font-size:10px;color:rgba(180,200,220,0.55);line-height:1.8;">
+    掃描結果缺少以下欄位，無法執行風險篩選：<br>
+    · <span style="color:#FF9A3C;">converted_ratio / conv_rate</span>（已轉換比例）<br>
+    · <span style="color:#FF9A3C;">premium</span>（轉換溢價率）<br>
+    · <span style="color:#FF9A3C;">avg_volume</span>（日均成交量）<br><br>
+    解決方案：請確認上傳的 CB 清單包含以上欄位，或於策略引擎 (strategy.py) 中啟用相關計算模組。
+  </div>
+</div>""", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1520,6 +1590,18 @@ def render_2_4():
     if 'scan_results' not in st.session_state or st.session_state['scan_results'].empty:
         st.caption("請先執行本頁上方的掃描以獲取買進建議。")
         return
+
+    # ── 第一性原則導言 ─────────────────────────────────────────────────────
+    st.markdown("""
+<div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,215,0,0.12);
+     border-left:3px solid rgba(255,215,0,0.42);border-radius:14px;
+     padding:12px 18px;margin-bottom:16px;font-family:var(--f-mono);
+     font-size:10px;color:rgba(190,210,230,0.6);line-height:1.8;">
+<span style="color:#FFD700;font-weight:700;letter-spacing:2px;">█ SOP 等權重模型的第一性原則</span><br>
+→ CB 的勝率高但個別彈性有限（大多上限 152 元），等權重比「集中押注」更能穩定累積複利。<br>
+→ 最多同時持有 5 檔，每檔 20%，原因：5 檔以上相關性上升，分散效果邊際遞減。<br>
+→ 剩餘倉位保留現金，等待更好的切入點或市場訊號轉為綠燈再加碼。
+</div>""", unsafe_allow_html=True)
 
     buy_recs = st.session_state['scan_results']
     n_tgts   = len(buy_recs)
@@ -1544,9 +1626,9 @@ def render_2_4():
     with left_col:
         st.markdown(f"""
 <div class="t2-kelly-box">
-  <div class="t2-kelly-lbl">建議投資組合 (Top 5) — 每檔配置</div>
+  <div class="t2-kelly-lbl">等權重配置模型 — Top 5 每檔建議倉位</div>
   <div class="t2-kelly-num">{kelly_pct}<span class="t2-kelly-pct">%</span></div>
-  <div class="t2-kelly-sub">等權重分散 &nbsp;·&nbsp; 原版 20% / 檔模型</div>
+  <div class="t2-kelly-sub">等權重分散 &nbsp;·&nbsp; SOP 20%/檔標準模型 &nbsp;·&nbsp; 5 檔滿倉 = 100%</div>
 </div>""", unsafe_allow_html=True)
 
         port_summary = (
