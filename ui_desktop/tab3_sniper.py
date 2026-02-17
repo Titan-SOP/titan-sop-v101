@@ -1437,130 +1437,621 @@ def _t2(sdf, ticker):
     st.toast("✅ 亞當理論完整推演完成", icon="🎯")
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 TAB 3: DAILY CANDLESTICK + RSI (日K + RSI)
+# 🎯 TAB 3: DAILY CANDLESTICK FULL BATTLESTATION (日K + 全技術指標) — 第一性原則重建
+# ══════════════════════════════════════════════════════════════
+# 第一性原則：K線分析的本質是「資金博弈的痕跡」
+#   K線形態 = 多空力量的即時快照
+#   均線系統 = 不同時間尺度的成本中心
+#   布林帶   = 統計意義上的價格「合理範圍」，突破即異常
+#   MACD     = 動能加速/減速的測速儀
+#   RSI      = 相對強弱，非絕對高低
+#   ATR      = 真實波動率，停損設置的科學基礎
+#   量能      = 驗證價格行為的真偽
 # ══════════════════════════════════════════════════════════════
 def _t3(sdf, ticker):
-    """T3: Daily Candlestick Chart with RSI Indicator"""
-    st.toast("🚀 正在渲染日K線圖... / Rendering Daily Chart...", icon="⏳")
-    
+    """T3: Daily Candlestick Full BattleStation — First Principles"""
+    st.toast("🚀 日K戰情室啟動中…", icon="⏳")
+
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-lbl">🕯️ DAILY CANDLESTICK + RSI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">🕯️ DAILY BATTLESTATION ENGINE</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-sub">日K線技術分析系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">日K全技術指標戰情系統 · 第一性原則重建</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Calculate RSI
-    delta = sdf['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    sdf['RSI'] = 100 - (100 / (1 + rs))
-    
-    # Get last 60 days
-    plot_df = sdf[['Open', 'High', 'Low', 'Close', 'RSI']].tail(60).reset_index()
-    plot_df['Date'] = pd.to_datetime(plot_df['Date'])
-    plot_df['Color'] = plot_df.apply(lambda row: '#00FF7F' if row['Close'] >= row['Open'] else '#FF3131', axis=1)
-    
-    # Candlestick chart
-    rules = alt.Chart(plot_df).mark_rule(size=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('Low:Q', title='價格'),
-        y2='High:Q',
-        color=alt.Color('Color:N', scale=None)
-    )
-    
-    bars = alt.Chart(plot_df).mark_bar(size=10).encode(
-        x='Date:T',
-        y='Open:Q',
-        y2='Close:Q',
-        color=alt.Color('Color:N', scale=None)
-    )
-    
-    # RSI chart
-    rsi_base = alt.Chart(plot_df).mark_line(color='#FFD700', strokeWidth=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('RSI:Q', title='RSI', scale=alt.Scale(domain=[0, 100]))
-    )
-    
-    rsi_70 = alt.Chart(pd.DataFrame({'y': [70]})).mark_rule(color='#FF3131', strokeDash=[5, 5]).encode(y='y:Q')
-    rsi_30 = alt.Chart(pd.DataFrame({'y': [30]})).mark_rule(color='#00FF7F', strokeDash=[5, 5]).encode(y='y:Q')
-    
-    st.markdown("#### 📊 日K線圖")
-    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(rules + bars), use_container_width=True)
+
+    if len(sdf) < 60:
+        st.toast("⚠️ 數據不足60日，無法完整計算。", icon="⚡")
+        return
+
+    df = sdf.copy()
+
+    # ── 均線系統 ───────────────────────────────────────────────────────
+    for p in [5, 10, 20, 60]:
+        df[f'MA{p}'] = df['Close'].rolling(p).mean()
+
+    # ── 布林帶（20日，±2σ）─────────────────────────────────────────────
+    df['BB_mid']   = df['Close'].rolling(20).mean()
+    df['BB_std']   = df['Close'].rolling(20).std()
+    df['BB_upper'] = df['BB_mid'] + 2 * df['BB_std']
+    df['BB_lower'] = df['BB_mid'] - 2 * df['BB_std']
+    df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_mid'] * 100  # %寬度
+
+    # ── MACD（12/26/9）─────────────────────────────────────────────────
+    ema12 = df['Close'].ewm(span=12, adjust=False).mean()
+    ema26 = df['Close'].ewm(span=26, adjust=False).mean()
+    df['MACD']        = ema12 - ema26
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    df['MACD_hist']   = df['MACD'] - df['MACD_signal']
+
+    # ── RSI(14) ────────────────────────────────────────────────────────
+    delta = df['Close'].diff()
+    gain  = delta.where(delta > 0, 0).rolling(14).mean()
+    loss  = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    df['RSI'] = 100 - (100 / (1 + gain / loss.replace(0, np.nan)))
+
+    # ── ATR(14) ────────────────────────────────────────────────────────
+    df['TR']  = np.maximum(df['High'] - df['Low'],
+                np.maximum(abs(df['High'] - df['Close'].shift()),
+                           abs(df['Low']  - df['Close'].shift())))
+    df['ATR'] = df['TR'].rolling(14).mean()
+
+    # ── 成交量均量 ─────────────────────────────────────────────────────
+    df['Vol_MA20'] = df['Volume'].rolling(20).mean()
+    df['Vol_ratio'] = df['Volume'] / df['Vol_MA20']  # 量比
+
+    # ── 燭台形態識別（近5根）─────────────────────────────────────────
+    df_pat = df.tail(5).copy()
+    def _candle_pattern(row):
+        body = abs(row['Close'] - row['Open'])
+        rng  = row['High'] - row['Low']
+        if rng == 0: return '十字星 Doji'
+        body_ratio = body / rng
+        upper_wick = row['High'] - max(row['Close'], row['Open'])
+        lower_wick = min(row['Close'], row['Open']) - row['Low']
+        if body_ratio < 0.1: return '十字星 Doji'
+        if lower_wick > body * 2 and upper_wick < body * 0.5:
+            return '錘子 Hammer' if row['Close'] > row['Open'] else '上吊線 Hanging Man'
+        if upper_wick > body * 2 and lower_wick < body * 0.5:
+            return '流星 Shooting Star' if row['Close'] < row['Open'] else '倒錘子 Inverted Hammer'
+        if body_ratio > 0.7:
+            return '多頭大陽線 Bullish Marubozu' if row['Close'] > row['Open'] else '空頭大陰線 Bearish Marubozu'
+        return '一般實體' if row['Close'] > row['Open'] else '一般陰線'
+    df_pat['形態'] = df_pat.apply(_candle_pattern, axis=1)
+
+    # ── 關鍵數值（取60日視窗）────────────────────────────────────────
+    win  = df.dropna().tail(60).reset_index()
+    win['Date'] = pd.to_datetime(win['Date'])
+    cp   = float(win['Close'].iloc[-1])
+    rsi  = float(win['RSI'].iloc[-1])
+    macd = float(win['MACD'].iloc[-1])
+    macd_sig = float(win['MACD_signal'].iloc[-1])
+    macd_hist = float(win['MACD_hist'].iloc[-1])
+    atr  = float(win['ATR'].iloc[-1])
+    bb_up = float(win['BB_upper'].iloc[-1])
+    bb_lo = float(win['BB_lower'].iloc[-1])
+    bb_mid= float(win['BB_mid'].iloc[-1])
+    bb_pct= (cp - bb_lo) / (bb_up - bb_lo) * 100 if (bb_up - bb_lo) > 0 else 50
+    bb_wid= float(win['BB_width'].iloc[-1])
+    vol_r = float(win['Vol_ratio'].iloc[-1])
+    ma5   = float(win['MA5'].iloc[-1])
+    ma10  = float(win['MA10'].iloc[-1])
+    ma20  = float(win['MA20'].iloc[-1])
+    ma60  = float(win['MA60'].iloc[-1])
+    high60= float(win['High'].max())
+    low60 = float(win['Low'].min())
+
+    # 均線多空排列評分
+    mas = [ma5, ma10, ma20, ma60]
+    ma_bull_score = sum(1 for i in range(len(mas)-1) if mas[i] > mas[i+1])
+    ma_align = '強勢多頭排列' if ma_bull_score == 3 else '偏多排列' if ma_bull_score == 2 else '偏空排列' if ma_bull_score == 1 else '強勢空頭排列'
+    ma_color  = '#00FF7F' if ma_bull_score >= 2 else '#FF3131'
+
+    # MACD 訊號
+    macd_signal_txt = '黃金交叉 🚀' if macd > macd_sig and macd_hist > 0 else '死亡交叉 💀' if macd < macd_sig and macd_hist < 0 else '即將交叉 ⚠️'
+    macd_color = '#00FF7F' if macd > macd_sig else '#FF3131'
+
+    # RSI
+    rsi_txt   = '🔴 超買（>70）' if rsi > 70 else '🟢 超賣（<30）' if rsi < 30 else '🟡 中性區間'
+    rsi_color = '#FF3131' if rsi > 70 else '#00FF7F' if rsi < 30 else '#FFD700'
+
+    # 量能狀態
+    vol_txt   = '🔥 放量' if vol_r > 1.5 else '❄️ 縮量' if vol_r < 0.7 else '➡️ 平量'
+    vol_color = '#FF9A3C' if vol_r > 1.5 else '#778899' if vol_r < 0.7 else '#aaa'
+
+    # 停損建議（基於ATR）
+    stop_loss_tight  = cp - 1.5 * atr
+    stop_loss_normal = cp - 2.5 * atr
+
+    # ── AI 戰術分析（Typewriter）─────────────────────────────────────
+    st.markdown("### 🧠 日K全技術 · 戰情推演")
+    st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
+    analysis = f"""
+═══════════════════════════════════════════════════════════
+🕯️ DAILY BATTLESTATION — {ticker}   現價: ${cp:.2f}
+═══════════════════════════════════════════════════════════
+
+【一、均線多空系統（趨勢骨架）】
+  MA5:  ${ma5:.2f}  │  MA10: ${ma10:.2f}
+  MA20: ${ma20:.2f}  │  MA60: ${ma60:.2f}
+  排列評分: {ma_bull_score}/3  →  {ma_align}
+  解讀：均線由短到長依序排列，即多頭排列；反之空頭。
+  {'✅ 多頭結構，短期均線均在長期均線上方，趨勢方向向上。' if ma_bull_score >= 2 else '⚠️ 空頭結構，短期均線跌破長期均線，趨勢方向向下。'}
+
+【二、布林帶（波動通道分析）】
+  上軌: ${bb_up:.2f}  │  中軌(MA20): ${bb_mid:.2f}  │  下軌: ${bb_lo:.2f}
+  現價位置: {bb_pct:.1f}%（0%=下軌，100%=上軌）
+  帶寬: {bb_wid:.1f}%（帶寬越寬=波動越大；帶寬收窄=行情蓄勢）
+  解讀：{'🔴 現價接近上軌，短期超買，注意壓力。' if bb_pct > 85 else '🟢 現價接近下軌，短期超賣，注意支撐。' if bb_pct < 15 else f'現價在布林帶{bb_pct:.0f}%位置，{"偏強" if bb_pct > 50 else "偏弱"}。'}
+
+【三、MACD（動能加速儀）】
+  MACD線:  {macd:+.3f}  │  訊號線: {macd_sig:+.3f}
+  柱狀差值: {macd_hist:+.3f}  →  {macd_signal_txt}
+  解讀：MACD柱狀{'持續擴大 → 動能加速，趨勢強化中。' if abs(macd_hist) > abs(float(win['MACD_hist'].iloc[-2])) else '持續收縮 → 動能衰退，注意趨勢轉折。'}
+
+【四、RSI(14)（相對強弱）】
+  RSI: {rsi:.1f}  →  {rsi_txt}
+  解讀：RSI衡量近14日漲跌能量比。
+  {'📌 > 70 超買：多方動能強，但需注意獲利了結壓力。不代表一定下跌，趨勢股可在超買區長期運行。' if rsi > 70 else '📌 < 30 超賣：空方主控，但賣壓過度釋放，可能孕育反彈。' if rsi < 30 else f'📌 RSI {rsi:.1f} 處於中性區，無明顯超買超賣。{"偏多" if rsi > 50 else "偏空"}偏向。'}
+
+【五、ATR(14) 波動率與停損設置】
+  ATR: ${atr:.2f}（每日平均真實波幅）
+  緊縮停損（1.5×ATR）：${stop_loss_tight:.2f}
+  正常停損（2.5×ATR）：${stop_loss_normal:.2f}
+  解讀：科學停損應以ATR為基準，避免因隨機波動被震出。
+
+【六、量能分析（量價關係）】
+  量比: {vol_r:.2f}x（vs 20日均量）  →  {vol_txt}
+  解讀：{'🔥 放量上漲 = 主力進場，突破有效 ✅' if vol_r > 1.5 and cp >= ma20 else '🔥 放量下跌 = 主力出貨，跌破危險 ⚠️' if vol_r > 1.5 else '❄️ 縮量上漲 = 動能不足，謹慎追高' if vol_r < 0.7 and cp >= ma20 else '❄️ 縮量下跌 = 殺跌力竭，可觀察企穩' if vol_r < 0.7 else '量能平穩，方向待確認。'}
+
+【七、K線形態（近期燭台）】
+  {chr(10).join([f"  {row['Date'].strftime('%m/%d') if hasattr(row['Date'], 'strftime') else str(row['Date'])[:5]}: {row['形態']}  Close ${row['Close']:.2f}" for _, row in df_pat.iterrows()])}
+
+【八、60日支撐/壓力位】
+  近60日最高點（壓力）：${high60:.2f}
+  近60日最低點（支撐）：${low60:.2f}
+  現價距壓力：{(high60 - cp)/cp*100:.1f}%  │  距支撐：{(cp - low60)/cp*100:.1f}%
+
+【九、綜合戰術推演】
+  {'🟢 短多架構：均線多排+MACD向上+布林帶中線之上。策略：回測MA20可佈多，停損 ' + f'${stop_loss_normal:.2f}，目標看布林上軌 ${bb_up:.2f}。' if ma_bull_score >= 2 and macd > macd_sig and bb_pct > 40 else '🔴 短空架構：均線空排+MACD向下+布林帶中線之下。策略：反彈至MA20附近可減碼，避免強追空。' if ma_bull_score <= 1 and macd < macd_sig and bb_pct < 60 else '🟡 盤整架構：訊號分歧，等待均線方向或布林帶收窄後的方向突破再行動。'}
+
+═══════════════════════════════════════════════════════════
+"""
+    st.write_stream(_stream_text(analysis, speed=0.001))
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown("#### 📈 RSI(14) 指標")
-    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(rsi_base + rsi_70 + rsi_30), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Current RSI status
-    current_rsi = plot_df['RSI'].iloc[-1]
-    rsi_status = "🔴 超買區" if current_rsi > 70 else ("🟢 超賣區" if current_rsi < 30 else "⚪ 中性區")
-    rsi_color = "#FF3131" if current_rsi > 70 else ("#00FF7F" if current_rsi < 30 else "#FFD700")
-    
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────
     st.markdown(f"""
-    <div class="t3-kpi-card" style="--kc:{rsi_color}; max-width:300px; margin:20px auto;">
-        <div class="t3-kpi-lbl">CURRENT RSI</div>
-        <div class="t3-kpi-val" style="font-size:48px;">{current_rsi:.1f}</div>
-        <div class="t3-kpi-sub">{rsi_status}</div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+        <div class="t3-kpi-card" style="--kc:{rsi_color};">
+            <div class="t3-kpi-lbl">RSI(14)</div>
+            <div class="t3-kpi-val" style="font-size:34px; color:{rsi_color};">{rsi:.1f}</div>
+            <div class="t3-kpi-sub">{rsi_txt}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:{macd_color};">
+            <div class="t3-kpi-lbl">MACD 動能</div>
+            <div class="t3-kpi-val" style="font-size:28px; color:{macd_color};">{macd:+.3f}</div>
+            <div class="t3-kpi-sub">{macd_signal_txt}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:{ma_color};">
+            <div class="t3-kpi-lbl">均線排列</div>
+            <div class="t3-kpi-val" style="font-size:24px; color:{ma_color};">{ma_align[:4]}</div>
+            <div class="t3-kpi-sub">{ma_bull_score}/3 多頭分</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FFD700;">
+            <div class="t3-kpi-lbl">ATR 波動率</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#FFD700;">${atr:.2f}</div>
+            <div class="t3-kpi-sub">停損基準</div>
+        </div>
+    </div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:20px;">
+        <div class="t3-kpi-card" style="--kc:#00F5FF;">
+            <div class="t3-kpi-lbl">布林位置</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#FF3131' if bb_pct > 85 else '#00FF7F' if bb_pct < 15 else '#FFD700'};">{bb_pct:.0f}%</div>
+            <div class="t3-kpi-sub">帶寬 {bb_wid:.1f}%</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:{vol_color};">
+            <div class="t3-kpi-lbl">量比</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{vol_color};">{vol_r:.2f}x</div>
+            <div class="t3-kpi-sub">{vol_txt}</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF6BFF;">
+            <div class="t3-kpi-lbl">緊縮停損</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#FF6BFF;">${stop_loss_tight:.2f}</div>
+            <div class="t3-kpi-sub">1.5×ATR</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF9A3C;">
+            <div class="t3-kpi-lbl">正常停損</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:#FF9A3C;">${stop_loss_normal:.2f}</div>
+            <div class="t3-kpi-sub">2.5×ATR</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.toast("✅ 日K線分析完成 / Daily Chart Complete", icon="🎯")
+
+    # ── 圖一：日K線 + 均線 + 布林帶 ──────────────────────────────────
+    st.markdown("#### 📊 日K線 + 均線系統 + 布林帶（近60日）")
+    win['Color'] = win.apply(lambda r: '#00FF7F' if r['Close'] >= r['Open'] else '#FF3131', axis=1)
+
+    ax = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+
+    candle_rule = alt.Chart(win).mark_rule(size=1.5).encode(
+        x=alt.X('Date:T', axis=ax),
+        y=alt.Y('Low:Q', title='價格', axis=ax, scale=alt.Scale(zero=False)),
+        y2='High:Q',
+        color=alt.Color('Color:N', scale=None),
+        tooltip=[alt.Tooltip('Date:T', title='日期'),
+                 alt.Tooltip('Open:Q', format='.2f'), alt.Tooltip('High:Q', format='.2f'),
+                 alt.Tooltip('Low:Q', format='.2f'),  alt.Tooltip('Close:Q', format='.2f')]
+    )
+    candle_bar = alt.Chart(win).mark_bar(size=8).encode(
+        x='Date:T', y='Open:Q', y2='Close:Q',
+        color=alt.Color('Color:N', scale=None)
+    )
+    bb_area = alt.Chart(win).mark_area(opacity=0.08, color='#778899').encode(
+        x='Date:T', y='BB_upper:Q', y2='BB_lower:Q'
+    )
+    bb_up_line  = alt.Chart(win).mark_line(color='#778899', strokeWidth=1, strokeDash=[3, 3]).encode(x='Date:T', y='BB_upper:Q')
+    bb_lo_line  = alt.Chart(win).mark_line(color='#778899', strokeWidth=1, strokeDash=[3, 3]).encode(x='Date:T', y='BB_lower:Q')
+    bb_mid_line = alt.Chart(win).mark_line(color='#445566', strokeWidth=1).encode(x='Date:T', y='BB_mid:Q')
+    ma5_l  = alt.Chart(win).mark_line(color='#FFD700',  strokeWidth=1.5).encode(x='Date:T', y='MA5:Q')
+    ma10_l = alt.Chart(win).mark_line(color='#FF9A3C',  strokeWidth=1.5).encode(x='Date:T', y='MA10:Q')
+    ma20_l = alt.Chart(win).mark_line(color='#00F5FF',  strokeWidth=2).encode(x='Date:T', y='MA20:Q')
+    ma60_l = alt.Chart(win).mark_line(color='#FF6BFF',  strokeWidth=2).encode(x='Date:T', y='MA60:Q')
+
+    kline_chart = (bb_area + bb_up_line + bb_lo_line + bb_mid_line +
+                   candle_rule + candle_bar + ma5_l + ma10_l + ma20_l + ma60_l).properties(
+        height=360,
+        title=alt.TitleParams('金=MA5  橘=MA10  青=MA20  紫=MA60  灰區=布林帶',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(kline_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖二：MACD ─────────────────────────────────────────────────────
+    st.markdown("#### 📊 MACD(12/26/9) 動能指標")
+    win['MACD_color'] = win['MACD_hist'].apply(lambda x: '#00FF7F' if x >= 0 else '#FF3131')
+    macd_hist_bar = alt.Chart(win).mark_bar().encode(
+        x=alt.X('Date:T', axis=ax),
+        y=alt.Y('MACD_hist:Q', title='MACD 柱狀', axis=ax),
+        color=alt.Color('MACD_color:N', scale=None),
+        tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('MACD_hist:Q', format='+.3f')]
+    )
+    macd_line = alt.Chart(win).mark_line(color='#00F5FF', strokeWidth=2).encode(
+        x='Date:T', y=alt.Y('MACD:Q', title=''), tooltip=[alt.Tooltip('MACD:Q', format='+.3f')]
+    )
+    macd_sig_line = alt.Chart(win).mark_line(color='#FF9A3C', strokeWidth=2).encode(
+        x='Date:T', y=alt.Y('MACD_signal:Q', title=''), tooltip=[alt.Tooltip('MACD_signal:Q', format='+.3f')]
+    )
+    zero_macd = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='#333', strokeWidth=1).encode(y='y:Q')
+    macd_chart = alt.layer(macd_hist_bar, zero_macd, macd_line, macd_sig_line).resolve_scale(y='shared').properties(
+        height=200,
+        title=alt.TitleParams('青=MACD  橘=Signal  柱=差值（綠>0 紅<0）',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(macd_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖三：RSI ──────────────────────────────────────────────────────
+    st.markdown("#### 📊 RSI(14) 相對強弱指標")
+    rsi_line = alt.Chart(win).mark_line(color='#FFD700', strokeWidth=2.5).encode(
+        x=alt.X('Date:T', axis=ax),
+        y=alt.Y('RSI:Q', scale=alt.Scale(domain=[0, 100]), title='RSI', axis=ax),
+        tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('RSI:Q', format='.1f')]
+    )
+    rsi_area = alt.Chart(win).mark_area(opacity=0.1, color='#FFD700').encode(
+        x='Date:T',
+        y=alt.Y('RSI:Q', scale=alt.Scale(domain=[0, 100]))
+    )
+    rsi_70_rule = alt.Chart(pd.DataFrame({'y': [70]})).mark_rule(color='#FF3131', strokeDash=[5, 3], strokeWidth=2).encode(y='y:Q')
+    rsi_30_rule = alt.Chart(pd.DataFrame({'y': [30]})).mark_rule(color='#00FF7F', strokeDash=[5, 3], strokeWidth=2).encode(y='y:Q')
+    rsi_50_rule = alt.Chart(pd.DataFrame({'y': [50]})).mark_rule(color='#444', strokeDash=[3, 3], strokeWidth=1).encode(y='y:Q')
+    rsi_chart = (rsi_area + rsi_line + rsi_70_rule + rsi_30_rule + rsi_50_rule).properties(
+        height=180,
+        title=alt.TitleParams('紅虛=超買(70)  綠虛=超賣(30)  中線=50',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(rsi_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖四：成交量 + 量比 ────────────────────────────────────────────
+    st.markdown("#### 📊 成交量分析（量比 vs 20日均量）")
+    win['Vol_color'] = win.apply(lambda r: '#00FF7F' if r['Close'] >= r['Open'] else '#FF3131', axis=1)
+    vol_bars = alt.Chart(win).mark_bar(opacity=0.8).encode(
+        x=alt.X('Date:T', axis=ax),
+        y=alt.Y('Volume:Q', title='成交量', axis=ax),
+        color=alt.Color('Vol_color:N', scale=None),
+        tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('Volume:Q', format=',.0f'),
+                 alt.Tooltip('Vol_ratio:Q', title='量比', format='.2f')]
+    )
+    vol_ma_line = alt.Chart(win).mark_line(color='#FFD700', strokeWidth=2.5).encode(
+        x='Date:T', y='Vol_MA20:Q'
+    )
+    vol_chart = (vol_bars + vol_ma_line).properties(
+        height=180,
+        title=alt.TitleParams('綠柱=紅K量  紅柱=黑K量  金線=20日均量',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(vol_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.toast("✅ 日K戰情分析完成", icon="🎯")
+
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 TAB 4: MONTHLY CANDLESTICK (月K線)
+# 🎯 TAB 4: MONTHLY CANDLESTICK MACRO ENGINE (月K長期戰略) — 第一性原則重建
+# ══════════════════════════════════════════════════════════════
+# 第一性原則：月K線的本質是「宏觀資金週期的印記」
+#   月K形態 = 機構資金長線意圖的呈現
+#   月線均線 = 長期成本基礎，突破/跌破具有決定性意義
+#   季節效應 = 歷史統計規律，無法預測，但可參考
+#   長期高低點 = 機構的歷史「共識錨定點」
 # ══════════════════════════════════════════════════════════════
 def _t4(sdf, ticker):
-    """T4: Monthly Candlestick Chart"""
-    st.toast("🚀 正在渲染月K線圖... / Rendering Monthly Chart...", icon="⏳")
-    
+    """T4: Monthly Candlestick Macro Engine — First Principles"""
+    st.toast("🚀 月K宏觀戰略引擎啟動中…", icon="⏳")
+
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-lbl">🗓️ MONTHLY CANDLESTICK</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">🗓️ MONTHLY MACRO ENGINE</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-sub">月K線長期趨勢分析</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">月K宏觀戰略系統 · 第一性原則重建</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Resample to monthly
-    monthly = sdf.resample('M').agg({
-        'Open': 'first',
-        'High': 'max',
-        'Low': 'min',
-        'Close': 'last',
-        'Volume': 'sum'
+
+    # ── 月K資料建構 ────────────────────────────────────────────────────
+    monthly = sdf.resample('ME').agg({
+        'Open': 'first', 'High': 'max', 'Low': 'min',
+        'Close': 'last', 'Volume': 'sum'
     }).dropna()
-    
+
     if len(monthly) < 12:
-        st.toast("⚠️ 數據不足 / Insufficient Data", icon="⚡")
         st.toast("⚠️ 歷史數據不足 12 個月。", icon="⚡")
         return
-    
-    plot_df = monthly[['Open', 'High', 'Low', 'Close']].tail(36).reset_index()
+
+    m = monthly.copy()
+
+    # 月線均線
+    m['MA6']  = m['Close'].rolling(6).mean()   # 半年線
+    m['MA12'] = m['Close'].rolling(12).mean()  # 年線
+    m['MA24'] = m['Close'].rolling(24).mean()  # 兩年線
+
+    # 月K RSI(6)
+    delta_m = m['Close'].diff()
+    gain_m  = delta_m.where(delta_m > 0, 0).rolling(6).mean()
+    loss_m  = (-delta_m.where(delta_m < 0, 0)).rolling(6).mean()
+    m['RSI6'] = 100 - (100 / (1 + gain_m / loss_m.replace(0, np.nan)))
+
+    # 月K ATR
+    m['TR']  = np.maximum(m['High'] - m['Low'],
+               np.maximum(abs(m['High'] - m['Close'].shift()),
+                          abs(m['Low']  - m['Close'].shift())))
+    m['ATR6'] = m['TR'].rolling(6).mean()
+
+    # 月漲跌
+    m['月漲跌'] = (m['Close'] - m['Open']) / m['Open'] * 100
+
+    # 季節性：各月份歷史平均漲跌幅
+    m_reset = m.reset_index()
+    m_reset['Date'] = pd.to_datetime(m_reset['Date'])
+    m_reset['月份'] = m_reset['Date'].dt.month
+    seasonal = m_reset.groupby('月份')['月漲跌'].agg(['mean', 'count', lambda x: (x > 0).mean() * 100])
+    seasonal.columns = ['平均漲跌%', '樣本數', '上漲機率%']
+    seasonal = seasonal.reset_index()
+
+    plot_df = m.dropna(subset=['MA6']).tail(48).reset_index()
     plot_df['Date'] = pd.to_datetime(plot_df['Date'])
-    plot_df['Color'] = plot_df.apply(lambda row: '#00FF7F' if row['Close'] >= row['Open'] else '#FF3131', axis=1)
-    
-    # Monthly candlestick
-    rules = alt.Chart(plot_df).mark_rule(size=3).encode(
-        x=alt.X('Date:T', title='月份'),
-        y=alt.Y('Low:Q', title='價格'),
-        y2='High:Q',
-        color=alt.Color('Color:N', scale=None)
-    )
-    
-    bars = alt.Chart(plot_df).mark_bar(size=15).encode(
-        x='Date:T',
-        y='Open:Q',
-        y2='Close:Q',
-        color=alt.Color('Color:N', scale=None)
-    )
-    
-    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(rules + bars), use_container_width=True)
+
+    cp_m   = float(plot_df['Close'].iloc[-1])
+    ma6_m  = float(plot_df['MA6'].iloc[-1])
+    ma12_m = float(plot_df['MA12'].iloc[-1]) if not pd.isna(plot_df['MA12'].iloc[-1]) else None
+    ma24_m = float(plot_df['MA24'].iloc[-1]) if not pd.isna(plot_df['MA24'].iloc[-1]) else None
+    rsi6_m = float(plot_df['RSI6'].iloc[-1])
+    atr6_m = float(plot_df['ATR6'].iloc[-1])
+
+    # 全歷史高低點
+    all_high = float(m['High'].max())
+    all_low  = float(m['Low'].min())
+    high_pct = (cp_m - all_low) / (all_high - all_low) * 100 if (all_high - all_low) > 0 else 50
+
+    # 近12個月漲跌幅
+    perf_12m = (cp_m / float(plot_df['Close'].iloc[-13]) - 1) * 100 if len(plot_df) >= 13 else 0
+    perf_6m  = (cp_m / float(plot_df['Close'].iloc[-7])  - 1) * 100 if len(plot_df) >= 7  else 0
+    perf_3m  = (cp_m / float(plot_df['Close'].iloc[-4])  - 1) * 100 if len(plot_df) >= 4  else 0
+
+    # 本月季節性統計
+    cur_month = plot_df['Date'].iloc[-1].month
+    cur_seasonal = seasonal[seasonal['月份'] == cur_month].iloc[0] if cur_month in seasonal['月份'].values else None
+
+    # 連漲/連跌月數
+    streak = 0
+    for i in range(len(plot_df)-1, 0, -1):
+        if plot_df['Close'].iloc[i] > plot_df['Close'].iloc[i-1]:
+            if streak >= 0: streak += 1
+            else: break
+        else:
+            if streak <= 0: streak -= 1
+            else: break
+
+    # 均線多空
+    ma_bull = (cp_m > ma6_m) and (ma6_m > (ma12_m or 0))
+    trend_m = '長線多頭' if ma_bull else '長線空頭'
+    trend_m_color = '#00FF7F' if ma_bull else '#FF3131'
+
+    # ── AI 戰略分析 ───────────────────────────────────────────────────
+    st.markdown("### 🧠 月K宏觀戰略 · 第一性原則推演")
+    st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
+    sea_txt = f"本月({cur_month}月)歷史平均漲跌：{cur_seasonal['平均漲跌%']:.1f}%，上漲機率：{cur_seasonal['上漲機率%']:.0f}%（樣本{cur_seasonal['樣本數']:.0f}次）" if cur_seasonal is not None else "季節性數據不足"
+    analysis = f"""
+═══════════════════════════════════════════════════════════
+🗓️ MONTHLY MACRO ENGINE — {ticker}   現價: ${cp_m:.2f}
+═══════════════════════════════════════════════════════════
+
+【一、長線均線系統（宏觀趨勢定位）】
+  月線MA6（半年）： ${ma6_m:.2f}
+  月線MA12（年線）：${ma12_m:.2f if ma12_m else 'N/A'}
+  月線MA24（兩年）：${ma24_m:.2f if ma24_m else 'N/A'}
+  趨勢判斷：{trend_m}
+  解讀：{'現價在月線均線之上，長期多頭架構完整，逢月K回測均線為戰略買點。' if ma_bull else '現價跌破月線均線，長線轉空，需等月線重新向上扭頭才考慮大資金佈局。'}
+
+【二、長期位置分析（歷史百分位）】
+  歷史最高點：  ${all_high:.2f}
+  歷史最低點：  ${all_low:.2f}
+  現價歷史位置：{high_pct:.1f}%（0%=歷史低點，100%=歷史高點）
+  解讀：{'現價接近歷史高位，長期上漲潛力相對有限，需更高的回報要求。' if high_pct > 80 else '現價仍在歷史低位區間，長期空間大，但需確認趨勢轉多。' if high_pct < 30 else f'現價在歷史中位區（{high_pct:.0f}%），多空均有空間。'}
+
+【三、中期績效追蹤】
+  近3月漲跌：  {perf_3m:+.1f}%
+  近6月漲跌：  {perf_6m:+.1f}%
+  近12月漲跌： {perf_12m:+.1f}%
+  當前{'連漲' if streak > 0 else '連跌'}：{abs(streak)} 個月
+
+【四、月K RSI(6)（中期動能）】
+  月RSI6：{rsi6_m:.1f}
+  解讀：{'🔴 月線超買（>75），宏觀層面需警惕長線高位整理。' if rsi6_m > 75 else '🟢 月線超賣（<25），宏觀底部區域，長線佈局機會。' if rsi6_m < 25 else f'月RSI6 {rsi6_m:.1f}，處於中性區，{"偏多動能" if rsi6_m > 50 else "偏空動能"}。'}
+
+【五、季節效應統計（歷史規律）】
+  {sea_txt}
+  解讀：季節性為統計規律，不構成獨立操作依據，需配合技術面確認。
+
+【六、月K ATR 波動基礎】
+  月ATR6：${atr6_m:.2f}（每月平均波幅）
+  解讀：年化波動估算約 ±{atr6_m * 12 / cp_m * 100:.0f}%。
+
+【七、宏觀戰略推演】
+  {'🟢 長線積極：月線多頭排列，長期趨勢向上。策略：月K回測MA6（$' + f'{ma6_m:.2f}）附近為長線買進機會，停損設MA12（${ma12_m:.2f if ma12_m else "N/A"}）。' if ma_bull else '🔴 長線防守：月線空頭架構，避免輕易建立大倉。策略：等月K站回MA6並企穩，才考慮長線進場，現階段宜輕倉或觀望。'}
+
+═══════════════════════════════════════════════════════════
+"""
+    st.write_stream(_stream_text(analysis, speed=0.001))
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.toast("✅ 月K線分析完成 / Monthly Chart Complete", icon="🎯")
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────
+    streak_color = '#00FF7F' if streak > 0 else '#FF3131'
+    st.markdown(f"""
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+        <div class="t3-kpi-card" style="--kc:{trend_m_color};">
+            <div class="t3-kpi-lbl">長線趨勢</div>
+            <div class="t3-kpi-val" style="font-size:28px; color:{trend_m_color};">{trend_m}</div>
+            <div class="t3-kpi-sub">月線均線排列</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FFD700;">
+            <div class="t3-kpi-lbl">歷史位置</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#FF3131' if high_pct>75 else '#00FF7F' if high_pct<30 else '#FFD700'};">{high_pct:.0f}%</div>
+            <div class="t3-kpi-sub">歷史百分位</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#00F5FF;">
+            <div class="t3-kpi-lbl">月RSI6</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#FF3131' if rsi6_m>75 else '#00FF7F' if rsi6_m<25 else '#FFD700'};">{rsi6_m:.1f}</div>
+            <div class="t3-kpi-sub">中期動能</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:{streak_color};">
+            <div class="t3-kpi-lbl">{'連漲' if streak>0 else '連跌'}月數</div>
+            <div class="t3-kpi-val" style="font-size:34px; color:{streak_color};">{abs(streak)}</div>
+            <div class="t3-kpi-sub">{'月' if abs(streak)>0 else ''}</div>
+        </div>
+    </div>
+    <div class="t3-kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:20px;">
+        <div class="t3-kpi-card" style="--kc:#FF9A3C;">
+            <div class="t3-kpi-lbl">近3月漲跌</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if perf_3m>0 else '#FF3131'};">{perf_3m:+.1f}%</div>
+            <div class="t3-kpi-sub">3M Performance</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#FF6BFF;">
+            <div class="t3-kpi-lbl">近6月漲跌</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if perf_6m>0 else '#FF3131'};">{perf_6m:+.1f}%</div>
+            <div class="t3-kpi-sub">6M Performance</div>
+        </div>
+        <div class="t3-kpi-card" style="--kc:#00FF7F;">
+            <div class="t3-kpi-lbl">近12月漲跌</div>
+            <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if perf_12m>0 else '#FF3131'};">{perf_12m:+.1f}%</div>
+            <div class="t3-kpi-sub">12M Performance</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── 圖一：月K線 + 月均線 ──────────────────────────────────────────
+    st.markdown("#### 📊 月K線 + 均線系統（近48月）")
+    plot_df['Color'] = plot_df.apply(lambda r: '#00FF7F' if r['Close'] >= r['Open'] else '#FF3131', axis=1)
+    ax_m = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+
+    m_rule = alt.Chart(plot_df).mark_rule(size=2).encode(
+        x=alt.X('Date:T', axis=ax_m, title='月份'),
+        y=alt.Y('Low:Q', title='月K價格', axis=ax_m, scale=alt.Scale(zero=False)),
+        y2='High:Q', color=alt.Color('Color:N', scale=None),
+        tooltip=[alt.Tooltip('Date:T', title='月份', timeUnit='yearmonth'),
+                 alt.Tooltip('Open:Q', format='.2f'), alt.Tooltip('High:Q', format='.2f'),
+                 alt.Tooltip('Low:Q', format='.2f'),  alt.Tooltip('Close:Q', format='.2f'),
+                 alt.Tooltip('月漲跌:Q', title='月漲跌%', format='+.1f')]
+    )
+    m_bar = alt.Chart(plot_df).mark_bar(size=12).encode(
+        x='Date:T', y='Open:Q', y2='Close:Q',
+        color=alt.Color('Color:N', scale=None)
+    )
+    ma6_line  = alt.Chart(plot_df).mark_line(color='#00F5FF', strokeWidth=2.5).encode(x='Date:T', y='MA6:Q')
+    ma12_line = alt.Chart(plot_df.dropna(subset=['MA12'])).mark_line(color='#FF9A3C', strokeWidth=2.5).encode(x='Date:T', y='MA12:Q')
+    ma24_line = alt.Chart(plot_df.dropna(subset=['MA24'])).mark_line(color='#FF6BFF', strokeWidth=2.5).encode(x='Date:T', y='MA24:Q')
+
+    monthly_chart = (m_rule + m_bar + ma6_line + ma12_line + ma24_line).properties(
+        height=360,
+        title=alt.TitleParams('青=MA6(半年)  橘=MA12(年線)  紫=MA24(2年)',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(monthly_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖二：月K RSI ──────────────────────────────────────────────────
+    st.markdown("#### 📊 月線 RSI(6) — 中期動能")
+    plot_rsi_m = plot_df.dropna(subset=['RSI6'])
+    rsi_m_line = alt.Chart(plot_rsi_m).mark_line(color='#FFD700', strokeWidth=2.5).encode(
+        x=alt.X('Date:T', axis=ax_m),
+        y=alt.Y('RSI6:Q', scale=alt.Scale(domain=[0, 100]), title='月RSI6', axis=ax_m),
+        tooltip=[alt.Tooltip('Date:T', timeUnit='yearmonth'), alt.Tooltip('RSI6:Q', format='.1f')]
+    )
+    rsi_m_area = alt.Chart(plot_rsi_m).mark_area(opacity=0.1, color='#FFD700').encode(
+        x='Date:T', y=alt.Y('RSI6:Q', scale=alt.Scale(domain=[0, 100]))
+    )
+    r75 = alt.Chart(pd.DataFrame({'y': [75]})).mark_rule(color='#FF3131', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+    r25 = alt.Chart(pd.DataFrame({'y': [25]})).mark_rule(color='#00FF7F', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+    r50 = alt.Chart(pd.DataFrame({'y': [50]})).mark_rule(color='#333',    strokeDash=[3,3], strokeWidth=1).encode(y='y:Q')
+    rsi_m_chart = (rsi_m_area + rsi_m_line + r75 + r25 + r50).properties(
+        height=200,
+        title=alt.TitleParams('月RSI(6)  紅虛=75超買  綠虛=25超賣',
+                               color='#aaa', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(rsi_m_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 圖三：季節效應柱狀圖 ──────────────────────────────────────────
+    st.markdown("#### 📊 歷史月份季節效應（1~12月平均漲跌幅）")
+    seasonal['顏色'] = seasonal['平均漲跌%'].apply(lambda x: '#00FF7F' if x >= 0 else '#FF3131')
+    seasonal['月份名'] = seasonal['月份'].apply(lambda x: f"{x}月")
+    seas_bars = alt.Chart(seasonal).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        x=alt.X('月份名:N', sort=None, axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        y=alt.Y('平均漲跌%:Q', axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+        color=alt.Color('顏色:N', scale=None),
+        tooltip=[alt.Tooltip('月份名:N'), alt.Tooltip('平均漲跌%:Q', format='+.1f'),
+                 alt.Tooltip('上漲機率%:Q', format='.0f'), alt.Tooltip('樣本數:Q')]
+    )
+    seas_zero = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='#555', strokeWidth=1).encode(y='y:Q')
+    seas_chart = (seas_bars + seas_zero).properties(
+        height=220,
+        title=alt.TitleParams('各月份歷史平均漲跌幅（綠=正報酬月  紅=負報酬月）',
+                               color='#FFD700', fontSize=18, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(seas_chart), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 季節效應明細表 ────────────────────────────────────────────────
+    st.markdown("#### 📋 季節效應明細表")
+    sea_show = seasonal[['月份名', '平均漲跌%', '上漲機率%', '樣本數']].copy()
+    sea_show['平均漲跌%'] = sea_show['平均漲跌%'].apply(lambda x: f"{x:+.2f}%")
+    sea_show['上漲機率%'] = sea_show['上漲機率%'].apply(lambda x: f"{x:.0f}%")
+    st.dataframe(sea_show.rename(columns={'月份名':'月份'}), use_container_width=True, hide_index=True)
+
+    st.toast("✅ 月K宏觀戰略分析完成", icon="🎯")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 5: ARK WAR ROOM (ARK戰情推演) — 第一性原則重建
@@ -2676,122 +3167,390 @@ SaaS/軟體成熟目標：70%～85%；量子硬體：60%～75%。查：Yahoo Fin
         st.toast("✅ HyperGrowth 推演完成！", icon="🚀")
 
 # ══════════════════════════════════════════════════════════════
-# 🎯 TAB 7: ELLIOTT 5-WAVE (艾略特五波)
+# 🎯 TAB 7: ELLIOTT 5-WAVE PRECISION ENGINE (艾略特五波) — 第一性原則重建
+# ══════════════════════════════════════════════════════════════
+# 艾略特第一性原則（R.N. Elliott 1938）：
+#   市場情緒以5+3波結構週期性運行
+#   推進5波（12345）+ 修正3波（ABC）= 完整循環
+#
+# 嚴格規則（必須成立，否則波段計數無效）：
+#   Rule 1: 波2 不能完全吃掉波1（不得跌破波1起點）
+#   Rule 2: 波3 絕不能是5波中最短的推進波
+#   Rule 3: 波4 不能與波1的價格區間重疊（除少數例外）
+#
+# 費波那契指引（統計機率最高的目標位）：
+#   波2回撤：0.382、0.500、0.618 × 波1
+#   波3延伸：1.618、2.000、2.618 × 波1
+#   波4回撤：0.236、0.382 × 波3
+#   波5目標：0.618、1.000、1.618 × 波1 from 波4低
+#   B波反彈：0.382、0.500、0.618 × A波
+#   C波延伸：1.000、1.618 × A波
 # ══════════════════════════════════════════════════════════════
 def _t7(sdf):
-    """T7: Elliott 5-Wave Projection with Completion Progress"""
-    st.toast("🚀 正在執行艾略特波浪分析... / Engaging Elliott Wave...", icon="⏳")
-    
+    """T7: Elliott 5-Wave Precision Engine — First Principles"""
+    st.toast("🚀 艾略特五波精密推演引擎啟動…", icon="⏳")
+
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-lbl">🌊 ELLIOTT 5-WAVE ENGINE</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-val">WAVE THEORY</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hero-sub">艾略特波浪推演系統</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">🌊 ELLIOTT 5-WAVE PRECISION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-val">WAVE THEORY v3.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">艾略特五波精密推演 · 第一性原則重建</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # AI Analysis
-    st.markdown("### 🧠 AI 戰術分析")
+
+    # ── 計算ZigZag ───────────────────────────────────────────────────
+    zz = calculate_zigzag(sdf, deviation=0.04)
+    if len(zz) < 5:
+        st.toast("⚠️ 波動幅度太小，ZigZag樞紐點不足，嘗試放寬偏差值。", icon="⚡")
+        zz = calculate_zigzag(sdf, deviation=0.02)
+        if len(zz) < 5:
+            st.toast("⚠️ 數據或波動仍不足，無法推演五波。", icon="⚡")
+            return
+
+    # ── 從ZigZag中找最近的多頭五波起點 ──────────────────────────────
+    # 策略：取最近的高低交替pivots，識別五波或ABC
+    zz_clean = zz[zz['Type'].isin(['High', 'Low'])].reset_index(drop=True)
+    zz_clean['Date'] = pd.to_datetime(zz_clean['Date'])
+
+    # 嘗試從最近的低點開始數五波
+    # 取最後6個pivot（可組成5波結構：L H L H L H）
+    pts = zz_clean.tail(8).reset_index(drop=True)
+    cp  = float(sdf['Close'].iloc[-1])
+
+    # ── 識別五波結構 ─────────────────────────────────────────────────
+    # 從最近一個明顯低點開始嘗試多頭五波
+    # pivot 序列：若 Low→High→Low→High→Low→High，可對應 0→1→2→3→4→5
+    wave_identified = False
+    w0 = w1 = w2 = w3 = w4 = w5 = None
+    best_start = 0
+
+    for start in range(len(pts)):
+        remaining = pts.iloc[start:]
+        lows  = remaining[remaining['Type'] == 'Low'].reset_index(drop=True)
+        highs = remaining[remaining['Type'] == 'High'].reset_index(drop=True)
+        if len(lows) >= 3 and len(highs) >= 2:
+            _w0 = lows.iloc[0]
+            _w1 = highs.iloc[0]
+            _w2 = lows.iloc[1]
+            _w3 = highs.iloc[1]
+            _w4 = lows.iloc[2]
+            # 驗證三大規則
+            rule1_ok = _w2['Price'] > _w0['Price']  # 波2不吃掉波1起點
+            w1_len   = _w1['Price'] - _w0['Price']
+            w3_len   = _w3['Price'] - _w2['Price']
+            rule2_ok = w3_len > 0  # 波3須為正
+            rule3_ok = _w4['Price'] > _w1['Price']  # 波4不進入波1區間
+            if rule1_ok and rule2_ok and rule3_ok and w1_len > 0:
+                w0, w1, w2, w3, w4 = _w0, _w1, _w2, _w3, _w4
+                # 波5目標
+                w5_targets = {
+                    '0.618×波1': w4['Price'] + w1_len * 0.618,
+                    '1.000×波1': w4['Price'] + w1_len * 1.000,
+                    '1.618×波1': w4['Price'] + w1_len * 1.618,
+                }
+                wave_identified = True
+                break
+
+    # ── 費波那契計算（以已識別的波段為基礎）─────────────────────────
+    fib_table = []
+    if wave_identified:
+        w1_len = w1['Price'] - w0['Price']
+        w3_len = w3['Price'] - w2['Price']
+        w2_ret = (w1['Price'] - w2['Price']) / w1_len * 100  # 波2回撤%
+        w4_ret = (w3['Price'] - w4['Price']) / w3_len * 100  # 波4回撤%
+
+        fib_table = [
+            {'波段': '波1', '起點': f"${w0['Price']:.2f}", '終點': f"${w1['Price']:.2f}", '幅度': f"${w1_len:.2f}", '費波比': '—'},
+            {'波段': '波2', '起點': f"${w1['Price']:.2f}", '終點': f"${w2['Price']:.2f}", '幅度': f"-${w1['Price']-w2['Price']:.2f}", '費波比': f"回撤 {w2_ret:.1f}% (理想:38.2~61.8%)"},
+            {'波段': '波3', '起點': f"${w2['Price']:.2f}", '終點': f"${w3['Price']:.2f}", '幅度': f"${w3_len:.2f}", '費波比': f"波3/波1 = {w3_len/w1_len:.3f}x (理想:1.618x)"},
+            {'波段': '波4', '起點': f"${w3['Price']:.2f}", '終點': f"${w4['Price']:.2f}", '幅度': f"-${w3['Price']-w4['Price']:.2f}", '費波比': f"回撤 {w4_ret:.1f}% (理想:23.6~38.2%)"},
+        ]
+
+        # 三大規則驗證
+        rule1_breach = w2['Price'] <= w0['Price']
+        rule2_breach = w3_len <= w1_len and w3_len <= (w5_targets['1.000×波1'] - w4['Price'])
+        rule3_breach = w4['Price'] <= w1['Price']
+
+        # 現在在哪個波段
+        if cp > w4['Price'] and cp < w5_targets['1.000×波1']:
+            current_wave = '⭐ 推估現在在波5 進行中'
+            current_wave_color = '#FFD700'
+            wave_pct = (cp - w4['Price']) / (w5_targets['1.000×波1'] - w4['Price']) * 100
+        elif cp < w4['Price']:
+            current_wave = '⚠️ 已跌破波4低點 → 五波結構可能失效，或進入ABC修正'
+            current_wave_color = '#FF3131'
+            wave_pct = 0
+        elif cp >= w5_targets['1.000×波1']:
+            current_wave = '🔮 已到達波5目標 → 可能進入ABC修正波'
+            current_wave_color = '#FF6BFF'
+            wave_pct = 100
+        else:
+            current_wave = '📊 波段位置確認中'
+            current_wave_color = '#aaa'
+            wave_pct = 50
+
+    # ── ABC修正波推演 ─────────────────────────────────────────────────
+    abc_targets = {}
+    if wave_identified:
+        # 假設波5完成後，從波5高點開始ABC修正
+        w5_top = w5_targets['1.000×波1']  # 波5預估頂
+        # A波目標（從波5頂回落）：回撤到波4低點附近
+        a_wave_target = w4['Price']  # A波目標=波4
+        a_wave_len = w5_top - a_wave_target
+        # B波反彈目標
+        b_618 = a_wave_target + a_wave_len * 0.618
+        b_500 = a_wave_target + a_wave_len * 0.500
+        b_382 = a_wave_target + a_wave_len * 0.382
+        # C波目標（通常等長A波）
+        c_100 = a_wave_target - a_wave_len * 1.000
+        c_162 = a_wave_target - a_wave_len * 1.618
+        abc_targets = {
+            'A波目標（波4支撐）': a_wave_target,
+            'B波反彈0.382':       b_382,
+            'B波反彈0.500':       b_500,
+            'B波反彈0.618':       b_618,
+            'C波目標1.0×A':      c_100,
+            'C波目標1.618×A':    c_162,
+        }
+
+    # ── AI 戰術分析 ────────────────────────────────────────────────────
+    st.markdown("### 🧠 艾略特五波 · 第一性原則精密推演")
     st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
-    
-    analysis_text = """
+
+    if wave_identified:
+        r1_txt = '✅ 通過（波2未跌破波1起點）' if not rule1_breach else '❌ 違反！波2已吃掉波1，計數需重新評估。'
+        r2_txt = '✅ 通過（波3不是最短推進波）' if not rule2_breach else '⚠️ 注意：波3偏短，需再確認。'
+        r3_txt = '✅ 通過（波4未進入波1區間）' if not rule3_breach else '❌ 違反！波4進入波1，可能為對角三角形。'
+        analysis = f"""
 ═══════════════════════════════════════════════════════════
-🎯 ELLIOTT WAVE ANALYSIS
+🌊 ELLIOTT 5-WAVE ENGINE v3.0   現價: ${cp:.2f}
+   當前波段定位：{current_wave}
 ═══════════════════════════════════════════════════════════
 
-📊 WAVE THEORY PRINCIPLES
-   Elliott Wave Theory posits that markets move in fractal patterns:
-   • Impulse Waves (1-2-3-4-5): Trend direction moves
-   • Corrective Waves (A-B-C): Counter-trend retracements
-   
-⚡ FIBONACCI PROJECTIONS
-   Wave 2: 38.2% retracement of Wave 1
-   Wave 3: 1.618x extension of Wave 1 (strongest move)
-   Wave 4: 38.2% retracement of Wave 3
-   Wave 5: 1.0x extension from Wave 4 low
-   
-🔮 COMPLETION TRACKING
-   The system calculates wave completion percentage based on
-   current price position relative to projected pivot points.
-   
+【一、艾略特三大鐵律驗證】
+  Rule 1（波2不破波1起點）：{r1_txt}
+  Rule 2（波3不是最短）：    {r2_txt}
+  Rule 3（波4不進波1區間）：{r3_txt}
+
+【二、已識別波段結構】
+  波0（基點）：  ${w0['Price']:.2f}  @  {w0['Date'].strftime('%Y-%m-%d')}
+  波1（第一推）：${w1['Price']:.2f}  @  {w1['Date'].strftime('%Y-%m-%d')}  幅度 +${w1['Price']-w0['Price']:.2f}
+  波2（第一回）：${w2['Price']:.2f}  @  {w2['Date'].strftime('%Y-%m-%d')}  回撤 {w2_ret:.1f}%（理想:38.2~61.8%）
+  波3（主升浪）：${w3['Price']:.2f}  @  {w3['Date'].strftime('%Y-%m-%d')}  幅度 +${w3['Price']-w2['Price']:.2f}  波3/波1 = {w3_len/w1_len:.2f}x
+  波4（第二回）：${w4['Price']:.2f}  @  {w4['Date'].strftime('%Y-%m-%d')}  回撤 {w4_ret:.1f}%（理想:23.6~38.2%）
+
+【三、波5費波那契目標位】
+  波5目標 0.618×波1：${w5_targets['0.618×波1']:.2f}（保守，趨勢末段乏力時）
+  波5目標 1.000×波1：${w5_targets['1.000×波1']:.2f}（標準目標，最高概率）
+  波5目標 1.618×波1：${w5_targets['1.618×波1']:.2f}（延伸波5，動能特強時）
+  現價距標準目標：{(w5_targets['1.000×波1'] - cp):+.2f}  ({(w5_targets['1.000×波1']/cp - 1)*100:+.1f}%)
+
+【四、當前波段定位】
+  {current_wave}
+  {'波5進行中，完成度：' + f'{wave_pct:.0f}%' if wave_pct > 0 and wave_pct < 100 else ''}
+
+【五、ABC修正波預演（波5完成後）】
+  A波目標（落點）：${abc_targets.get('A波目標（波4支撐）', 0):.2f}  （回測波4低點，主要支撐）
+  B波反彈 0.382：  ${abc_targets.get('B波反彈0.382', 0):.2f}
+  B波反彈 0.500：  ${abc_targets.get('B波反彈0.500', 0):.2f}（最常見）
+  B波反彈 0.618：  ${abc_targets.get('B波反彈0.618', 0):.2f}
+  C波目標 1.0×A：  ${abc_targets.get('C波目標1.0×A', 0):.2f}（標準C波，等長A波）
+  C波目標 1.618×A：${abc_targets.get('C波目標1.618×A', 0):.2f}（延伸C波，熊市加速）
+
+【六、操作戰術推演】
+  現在策略：{'🟢 波5推進中：持有多單，逐步在波5目標區（$' + f'{w5_targets["0.618×波1"]:.2f}~${w5_targets["1.618×波1"]:.2f}）分批獲利。注意波5頂轉折訊號（MACD頂背離，RSI>70）。' if wave_pct > 0 and wave_pct < 100 else '🔮 波5已達目標或結構待確認：等待ABC修正A波完成後再評估下一個五波起點。' if wave_pct >= 100 else '⚠️ 波段位置不明確：觀望，等ZigZag形態更清晰。'}
+  核心風險：波5若出現MACD頂背離（價格創新高但MACD不創新高），為最強烈的五波終結警示。
+
 ═══════════════════════════════════════════════════════════
 """
-    
-    st.write_stream(_stream_text(analysis_text, speed=0.002))
+    else:
+        analysis = f"""
+═══════════════════════════════════════════════════════════
+🌊 ELLIOTT 5-WAVE ENGINE v3.0   現價: ${cp:.2f}
+═══════════════════════════════════════════════════════════
+
+  ⚠️ 目前ZigZag樞紐點結構不符合標準多頭五波條件。
+  可能處於：1) ABC修正階段  2) 複雜修正  3) 波動幅度仍不足
+  
+  ZigZag 已識別 {len(zz_clean)} 個有效樞紐點。
+  顯示最近ZigZag走勢圖，供人工判斷。
+
+═══════════════════════════════════════════════════════════
+"""
+    st.write_stream(_stream_text(analysis, speed=0.001))
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Calculate ZigZag
-    zz = calculate_zigzag(sdf, deviation=0.03)
-    
-    if len(zz) < 3:
-        st.toast("⚠️ 波動過小 / Volatility Too Low", icon="⚡")
-        st.toast("⚠️ 波動過小，無法計算艾略特波浪。", icon="⚡")
-        return
-    
-    # Calculate 5-Wave projection
-    sim = calculate_5_waves(zz)
-    
-    # Wave Completion Progress Bar
-    if not sim.empty:
-        total_waves = len(sim) - 1  # Exclude Origin
-        completed_waves = 0  # This would need real-time tracking
-        completion_pct = (completed_waves / total_waves) * 100 if total_waves > 0 else 0
-        
+
+    # ── KPI 儀表板 ────────────────────────────────────────────────────
+    if wave_identified:
         st.markdown(f"""
-        <div class="t3-kpi-card" style="--kc:#FF6BFF; max-width:600px; margin:20px auto;">
-            <div class="t3-kpi-lbl">WAVE COMPLETION</div>
-            <div style="width:100%; background:#1a1a1a; border-radius:10px; height:30px; margin:15px 0; overflow:hidden;">
-                <div style="width:{completion_pct}%; background:linear-gradient(90deg, #FF6BFF, #B77DFF); height:100%; transition:width 0.5s;"></div>
+        <div class="t3-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom:16px;">
+            <div class="t3-kpi-card" style="--kc:{current_wave_color};">
+                <div class="t3-kpi-lbl">當前波段</div>
+                <div class="t3-kpi-val" style="font-size:22px; color:{current_wave_color};">{'波5進行中' if 0 < wave_pct < 100 else 'ABC修正' if wave_pct >= 100 else '結構確認中'}</div>
+                <div class="t3-kpi-sub">完成度 {wave_pct:.0f}%</div>
             </div>
-            <div class="t3-kpi-sub">{completion_pct:.0f}% Complete · {completed_waves}/{total_waves} Waves</div>
+            <div class="t3-kpi-card" style="--kc:#FFD700;">
+                <div class="t3-kpi-lbl">波5標準目標</div>
+                <div class="t3-kpi-val" style="font-size:28px; color:#FFD700;">${w5_targets['1.000×波1']:.2f}</div>
+                <div class="t3-kpi-sub">1.000×波1 最高概率</div>
+            </div>
+            <div class="t3-kpi-card" style="--kc:#FF6BFF;">
+                <div class="t3-kpi-lbl">波5延伸目標</div>
+                <div class="t3-kpi-val" style="font-size:28px; color:#FF6BFF;">${w5_targets['1.618×波1']:.2f}</div>
+                <div class="t3-kpi-sub">1.618×波1 強勢延伸</div>
+            </div>
+            <div class="t3-kpi-card" style="--kc:#00FF7F;">
+                <div class="t3-kpi-lbl">波3/波1比</div>
+                <div class="t3-kpi-val" style="font-size:28px; color:{'#00FF7F' if w3_len/w1_len >= 1.5 else '#FFD700'};">{w3_len/w1_len:.2f}x</div>
+                <div class="t3-kpi-sub">理想:1.618x</div>
+            </div>
+        </div>
+        <div class="t3-kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:20px;">
+            <div class="t3-kpi-card" style="--kc:#00F5FF;">
+                <div class="t3-kpi-lbl">波2回撤</div>
+                <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if 38 < w2_ret < 62 else '#FFD700'};">{w2_ret:.1f}%</div>
+                <div class="t3-kpi-sub">{'✅ 標準' if 38 < w2_ret < 62 else '⚠️ 偏離費波'}</div>
+            </div>
+            <div class="t3-kpi-card" style="--kc:#FF9A3C;">
+                <div class="t3-kpi-lbl">波4回撤</div>
+                <div class="t3-kpi-val" style="font-size:30px; color:{'#00FF7F' if 23 < w4_ret < 40 else '#FFD700'};">{w4_ret:.1f}%</div>
+                <div class="t3-kpi-sub">{'✅ 標準' if 23 < w4_ret < 40 else '⚠️ 偏離費波'}</div>
+            </div>
+            <div class="t3-kpi-card" style="--kc:#FF3131;">
+                <div class="t3-kpi-lbl">ABC-A波目標</div>
+                <div class="t3-kpi-val" style="font-size:28px; color:#FF3131;">${abc_targets.get('A波目標（波4支撐）', 0):.2f}</div>
+                <div class="t3-kpi-sub">修正後支撐</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Chart: ZigZag + Wave Projections
-    plot_df = sdf[['Close']].tail(120).reset_index()
+
+        # 波5完成度進度條
+        st.markdown(f"""
+        <div style="background:#111; border:1px solid #2a2a4a; border-radius:16px; padding:20px; margin-bottom:20px;">
+            <div style="font-size:14px; font-family:'Space Mono',monospace; color:#aaa; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px;">波5 完成度</div>
+            <div style="width:100%; background:#1a1a2e; border-radius:99px; height:16px; overflow:hidden;">
+                <div style="width:{min(wave_pct, 100):.0f}%; background:linear-gradient(90deg, #FFD700, #FF9A3C); height:100%; border-radius:99px; transition:width 0.5s;"></div>
+            </div>
+            <div style="font-size:20px; font-family:'Space Mono',monospace; color:#FFD700; margin-top:10px;">{wave_pct:.0f}% · 現價 ${cp:.2f} → 標準目標 ${w5_targets['1.000×波1']:.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── 圖一：ZigZag + 五波標記全景圖 ────────────────────────────────
+    st.markdown("#### 📊 ZigZag 五波結構全景圖")
+    plot_df = sdf[['Close']].tail(150).reset_index()
     plot_df['Date'] = pd.to_datetime(plot_df['Date'])
-    
-    base_line = alt.Chart(plot_df).mark_line(color='#00F5FF', strokeWidth=2).encode(
-        x=alt.X('Date:T', title='日期'),
-        y=alt.Y('Close:Q', title='價格')
+    ax_e = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+
+    base_line = alt.Chart(plot_df).mark_line(color='#00F5FF', strokeWidth=1.5).encode(
+        x=alt.X('Date:T', title='日期', axis=ax_e),
+        y=alt.Y('Close:Q', title='收盤價', axis=ax_e, scale=alt.Scale(zero=False)),
+        tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('Close:Q', format='.2f')]
     )
-    
-    # ZigZag pivots
-    zz_points = zz.copy()
-    zz_points['Date'] = pd.to_datetime(zz_points['Date'])
-    
-    zz_line = alt.Chart(zz_points).mark_line(color='#FFD700', strokeWidth=3).encode(
+
+    # ZigZag 線
+    zz_plot = zz_clean.copy()
+    zz_line = alt.Chart(zz_plot).mark_line(color='#FFD700', strokeWidth=2.5).encode(
+        x='Date:T', y=alt.Y('Price:Q'), tooltip=[alt.Tooltip('Price:Q', format='.2f')]
+    )
+    zz_dots = alt.Chart(zz_plot).mark_point(size=80, filled=True).encode(
         x='Date:T',
-        y='Price:Q'
+        y=alt.Y('Price:Q'),
+        color=alt.condition(
+            alt.datum.Type == 'High',
+            alt.value('#FF3131'),
+            alt.value('#00FF7F')
+        ),
+        tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('Price:Q', format='.2f'), alt.Tooltip('Type:N')]
     )
-    
-    zz_dots = alt.Chart(zz_points).mark_point(color='#FFD700', size=100).encode(
-        x='Date:T',
-        y='Price:Q'
+
+    charts = [base_line, zz_line, zz_dots]
+
+    # 五波標記
+    if wave_identified:
+        wave_pts = pd.DataFrame([
+            {'Date': w0['Date'], 'Price': w0['Price'], 'Label': '0'},
+            {'Date': w1['Date'], 'Price': w1['Price'], 'Label': '①'},
+            {'Date': w2['Date'], 'Price': w2['Price'], 'Label': '②'},
+            {'Date': w3['Date'], 'Price': w3['Price'], 'Label': '③'},
+            {'Date': w4['Date'], 'Price': w4['Price'], 'Label': '④'},
+        ])
+        wave_marks = alt.Chart(wave_pts).mark_point(size=200, filled=True, color='#FF6BFF').encode(
+            x='Date:T', y=alt.Y('Price:Q'),
+            tooltip=[alt.Tooltip('Label:N', title='波'), alt.Tooltip('Price:Q', format='.2f')]
+        )
+        wave_labels = alt.Chart(wave_pts).mark_text(
+            color='#FF6BFF', fontSize=24, font='JetBrains Mono', fontWeight='bold', dy=-20
+        ).encode(x='Date:T', y=alt.Y('Price:Q'), text='Label:N')
+        charts += [wave_marks, wave_labels]
+
+        # 波5目標水平線
+        for label, price, color in [
+            ('W5 0.618', w5_targets['0.618×波1'], '#778899'),
+            ('W5 標準',  w5_targets['1.000×波1'], '#FFD700'),
+            ('W5 延伸',  w5_targets['1.618×波1'], '#FF9A3C'),
+        ]:
+            w5_rule = alt.Chart(pd.DataFrame({'y': [price]})).mark_rule(
+                color=color, strokeDash=[4, 3], strokeWidth=2
+            ).encode(y='y:Q')
+            charts.append(w5_rule)
+
+        # 波4支撐線
+        w4_rule = alt.Chart(pd.DataFrame({'y': [w4['Price']]})).mark_rule(
+            color='#FF3131', strokeDash=[6, 3], strokeWidth=2
+        ).encode(y='y:Q')
+        charts.append(w4_rule)
+
+    full_wave_chart = alt.layer(*charts).properties(
+        height=400,
+        title=alt.TitleParams(
+            '青=收盤線  金=ZigZag  紫=波段標記  金/橘虛=波5目標  紅虛=波4支撐',
+            color='#aaa', fontSize=18, font='JetBrains Mono'
+        )
     )
-    
-    chart_combined = base_line + zz_line + zz_dots
-    
-    # Add wave projections
-    if not sim.empty:
-        sim['Date'] = pd.to_datetime(sim['Date'])
-        sim_line = alt.Chart(sim[sim['Label'] != 'Origin']).mark_line(
-            color='#FF6BFF', strokeWidth=2, strokeDash=[5, 5]
-        ).encode(x='Date:T', y='Price:Q')
-        
-        sim_points = alt.Chart(sim[sim['Label'] != 'Origin']).mark_point(
-            color='#FF6BFF', size=150
-        ).encode(x='Date:T', y='Price:Q')
-        
-        sim_labels = alt.Chart(sim[sim['Label'] != 'Origin']).mark_text(
-            dy=-30, color='#FF6BFF', fontSize=24, fontWeight='bold'
-        ).encode(x='Date:T', y='Price:Q', text='Label')
-        
-        chart_combined = chart_combined + sim_line + sim_points + sim_labels
-    
     st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
-    st.altair_chart(_cfg(chart_combined), use_container_width=True)
+    st.altair_chart(_cfg(full_wave_chart), use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.toast("✅ 艾略特波浪分析完成 / Elliott Wave Complete", icon="🎯")
+
+    # ── 圖二：費波那契目標位視覺化 ───────────────────────────────────
+    if wave_identified:
+        st.markdown("#### 📊 波5費波那契目標位 + ABC修正波全圖")
+        fib_rows = [
+            {'目標位': '波4支撐（停損）', '價格': w4['Price'], '性質': '支撐', '顏色': '#FF3131'},
+            {'目標位': 'W5 0.618×波1',  '價格': w5_targets['0.618×波1'], '性質': '保守目標', '顏色': '#778899'},
+            {'目標位': 'W5 1.000×波1',  '價格': w5_targets['1.000×波1'], '性質': '標準目標', '顏色': '#FFD700'},
+            {'目標位': 'W5 1.618×波1',  '價格': w5_targets['1.618×波1'], '性質': '延伸目標', '顏色': '#FF9A3C'},
+            {'目標位': 'ABC-A目標',      '價格': abc_targets['A波目標（波4支撐）'], '性質': 'A波支撐', '顏色': '#FF3131'},
+            {'目標位': 'ABC-C 1.0×A',   '價格': abc_targets['C波目標1.0×A'],  '性質': 'C波目標', '顏色': '#FF6BFF'},
+        ]
+        fib_df = pd.DataFrame(fib_rows)
+        fib_df['距現價%'] = ((fib_df['價格'] - cp) / cp * 100).apply(lambda x: f"{x:+.1f}%")
+        fib_df['價格標籤'] = fib_df['價格'].apply(lambda x: f"${x:.2f}")
+
+        fib_bars = alt.Chart(fib_df).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+            x=alt.X('目標位:N', sort=None, axis=alt.Axis(labelFontSize=22, labelAngle=-20, labelColor='#aaa')),
+            y=alt.Y('價格:Q', title='目標價格', scale=alt.Scale(zero=False),
+                    axis=alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')),
+            color=alt.Color('顏色:N', scale=None),
+            tooltip=[alt.Tooltip('目標位:N'), alt.Tooltip('價格:Q', format='.2f'),
+                     alt.Tooltip('性質:N'), alt.Tooltip('距現價%:N')]
+        )
+        cp_rule_fib = alt.Chart(pd.DataFrame({'y': [cp]})).mark_rule(
+            color='#00F5FF', strokeDash=[5, 3], strokeWidth=2.5
+        ).encode(y='y:Q')
+        fib_chart = alt.layer(fib_bars, cp_rule_fib).properties(
+            height=260,
+            title=alt.TitleParams(
+                f'青虛線=現價 ${cp:.2f}   各費波那契目標位一覽',
+                color='#aaa', fontSize=18, font='JetBrains Mono'
+            )
+        )
+        st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+        st.altair_chart(_cfg(fib_chart), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # ── 波段費波明細表 ─────────────────────────────────────────────
+        st.markdown("#### 📋 波段費波那契比例驗證表")
+        st.dataframe(pd.DataFrame(fib_table), use_container_width=True, hide_index=True)
+
+    st.toast("✅ 艾略特五波精密推演完成", icon="🎯")
 
 # ══════════════════════════════════════════════════════════════
 # 🎯 TAB 8: MOONSHOT ARK ENGINE — 燒錢超高速成長股估值模型
