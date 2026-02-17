@@ -4,7 +4,6 @@
 # ║  V600: First-Principles Full Enhancement                            ║
 # ║  5.1 籌碼+CMF+RSI  5.2 Squeeze+MACD  5.3 ATR詳解  5.4 DDM+Graham   ║
 # ║  5.5 REAL 13F + ARK 6 ETF Holdings  5.6 Codex 26px                 ║
-# ║  🎯 TACTICAL EDITION: Guide Modal + Toast + Valkyrie Typewriter    ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 import streamlit as st
@@ -16,46 +15,6 @@ import requests
 import re as _re
 from datetime import datetime, timedelta
 import traceback
-import time
-
-
-# ══════════════════════════════════════════════════════════════════
-# 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER
-# ══════════════════════════════════════════════════════════════════
-def stream_generator(text):
-    """
-    Valkyrie AI Typewriter: Stream text word-by-word
-    Creates the sensation of live AI transmission.
-    """
-    for word in text.split():
-        yield word + " "
-        time.sleep(0.02)
-
-
-# ══════════════════════════════════════════════════════════════════
-# 🎯 FEATURE 1: TACTICAL GUIDE MODAL
-# ══════════════════════════════════════════════════════════════════
-@st.dialog("🔰 戰術指導 Mode")
-def show_guide_modal():
-    st.markdown("""
-    ### 指揮官，歡迎進入本戰區
-    
-    **核心功能**：
-    - **6大分析模組**：籌碼K線、起漲偵測、短線操盤、價值分析、13F巨鯨追蹤、戰略百科 — 涵蓋技術面、籌碼面、基本面全方位情報。
-    - **第一性原理解析**：每個模組都有詳細的「為什麼」解說，不只告訴你看什麼，更告訴你背後的邏輯與原理。
-    - **實時數據整合**：自動拉取 yfinance 歷史數據、ARK Invest 每日持倉、SEC 13F 機構申報，給你最新的市場情報。
-    
-    **操作方式**：點擊上方 6 個分析模組切換不同視角。每個模組都有獨立的指標計算與視覺化圖表。
-    
-    **狀態監控**：隨時留意畫面中的警示訊號 (🟢綠燈買入 🟡黃燈觀望 🔴紅燈警戒)、籌碼評分、動能方向等關鍵指標。
-    
-    ---
-    *建議：先從 5.1 籌碼K線 開始熟悉介面，再依需求切換其他模組。*
-    """)
-    
-    if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
-        st.session_state["guide_shown_" + __name__] = True
-        st.rerun()
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -169,16 +128,7 @@ def _fetch(symbol: str):
             mf_holders = pd.DataFrame()
         return h1, h3, info, holders, mf_holders, None
     except Exception as e:
-        err_msg = str(e)
-        # Detect yfinance / Yahoo Finance rate-limit errors (HTTP 429)
-        if any(kw in err_msg.lower() for kw in ["429", "too many requests", "rate limit", "ratelimit"]):
-            friendly = (
-                "⏳ Yahoo Finance 請求過於頻繁 (429 Too Many Requests)。"
-                " 請稍待 30～60 秒後再重新鎖定目標。"
-                " 若持續發生，可嘗試更換代號後再切回，或稍後再試。"
-            )
-            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), friendly
-        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err_msg
+        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), str(e)
 
 
 # ARK ETF holdings fetcher
@@ -324,8 +274,8 @@ def _nav():
     box-shadow:{glow};overflow:hidden;position:relative;">
   {top}
   <div style="font-size:24px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:{lc};text-align:center;padding:0 4px;letter-spacing:.3px;">{sid} {title}</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tc};letter-spacing:2px;text-transform:uppercase;">{sub}</div>
 </div>""", unsafe_allow_html=True)
             if st.button(f"▶ {sid}", key=f"t5_nav_{sid}", use_container_width=True):
                 st.session_state.t5_active = sid
@@ -364,15 +314,12 @@ def _banner(msg_big, msg_small, color, icon=""):
 </div>""", unsafe_allow_html=True)
 
 def _explain(title, body, keys="", color="#00F5FF"):
-    """First-principles explanation box with Valkyrie AI typewriter effect."""
+    """First-principles explanation box, min 26px font."""
     key_html = f'<div class="t5-explain-key">{keys}</div>' if keys else ""
     st.markdown(f"""
 <div class="t5-explain" style="border-left-color:{color}44;background:rgba(0,0,0,.2);">
   <div class="t5-explain-title" style="color:{color};">▸ {title}</div>
-  <div class="t5-explain-body">""", unsafe_allow_html=True)
-    # 🎯 FEATURE 3: Apply Valkyrie typewriter to explanation body
-    st.write_stream(stream_generator(body))
-    st.markdown(f"""</div>
+  <div class="t5-explain-body">{body}</div>
   {key_html}
 </div>""", unsafe_allow_html=True)
 
@@ -400,10 +347,7 @@ def _prep(hist: pd.DataFrame) -> pd.DataFrame:
 def _s51(hist: pd.DataFrame, info: dict, symbol: str):
     _hd("5.1","🕵️ 主力籌碼透視 (Smart Money Flow)",
         "VWAP20/50 · OBV · CMF · RSI · Smart Money Score","#00F5FF")
-    # 🎯 FEATURE 2: Replace st.error with st.toast
-    if hist.empty: 
-        st.toast("❌ ⚠️ 無歷史數據", icon="💀")
-        return
+    if hist.empty: st.error("⚠️ 無歷史數據"); return
 
     _explain(
         "第一性原理：主力籌碼分析",
@@ -540,10 +484,7 @@ def _s51(hist: pd.DataFrame, info: dict, symbol: str):
 def _s52(hist: pd.DataFrame, symbol: str):
     _hd("5.2","🚀 動能突破偵測 (Momentum Ignition)",
         "Bollinger Squeeze · Keltner · BW% · MACD · Momentum Histogram","#00FF7F")
-    # 🎯 FEATURE 2: Replace st.error with st.toast
-    if hist.empty: 
-        st.toast("❌ ⚠️ 無歷史數據", icon="💀")
-        return
+    if hist.empty: st.error("⚠️ 無歷史數據"); return
 
     _explain(
         "第一性原理：起漲動能偵測",
@@ -645,10 +586,7 @@ def _s52(hist: pd.DataFrame, symbol: str):
 def _s53(hist: pd.DataFrame, symbol: str):
     _hd("5.3","⚡ 短線操盤儀 (Tactical Trader)",
         "ATR波動 · 相對量能 · 布林通道位置 · 短線趨勢評分","#FFD700")
-    # 🎯 FEATURE 2: Replace st.error with st.toast
-    if hist.empty: 
-        st.toast("❌ ⚠️ 無歷史數據", icon="💀")
-        return
+    if hist.empty: st.error("⚠️ 無歷史數據"); return
 
     _explain(
         "第一性原理：短線波動管理",
@@ -836,8 +774,7 @@ def _s54(hist3y: pd.DataFrame, info: dict, symbol: str):
             c_pos="#FF3131" if pct_pos>80 else ("#FFD700" if pct_pos>40 else "#00FF7F")
             st.markdown(f'<div style="margin:12px 0;"><div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;color:rgba(160,176,208,.5);margin-bottom:8px;">PE PERCENTILE GAUGE — 目前PE位於3年歷史的第 {pct_pos:.0f} 百分位</div><div style="background:rgba(255,255,255,.05);border-radius:20px;height:10px;position:relative;overflow:hidden;"><div style="position:absolute;left:0;top:0;height:100%;width:{pct_pos:.0f}%;background:linear-gradient(90deg,#00FF7F,{c_pos});border-radius:20px;"></div></div><div style="font-family:\'Orbitron\',sans-serif;font-size:12px;color:{c_pos};margin-top:6px;text-align:right;">{pct_pos:.0f}th PERCENTILE</div></div>',unsafe_allow_html=True)
     else:
-        # 🎯 FEATURE 2: Replace st.info with st.toast
-        st.toast("ℹ️ 💡 此標的無EPS數據（ETF/未獲利公司）。", icon="📡")
+        st.info("💡 此標的無EPS數據（ETF/未獲利公司）。")
         if pe_trail: st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Trailing P/E: <b>{pe_trail:.1f}×</b></div>',unsafe_allow_html=True)
         if pe_fwd:   st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Forward P/E: <b>{pe_fwd:.1f}×</b></div>',unsafe_allow_html=True)
         if ps:       st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">P/S (TTM): <b>{ps:.2f}×</b></div>',unsafe_allow_html=True)
@@ -1247,8 +1184,7 @@ def _s56():
                 pm=p-100; lv=p/pm if pm>0 else 0; lc="#00FF7F" if lv>5 else ("#FFD700" if lv>3 else "#FF6B6B")
                 refs[i].markdown(f'<div style="text-align:center;padding:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:8px;"><div style="font-family:\'Rajdhani\',sans-serif;font-size:14px;color:rgba(160,176,208,.35);">CB {p}元</div><div style="font-family:\'Orbitron\',sans-serif;font-size:22px;font-weight:700;color:{lc};line-height:1.2;">{lv:.1f}×</div></div>',unsafe_allow_html=True)
         else:
-            # 🎯 FEATURE 2: Replace st.warning with st.toast
-            st.toast("⚠️ ⚠️ CB 市價需高於 100 元才有槓桿效應。", icon="⚡")
+            st.warning("CB 市價需高於 100 元才有槓桿效應。")
 
     # T6: OTC均線
     with tabs[5]:
@@ -1268,11 +1204,6 @@ def _s56():
 # MAIN ENTRY
 # ════════════════════════════════════════════════════════════════════
 def render():
-    # 🎯 FEATURE 1: Show tactical guide modal once per session
-    if "guide_shown_" + __name__ not in st.session_state:
-        show_guide_modal()
-        st.session_state["guide_shown_" + __name__] = True
-    
     _inject_css()
     symbol=_search()
     _hero(symbol)
@@ -1281,10 +1212,8 @@ def render():
         h1,h3,info,holders,mf_holders,err=_fetch(symbol)
 
     if err:
-        # 🎯 FEATURE 2: Replace st.error and st.info with st.toast
-        icon = "⏳" if "429" in err or "頻繁" in err else "💀"
-        st.toast(f"❌ {err}", icon=icon)
-        st.toast("ℹ️ 💡 美股: AAPL · NVDA  |  台股直接輸入: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
+        st.error(f"❌ {err}")
+        st.info("💡 美股: AAPL · NVDA  |  台股直接輸入: 2330 · 00675L · 5274  |  ETF: SPY · QQQ")
         _nav()
         if st.session_state.get("t5_active")=="5.6": _s56()
         return
@@ -1313,13 +1242,12 @@ def render():
         elif active=="5.6": _s56()
         else:               _s51(h1,info,symbol)
     except Exception as exc:
-        # 🎯 FEATURE 2: Replace st.error with st.toast
-        st.toast(f"❌ Module {active} Error: {exc}", icon="💀")
+        st.error(f"❌ Module {active} Error: {exc}")
         with st.expander("🔍 Debug"):
             st.code(traceback.format_exc())
     st.markdown("</div>",unsafe_allow_html=True)
 
-    st.markdown(f'<div class="t5-foot">Titan Universal Market Analyzer V600 · Tactical Edition · {symbol} · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="t5-foot">Titan Universal Market Analyzer V600 · First-Principles Edition · {symbol} · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>',unsafe_allow_html=True)
 
 
 if __name__=="__main__":
