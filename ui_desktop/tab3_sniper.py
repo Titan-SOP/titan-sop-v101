@@ -889,6 +889,13 @@ def _t5(ticker, cp):
     """T5: ARK-Style Scenario Analysis — fully rebuilt for clarity & usability"""
     st.toast("🚀 ARK 戰情室啟動中…", icon="⏳")
 
+    # ── session_state 初始值（第一次載入時設定） ──────────────────────────────
+    _ark_defaults = {"ark_rev": 50000.0, "ark_shares": 5000.0, "ark_g": 0.15,
+                     "ark_m": 0.15, "ark_pe": 25.0, "ark_years": 5}
+    for k, v in _ark_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
     # ── Hero ──────────────────────────────────────────────────────────────────
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
     st.markdown('<div class="hero-lbl">🧠 ARK WAR ROOM — SCENARIO ENGINE</div>', unsafe_allow_html=True)
@@ -993,11 +1000,23 @@ def _t5(ticker, cp):
         key="ark_preset", label_visibility="collapsed"
     )
 
-    # Extract preset values (or defaults)
+    # ── 自動填入：偵測選單變動，寫入 session_state 再 rerun ──────────────────
+    pv = ARK_PRESETS.get(preset_choice)
+    if pv is not None and st.session_state.get("_ark_preset_prev") != preset_choice:
+        p_rev, p_shares, p_g, p_m, p_pe, p_years = pv
+        st.session_state["ark_rev"]    = float(p_rev)
+        st.session_state["ark_shares"] = float(p_shares)
+        st.session_state["ark_g"]      = float(p_g)
+        st.session_state["ark_m"]      = float(p_m)
+        st.session_state["ark_pe"]     = float(p_pe)
+        st.session_state["ark_years"]  = int(p_years)
+        st.session_state["_ark_preset_prev"] = preset_choice
+        st.rerun()
+
+    # Use current session_state as display values (already updated above)
     pv = ARK_PRESETS.get(preset_choice)
     if pv is None:
         pv = (50000, 5000, 0.15, 0.15, 25, 5)
-
     p_rev, p_shares, p_g, p_m, p_pe, p_years = pv
 
     if preset_choice and ARK_PRESETS.get(preset_choice) is not None:
@@ -1005,7 +1024,7 @@ def _t5(ticker, cp):
 <div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);
     border-radius:10px;padding:10px 16px;margin:6px 0 14px;
     font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(255,215,0,0.75);">
-  ✅ 已選取：<strong style="color:#FFD700;">{preset_choice}</strong>
+  ✅ 已套用：<strong style="color:#FFD700;">{preset_choice}</strong>
   &nbsp;｜ 年營收：{p_rev:,.0f}百萬
   &nbsp;｜ 股數：{p_shares:,.0f}百萬股
   &nbsp;｜ 成長率：{p_g*100:.0f}%
@@ -1035,7 +1054,7 @@ def _t5(ticker, cp):
     <strong style="color:#FFD700;">哪裡查？</strong>公司財報 / Goodinfo / 財報狗 / Yahoo Finance
 </div>
 """, unsafe_allow_html=True)
-        rev_ttm = st.number_input("年營收", value=float(p_rev), min_value=1.0, step=1000.0,
+        rev_ttm = st.number_input("年營收", min_value=1.0, step=1000.0,
                                    format="%.0f", key="ark_rev", label_visibility="collapsed")
 
     with c2:
@@ -1051,7 +1070,7 @@ def _t5(ticker, cp):
     <strong style="color:#FFD700;">哪裡查？</strong>Yahoo Finance → Statistics → Shares Outstanding
 </div>
 """, unsafe_allow_html=True)
-        shares = st.number_input("流通股數 (M)", value=float(p_shares), min_value=1.0, step=100.0,
+        shares = st.number_input("流通股數 (M)", min_value=1.0, step=100.0,
                                   format="%.0f", key="ark_shares", label_visibility="collapsed")
 
     with c3:
@@ -1067,7 +1086,7 @@ def _t5(ticker, cp):
     <strong style="color:#FFD700;">不建議超過 7 年，</strong>遠期預測誤差會急劇放大。
 </div>
 """, unsafe_allow_html=True)
-        years = st.number_input("推演年限", value=int(p_years), min_value=1, max_value=10, step=1,
+        years = st.number_input("推演年限", min_value=1, max_value=10, step=1,
                                  key="ark_years", label_visibility="collapsed")
 
     # --- Row 2: Growth, Margin, PE ---
@@ -1086,7 +1105,7 @@ def _t5(ticker, cp):
     <strong style="color:#00F5FF;">哪裡查？</strong>近3年營收 YoY% 的平均值即為參考值。
 </div>
 """, unsafe_allow_html=True)
-        g = st.number_input("成長率", value=float(p_g), min_value=0.0, max_value=2.0,
+        g = st.number_input("成長率", min_value=0.0, max_value=2.0,
                              step=0.01, format="%.2f", key="ark_g", label_visibility="collapsed")
 
     with c5:
@@ -1103,7 +1122,7 @@ def _t5(ticker, cp):
     <strong style="color:#00F5FF;">傳統製造：</strong>0.03～0.08（汽車、航運依周期大幅波動）
 </div>
 """, unsafe_allow_html=True)
-        m = st.number_input("淨利率", value=float(p_m), min_value=0.0, max_value=1.0,
+        m = st.number_input("淨利率", min_value=0.0, max_value=1.0,
                              step=0.01, format="%.2f", key="ark_m", label_visibility="collapsed")
 
     with c6:
@@ -1120,7 +1139,7 @@ def _t5(ticker, cp):
     <strong style="color:#00F5FF;">傳統/金融：</strong>8～16（銀行 10～14、航運 6～10）
 </div>
 """, unsafe_allow_html=True)
-        pe = st.number_input("目標 P/E", value=float(p_pe), min_value=1.0, max_value=200.0,
+        pe = st.number_input("目標 P/E", min_value=1.0, max_value=200.0,
                               step=1.0, key="ark_pe", label_visibility="collapsed")
 
     # ── 計算按鈕 ─────────────────────────────────────────────────────────────
@@ -1253,6 +1272,13 @@ def _t6(ticker, cp):
     """T6: Smart DCF Valuation — fully rebuilt for clarity & usability"""
     st.toast("🚀 智能估值引擎啟動中…", icon="⏳")
 
+    # ── session_state 初始值（第一次載入時設定） ──────────────────────────────
+    _dcf_defaults = {"val_rev": 50000.0, "val_shares": 5000.0, "val_eps": 10.0,
+                     "val_g": 0.12, "val_m": 0.15, "val_pe": 20.0, "val_dr": 0.10}
+    for k, v in _dcf_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
     # ── Hero ──────────────────────────────────────────────────────────────────
     st.markdown('<div class="hero-container">', unsafe_allow_html=True)
     st.markdown('<div class="hero-lbl">💎 SMART DCF VALUATION ENGINE</div>', unsafe_allow_html=True)
@@ -1355,10 +1381,24 @@ def _t6(ticker, cp):
         key="dcf_preset", label_visibility="collapsed"
     )
 
+    # ── 自動填入：偵測選單變動，寫入 session_state 再 rerun ──────────────────
+    pv = DCF_PRESETS.get(dcf_choice)
+    if pv is not None and st.session_state.get("_dcf_preset_prev") != dcf_choice:
+        p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
+        st.session_state["val_rev"]    = float(p_rev)
+        st.session_state["val_shares"] = float(p_shares)
+        st.session_state["val_eps"]    = float(p_eps)
+        st.session_state["val_g"]      = float(p_g)
+        st.session_state["val_m"]      = float(p_m)
+        st.session_state["val_pe"]     = float(p_pe)
+        st.session_state["val_dr"]     = float(p_dr)
+        st.session_state["_dcf_preset_prev"] = dcf_choice
+        st.rerun()
+
+    # Use current session_state as display values (already updated above)
     pv = DCF_PRESETS.get(dcf_choice)
     if pv is None:
         pv = (50000, 5000, 10.0, 0.12, 0.15, 20, 0.10)
-
     p_rev, p_shares, p_eps, p_g, p_m, p_pe, p_dr = pv
 
     if dcf_choice and DCF_PRESETS.get(dcf_choice) is not None:
@@ -1366,7 +1406,7 @@ def _t6(ticker, cp):
 <div style="background:rgba(183,125,255,0.05);border:1px solid rgba(183,125,255,0.22);
     border-radius:10px;padding:10px 16px;margin:6px 0 14px;
     font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(183,125,255,0.8);">
-  ✅ 已選取：<strong style="color:#B77DFF;">{dcf_choice}</strong>
+  ✅ 已套用：<strong style="color:#B77DFF;">{dcf_choice}</strong>
   &nbsp;｜ 年營收：{p_rev:,.0f}百萬
   &nbsp;｜ 股數：{p_shares:,.0f}百萬股
   &nbsp;｜ EPS：{p_eps}
@@ -1398,7 +1438,7 @@ def _t6(ticker, cp):
     <strong style="color:#FFD700;">常見量級：</strong>中小型台股 10,000～100,000；大型台股 100,000+
 </div>
 """, unsafe_allow_html=True)
-        rev = st.number_input("年營收", value=float(p_rev), min_value=1.0, step=1000.0,
+        rev = st.number_input("年營收", min_value=1.0, step=1000.0,
                                format="%.0f", key="val_rev", label_visibility="collapsed")
 
     with c2:
@@ -1414,7 +1454,7 @@ def _t6(ticker, cp):
     <strong style="color:#FFD700;">換算：</strong>台積電普通股 259.3 億股 = 25,930（百萬股）
 </div>
 """, unsafe_allow_html=True)
-        shares = st.number_input("流通股數 (M)", value=float(p_shares), min_value=1.0, step=100.0,
+        shares = st.number_input("流通股數 (M)", min_value=1.0, step=100.0,
                                   format="%.0f", key="val_shares", label_visibility="collapsed")
 
     with c3:
@@ -1430,7 +1470,7 @@ def _t6(ticker, cp):
     <strong style="color:#FFD700;">美股查詢：</strong>Yahoo Finance → Statistics → EPS (TTM)
 </div>
 """, unsafe_allow_html=True)
-        eps = st.number_input("EPS (TTM)", value=float(p_eps), min_value=0.01, step=0.5,
+        eps = st.number_input("EPS (TTM)", min_value=0.01, step=0.5,
                                format="%.2f", key="val_eps", label_visibility="collapsed")
 
     # --- Row 2 ---
@@ -1449,7 +1489,7 @@ def _t6(ticker, cp):
     <strong style="color:#00F5FF;">參考：</strong>近3年 YoY% 平均值
 </div>
 """, unsafe_allow_html=True)
-        g = st.number_input("成長率", value=float(p_g), min_value=0.0, max_value=2.0,
+        g = st.number_input("成長率", min_value=0.0, max_value=2.0,
                              step=0.01, format="%.2f", key="val_g", label_visibility="collapsed")
 
     with c5:
@@ -1466,7 +1506,7 @@ def _t6(ticker, cp):
     <strong style="color:#00F5FF;">製造/傳產：</strong>0.03～0.08
 </div>
 """, unsafe_allow_html=True)
-        m = st.number_input("淨利率", value=float(p_m), min_value=0.0, max_value=1.0,
+        m = st.number_input("淨利率", min_value=0.0, max_value=1.0,
                              step=0.01, format="%.2f", key="val_m", label_visibility="collapsed")
 
     with c6:
@@ -1483,7 +1523,7 @@ def _t6(ticker, cp):
     <strong style="color:#00F5FF;">傳統/原物料：</strong>6～12
 </div>
 """, unsafe_allow_html=True)
-        pe = st.number_input("終端 P/E", value=float(p_pe), min_value=1.0, max_value=200.0,
+        pe = st.number_input("終端 P/E", min_value=1.0, max_value=200.0,
                               step=1.0, key="val_pe", label_visibility="collapsed")
 
     with c7:
@@ -1500,7 +1540,7 @@ def _t6(ticker, cp):
     <strong style="color:#00F5FF;">巴菲特慣用：</strong>0.09～0.10
 </div>
 """, unsafe_allow_html=True)
-        dr = st.number_input("折現率", value=float(p_dr), min_value=0.01, max_value=0.5,
+        dr = st.number_input("折現率", min_value=0.01, max_value=0.5,
                               step=0.01, format="%.2f", key="val_dr", label_visibility="collapsed")
 
     # ── 計算按鈕 ──────────────────────────────────────────────────────────────
