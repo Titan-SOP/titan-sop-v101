@@ -1251,11 +1251,10 @@ def render_1_1_hud():
     df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
     # ═══════════════════════════════════════════════════════════════════════
-    #  🔓 REMOVED GATEKEEPER: The old check "if df.empty: return" is GONE
-    #  Now we proceed to render VIX + Global Data regardless of df status
+    #  ✅ ORIGINAL FUNCTIONALITY PRESERVED
+    #  Shows full dashboard when CB data is available
     # ═══════════════════════════════════════════════════════════════════════
     
-    # ── IF DATA AVAILABLE: Show full dashboard ────────────────────────────
     if not df.empty:
         md  = _get_macro_data(macro, df_hash)
         sig = md['signal']
@@ -1339,28 +1338,61 @@ def render_1_1_hud():
   <div class="tse-deduct">扣抵與斜率 — {deducts}</div>
 </div>""", unsafe_allow_html=True)
     
-    else:
-        # ── NO CB DATA: Show minimal hero + notice ─────────────────────────
-        st.markdown("""
-<div class="hero-container">
-  <div class="hero-title" style="font-size:60px!important;color:#888;">STANDBY MODE</div>
-  <div class="hero-subtitle">CB 數據未載入 — 僅顯示全球市場監控</div>
-  <div class="hero-badge">TITAN SOP V301 &nbsp;·&nbsp; GLOBAL OVERWATCH ACTIVE</div>
-</div>""", unsafe_allow_html=True)
-    
     # ═══════════════════════════════════════════════════════════════════════
-    #  ✅ OPERATION OVERWATCH: ALWAYS RENDER (independent of df)
+    #  🔓 OPERATION UNCHAIN: REMOVED GATEKEEPER
+    #  🚀 NEW: Global Overwatch (Optional Manual Trigger)
     # ═══════════════════════════════════════════════════════════════════════
     
     st.markdown('<div style="height:32px"></div>', unsafe_allow_html=True)
+    st.markdown('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;">', unsafe_allow_html=True)
     
-    # VIX Gauge (Always visible)
-    _render_vix_gauge()
-    
-    st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
-    
-    # Global Overwatch (Always visible)
-    _render_global_overwatch()
+    # Manual Trigger for Global Overwatch
+    if not st.session_state.get('global_overwatch_initialized', False):
+        st.markdown("""
+<div class="hero-container" style="--hero-color:#00F5FF;--hero-glow:rgba(0,245,255,0.08);--hero-rgb:0,245,255;">
+  <div class="hero-title" style="font-size:48px!important;color:#00F5FF;">🌍 GLOBAL OVERWATCH</div>
+  <div class="hero-subtitle" style="font-size:16px!important;">Real-time Global Market Monitoring</div>
+  <div class="hero-badge" style="color:#00F5FF;border-color:#00F5FF;">S&P 500 · USD/TWD · Dollar Index · VIX</div>
+</div>""", unsafe_allow_html=True)
+        
+        st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button(
+                "🚀 啟動全域戰情掃描 (Initialize Global Scan)",
+                use_container_width=True,
+                key="init_global_overwatch",
+                type="primary"
+            ):
+                st.session_state.global_overwatch_initialized = True
+                st.rerun()
+    else:
+        # Global Overwatch is active
+        with st.spinner("🌐 正在建立全球連線 / Establishing Global Uplink..."):
+            # VIX Gauge
+            _render_vix_gauge()
+            
+            st.markdown('<div style="height:24px"></div>', unsafe_allow_html=True)
+            
+            # Global Overwatch
+            _render_global_overwatch()
+        
+        # Add refresh button
+        st.markdown('<div style="height:16px"></div>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button(
+                "🔄 重新整理全球數據 (Refresh Global Data)",
+                use_container_width=True,
+                key="refresh_global",
+                type="secondary"
+            ):
+                # Clear cache to force refresh
+                fetch_global_data.clear()
+                fetch_vix_data.clear()
+                st.toast("🔄 全球數據已更新", icon="✅")
+                st.rerun()
     
     st.markdown(
         f'<div class="titan-foot">MACRO HUD V301 — OPERATION UNCHAIN ACTIVE &nbsp;·&nbsp; '
@@ -1800,51 +1832,16 @@ def render():
     st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)  # nav-deck-frame
 
-    # ═══════════════════════════════════════════════════════════════════════
-    #  🚀 MANUAL TRIGGER SYSTEM (NEW V301)
-    #  Only applies to module 1.1 (MACRO HUD)
-    # ═══════════════════════════════════════════════════════════════════════
-    
+    # ── CONTENT FRAME ─────────────────────────────────────────────────────────
     st.markdown('<div class="content-frame">', unsafe_allow_html=True)
-    
-    if active == "1.1":
-        # Check if macro has been initialized
-        if not st.session_state.get('macro_initialized', False):
-            # State 1: Idle — Show trigger button
-            st.markdown('<div style="height:60px"></div>', unsafe_allow_html=True)
-            st.markdown("""
-<div class="hero-container">
-  <div class="hero-title" style="font-size:64px!important;color:#00F5FF;">GLOBAL SCAN</div>
-  <div class="hero-subtitle">INITIALIZE MACRO OVERWATCH SYSTEM</div>
-  <div class="hero-badge">CLICK BELOW TO ACTIVATE</div>
-</div>""", unsafe_allow_html=True)
-            
-            st.markdown('<div style="height:40px"></div>', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button(
-                    "🚀 啟動全域戰情掃描 (Initialize Global Scan)",
-                    use_container_width=True,
-                    key="init_macro",
-                    type="primary"
-                ):
-                    st.session_state.macro_initialized = True
-                    st.rerun()
-        else:
-            # State 2: Active — Render the dashboard
-            with st.spinner("🌐 正在建立全球連線 / Establishing Global Uplink..."):
-                render_1_1_hud()
-    else:
-        # All other modules render normally
-        fn = RENDER_MAP.get(active)
-        if fn:
-            try:
-                fn()
-            except Exception as exc:
-                import traceback
-                st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
-                with st.expander("🔍 Debug Trace"):
-                    st.code(traceback.format_exc())
+    fn = RENDER_MAP.get(active)
+    if fn:
+        try:
+            fn()
+        except Exception as exc:
+            import traceback
+            st.error(f"❌ 子模組 {active} 渲染失敗: {exc}")
+            with st.expander("🔍 Debug Trace"):
+                st.code(traceback.format_exc())
     
     st.markdown('</div>', unsafe_allow_html=True)  # content-frame
