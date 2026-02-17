@@ -262,6 +262,172 @@ def calculate_hypergrowth_valuation(rev, shares, rev_g, gm_now, gm_target, opex_
         'used_method': 'P/E' if breakeven_year is not None else 'P/S',
     }
 
+def calculate_moonshot_valuation(
+    rev, shares, cash, burn_annual,
+    rev_g_y1, rev_g_decel,
+    gm_now, gm_target,
+    opex_pct, opex_improve,
+    dilution_annual,
+    ps_terminal, pe_terminal,
+    dr=0.20, y=7,
+    scenario_mult=None  # dict: {g_decel_mult, gm_target_adj, terminal_mult}
+):
+    """
+    Moonshot ARK Valuation Engine — 燒錢超高速成長股專用
+    ──────────────────────────────────────────────────────────────────────
+    第一性原則設計：針對 QBTS / IONQ / RGTI 這類公司的核心特質
+      - 收入極小但成長極快（50~200% YoY）
+      - 大量燒錢，現金跑道有限
+      - 每年發新股稀釋（SBC + 增資）
+      - 毛利率尚低但有清晰改善路徑
+      - 終端市場（TAM）龐大，但滲透率尚在 0.x%
+
+    建模邏輯（8 個步驟）：
+      1. 收入以「衰減曲線」成長：第 n 年成長率 = rev_g_y1 × (1 − rev_g_decel)^(n−1)，
+         地板為 15%（避免成熟期假設成長消失）
+      2. 毛利率線性改善：gm_now → gm_target over y years
+      3. 費用佔比每年收斂：opex_pct 每年下降 opex_improve（地板：gm × 0.45）
+      4. 現金追蹤：每年 EBITDA 負值即為燒錢；累積現金耗盡年份 = 現金跑道
+      5. 股數稀釋：每年 × (1 + dilution_annual)，反映 SBC + 潛在增資
+      6. 找到轉盈點（EBITDA > 0）
+      7. 終端定價：
+         - 已獲利 → 終端淨利 × pe_terminal
+         - 仍虧損 → 終端收入 × ps_terminal
+      8. 折現回今日，並以稀釋後股數換算每股目標價
+
+    scenario_mult 參數用於多情境：
+      g_decel_mult  : 成長衰減速度乘數（>1 = 更快衰減 = 悲觀）
+      gm_target_adj : 目標毛利率調整（+0.10 = 樂觀 +10pp）
+      terminal_mult : 終端倍數乘數（1.3 = 牛市溢價 30%）
+
+    Returns dict:
+      terminal_price, terminal_price_raw, breakeven_year,
+      cash_runway_years, terminal_shares, used_method, projections
+    """
+    if not rev or shares <= 0:
+        return None
+
+    # ── 解包情境乘數 ──────────────────────────────────────────
+    if scenario_mult is None:
+        scenario_mult = {}
+    g_decel_eff     = rev_g_decel * scenario_mult.get('g_decel_mult', 1.0)
+    gm_target_eff   = min(0.95, gm_target + scenario_mult.get('gm_target_adj', 0.0))
+    term_mult       = scenario_mult.get('terminal_mult', 1.0)
+    ps_eff          = ps_terminal * term_mult
+    pe_eff          = pe_terminal * term_mult
+
+    rows = []
+    r            = rev
+    cur_shares   = shares
+    cur_cash     = cash
+    opex_pct_cur = opex_pct
+    breakeven_year   = None
+    cash_runway_years = None
+
+    for yr in range(1, y + 1):
+        # 1. 收入衰減成長曲線
+        g_this_yr = max(rev_g_y1 * ((1 - g_decel_eff) ** (yr - 1)), 0.10)
+        r = r * (1 + g_this_yr)
+
+        # 2. 毛利率線性改善
+        gm = gm_now + (gm_target_eff - gm_now) * (yr / y)
+        gross_profit = r * gm
+
+        # 3. 費用收斂（不能低於毛利的45%）
+        opex_pct_cur = max(opex_pct_cur - opex_improve, gm * 0.45)
+        opex_abs = r * opex_pct_cur
+        ebitda   = gross_profit - opex_abs
+        net_income = ebitda  # 簡化：EBITDA ≈ 淨利（早期公司D&A較小）
+        net_margin = net_income / r if r > 0 else 0
+
+        # 4. 現金追蹤
+        if cur_cash is not None and burn_annual is not None:
+            annual_burn = max(0, -ebitda) if ebitda < 0 else 0
+            cur_cash = cur_cash - annual_burn
+            if cur_cash <= 0 and cash_runway_years is None:
+                cash_runway_years = yr
+
+        # 5. 股數稀釋
+        cur_shares = cur_shares * (1 + dilution_annual)
+        eps_proj   = net_income / cur_shares if cur_shares > 0 else 0
+
+        # 6. 轉盈點
+        is_profitable = net_income > 0
+        if is_profitable and breakeven_year is None:
+            breakeven_year = yr
+
+        rows.append({
+            'Year'        : yr,
+            'GrowthRate'  : round(g_this_yr * 100, 1),
+            'Revenue'     : round(r, 2),
+            'GrossMargin' : round(gm * 100, 1),
+            'GrossProfit' : round(gross_profit, 2),
+            'OpEx'        : round(opex_abs, 2),
+            'EBITDA'      : round(ebitda, 2),
+            'NetIncome'   : round(net_income, 2),
+            'NetMargin'   : round(net_margin * 100, 2),
+            'Shares'      : round(cur_shares, 1),
+            'EPS_proj'    : round(eps_proj, 4),
+            'CashBal'     : round(cur_cash, 1) if cur_cash is not None else None,
+            'Profitable'  : is_profitable,
+        })
+
+    proj_df = pd.DataFrame(rows)
+    terminal_row = proj_df.iloc[-1]
+
+    # 7. 終端定價
+    if breakeven_year is not None:
+        terminal_mktcap = terminal_row['NetIncome'] * pe_eff
+        terminal_price_raw = terminal_mktcap / terminal_row['Shares']
+        used_method = f'P/E {pe_eff:.0f}x'
+    else:
+        terminal_price_raw = terminal_row['Revenue'] * ps_eff / terminal_row['Shares']
+        used_method = f'P/S {ps_eff:.0f}x'
+
+    # 8. 折現回今日
+    terminal_price = max(terminal_price_raw / ((1 + dr) ** y), 0)
+
+    return {
+        'terminal_price'     : terminal_price,
+        'terminal_price_raw' : terminal_price_raw,
+        'breakeven_year'     : breakeven_year,
+        'cash_runway_years'  : cash_runway_years,
+        'terminal_shares'    : terminal_row['Shares'],
+        'used_method'        : used_method,
+        'projections'        : proj_df,
+    }
+
+
+def calculate_tam_penetration(rev, tam_b, market_cap_b, ps_terminal):
+    """
+    TAM 滲透率分析
+    ──────────────────────────────────────────────────────────────────────
+    回答三個關鍵問題：
+      Q1. 現在的收入是 TAM 的多少 %？（知道你現在有多渺小）
+      Q2. 要達到終端 P/S 倍數能支撐當前市值，需要多少收入？（隱含需要多大市占率）
+      Q3. 若達到 10% TAM，用你設定的 P/S 定價，值多少錢？
+    """
+    tam_m = tam_b * 1000  # 轉換為百萬
+    current_pen = (rev / tam_m * 100) if tam_m > 0 else 0
+
+    # 隱含收入（要讓 P/S × 收入 = 市值）
+    market_cap_m = market_cap_b * 1000
+    implied_rev = market_cap_m / ps_terminal if ps_terminal > 0 else 0
+    implied_pen = (implied_rev / tam_m * 100) if tam_m > 0 else 0
+
+    # 達到 10% TAM 時的潛在市值（按終端 P/S）
+    ten_pct_rev = tam_m * 0.10
+    ten_pct_mktcap_b = (ten_pct_rev * ps_terminal) / 1000
+
+    return {
+        'current_pen'      : current_pen,
+        'implied_rev_m'    : implied_rev,
+        'implied_pen'      : implied_pen,
+        'ten_pct_mktcap_b' : ten_pct_mktcap_b,
+        'tam_m'            : tam_m,
+    }
+
+
 # ══════════════════════════════════════════════════════════════
 # 🎨 SOUL UPGRADE #3: FIRST PRINCIPLES CSS INJECTION
 # ══════════════════════════════════════════════════════════════
@@ -2190,6 +2356,1005 @@ def _t7(sdf):
     st.toast("✅ 艾略特波浪分析完成 / Elliott Wave Complete", icon="🎯")
 
 # ══════════════════════════════════════════════════════════════
+# 🎯 TAB 8: MOONSHOT ARK ENGINE — 燒錢超高速成長股估值模型
+# ══════════════════════════════════════════════════════════════
+def _t8(ticker, cp):
+    """
+    T8: Moonshot ARK Valuation Engine
+    ──────────────────────────────────────────────────────────────────────
+    專為美國小型燒錢超高速成長股設計（QBTS / IONQ / RGTI / ASTS / RKLB 等）
+    以第一性原則重建：傳統 P/E 與 DCF 對這類公司完全失效，
+    本引擎整合：
+      ① 收入衰減成長曲線（非固定成長率）
+      ② 股數稀釋追蹤（SBC + 增資）
+      ③ 現金跑道 / 燒錢壓力分析
+      ④ 五情境目標價（Deep Bear → Bear → Base → Bull → Moonshot）
+      ⑤ TAM 滲透率分析（你需要佔市場多少份額才能合理化現在股價）
+      ⑥ 風險雷達儀表板（跑道 / 稀釋 / 競爭 / 估值風險）
+    """
+    st.toast("🚀 Moonshot ARK 引擎啟動中…", icon="⏳")
+
+    # ── session_state 初始值 ──────────────────────────────────────────────────
+    _ms_defaults = {
+        "ms_rev"          : 20.0,    # 年收入 $M
+        "ms_shares"       : 300.0,   # 股數 M
+        "ms_cash"         : 200.0,   # 現金 $M
+        "ms_burn"         : 80.0,    # 年燒錢 $M（EBITDA虧損金額）
+        "ms_rev_g_y1"     : 0.70,    # 第1年收入成長率
+        "ms_rev_g_decel"  : 0.12,    # 每年成長衰減幅度（12%）
+        "ms_gm_now"       : 0.45,    # 當前毛利率
+        "ms_gm_target"    : 0.72,    # 目標成熟期毛利率
+        "ms_opex_pct"     : 1.60,    # 當前費用佔收入比（160% = 嚴重虧損）
+        "ms_opex_improve" : 0.14,    # 每年費用佔比下降幅度
+        "ms_dilution"     : 0.12,    # 年股數稀釋率（12%）
+        "ms_ps_terminal"  : 18.0,    # 終端 P/S 倍數（未盈利時用）
+        "ms_pe_terminal"  : 80.0,    # 終端 P/E 倍數（盈利後用）
+        "ms_dr"           : 0.20,    # 折現率（高風險 20%）
+        "ms_years"        : 7,       # 推演年限
+        "ms_tam"          : 50.0,    # TAM 總可尋址市場 $B（十億美元）
+        "ms_mktcap"       : 1.0,     # 當前市值 $B
+    }
+    for k, v in _ms_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    # ── Hero Billboard ─────────────────────────────────────────────────────────
+    st.markdown('<div class="hero-container">', unsafe_allow_html=True)
+    st.markdown('<div class="hero-lbl">🌙 MOONSHOT ARK ENGINE · PRE-PROFIT HYPERGROWTH</div>',
+                unsafe_allow_html=True)
+    st.markdown(f'<div class="hero-val">{ticker}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-sub">燒錢超高速成長股 · 五情境月球砲估值</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 模型說明卡片 ───────────────────────────────────────────────────────────
+    st.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(0,245,255,0.06),rgba(183,125,255,0.06));
+    border:1px solid rgba(0,245,255,0.28);border-left:4px solid #00F5FF;
+    border-radius:16px;padding:24px 28px;margin:0 0 26px;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:4px;
+      color:#00F5FF;margin-bottom:16px;">
+    🌙 MOONSHOT ARK 燒錢成長股估值引擎 — 完整操作說明</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:16px;
+      color:rgba(215,230,245,0.95);line-height:2.0;margin-bottom:18px;">
+    傳統 DCF 和 ARK 三情境<strong style="color:#FF3131;font-size:17px;">完全不適用</strong>這類公司——
+    因為它們根本沒有正的淨利或自由現金流可以折現。<br>
+    本引擎從<strong style="color:#00F5FF;font-size:17px;">第一性原則</strong>重建：
+    它們的股價是在賭「<strong style="color:#FFD700;">未來 7 年的成長軌跡能否兌現</strong>」。
+    所以估值的核心是模擬「<em>如果成長如預期，幾年後值多少，折現回今天</em>」。
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+    <div style="background:rgba(0,245,255,0.07);border:1px solid rgba(0,245,255,0.20);
+        border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#00F5FF;
+          letter-spacing:2px;margin-bottom:8px;">📐 核心計算邏輯（8步）</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(210,225,240,0.85);line-height:1.9;">
+        ① 收入以<strong style="color:#FFD700;">衰減曲線</strong>成長（非固定）<br>
+        ② 毛利率線性改善至成熟目標<br>
+        ③ 費用佔比逐年收斂<br>
+        ④ 追蹤每年現金消耗 / 跑道<br>
+        ⑤ 追蹤<strong style="color:#FF9A3C;">股數稀釋</strong>（SBC+增資）<br>
+        ⑥ 找到<strong style="color:#00FF7F;">EBITDA轉盈點</strong><br>
+        ⑦ 終端定價（P/E 或 P/S）<br>
+        ⑧ 以稀釋後股數折現回今日
+      </div>
+    </div>
+    <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.20);
+        border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#FFD700;
+          letter-spacing:2px;margin-bottom:8px;">🎯 五情境設計</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(210,225,240,0.85);line-height:1.9;">
+        <span style="color:#FF3131;">💀 Deep Bear</span>：成長快速塌縮+倍數壓縮<br>
+        <span style="color:#FF6B6B;">🐻 Bear</span>：成長放緩+估值折扣<br>
+        <span style="color:#FFD700;">⚖️ Base</span>：你填入的基準假設<br>
+        <span style="color:#00FF7F;">🚀 Bull</span>：成長超預期+估值溢價<br>
+        <span style="color:#B77DFF;">🌙 Moonshot</span>：科技泡沫+TAM 全吃
+      </div>
+    </div>
+    <div style="background:rgba(255,107,255,0.06);border:1px solid rgba(255,107,255,0.20);
+        border-radius:12px;padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:#FF6BFF;
+          letter-spacing:2px;margin-bottom:8px;">🛡️ 獨家風險雷達</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(210,225,240,0.85);line-height:1.9;">
+        💸 <strong>現金跑道壓力</strong>（幾年燒完）<br>
+        📉 <strong>稀釋損傷度</strong>（幾年後稀釋幾成）<br>
+        🎯 <strong>TAM 滲透率</strong>（你需要多大市占）<br>
+        ⚡ <strong>隱含 P/S</strong>（市場現在幫你標的什麼價格）
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;
+      color:rgba(0,245,255,0.60);padding:10px 14px;
+      background:rgba(0,245,255,0.04);border-radius:8px;letter-spacing:0.3px;">
+    ⚡ 目標價 = 終端價值(P/E或P/S) ÷ 稀釋後股數 ÷ (1+折現率)^N&nbsp;&nbsp;
+    ·&nbsp;&nbsp;📌 市價：<strong style="color:#00F5FF;font-size:15px;">{cp:.2f}</strong>
+    &nbsp;·&nbsp; 折現率建議：<strong style="color:#FFD700;">20%~25%</strong>（高不確定性溢價）
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 範例選單 ───────────────────────────────────────────────────────────────
+    # (rev_M, shares_M, cash_M, burn_M, g_y1, g_decel, gm_now, gm_target,
+    #  opex_pct, opex_improve, dilution, ps_terminal, pe_terminal, dr, years, tam_B, mktcap_B)
+    MS_PRESETS = {
+        "── 量子電腦（Quantum Computing）──":  None,
+        "⚛️ QBTS  D-Wave Quantum":   (8.0,   185.0, 175.0, 55.0,  0.65, 0.12, 0.55, 0.72, 1.80, 0.14, 0.10, 18.0, 80.0, 0.20, 7, 65.0,  0.9),
+        "⚛️ IONQ  量子雲端平台":      (22.0,  310.0, 300.0, 90.0,  0.70, 0.11, 0.62, 0.78, 1.50, 0.13, 0.09, 20.0, 90.0, 0.20, 7, 65.0,  5.5),
+        "⚛️ RGTI  Rigetti Computing": (12.0,  380.0, 150.0, 65.0,  0.75, 0.13, 0.50, 0.70, 1.90, 0.15, 0.13, 15.0, 75.0, 0.22, 7, 65.0,  1.2),
+        "⚛️ QUBT  Quantum Computing": (4.0,   210.0, 80.0,  45.0,  0.80, 0.14, 0.40, 0.68, 2.20, 0.17, 0.15, 12.0, 70.0, 0.22, 7, 65.0,  0.5),
+        "── AI / 語音 / 新興科技 ──":          None,
+        "🔊 SOUN  SoundHound AI":     (84.0,  440.0, 220.0, 100.0, 0.55, 0.10, 0.62, 0.75, 1.20, 0.11, 0.08, 15.0, 85.0, 0.18, 6, 160.0, 4.5),
+        "🔐 ARQQ  Arqit Quantum":     (1.5,   95.0,  50.0,  30.0,  0.90, 0.15, 0.72, 0.85, 2.50, 0.20, 0.18, 25.0, 100.0,0.25, 8, 20.0,  0.2),
+        "🤖 BBAI  BigBear.ai":        (170.0, 170.0, 50.0,  40.0,  0.25, 0.08, 0.25, 0.55, 0.95, 0.08, 0.07, 8.0,  60.0, 0.18, 7, 30.0,  0.4),
+        "── 航太 / 太空新創 ──":               None,
+        "🚀 RKLB  Rocket Lab USA":    (436.0, 505.0, 480.0, 150.0, 0.35, 0.08, 0.28, 0.55, 0.85, 0.09, 0.06, 10.0, 70.0, 0.15, 7, 400.0, 10.5),
+        "📡 ASTS  AST SpaceMobile":   (5.0,   290.0, 500.0, 200.0, 1.20, 0.18, 0.55, 0.80, 2.80, 0.22, 0.14, 30.0, 100.0,0.25, 8, 1000.0,5.0),
+        "── 核能 / 清潔能源 ──":               None,
+        "⚡ NNE   Nano Nuclear":       (2.0,   50.0,  45.0,  15.0,  1.00, 0.16, 0.60, 0.80, 2.00, 0.18, 0.12, 20.0, 90.0, 0.22, 8, 500.0, 1.2),
+        "⚡ OKLO  Oklo Inc":           (0.5,   120.0, 260.0, 30.0,  1.50, 0.20, 0.65, 0.82, 3.00, 0.25, 0.10, 22.0, 95.0, 0.22, 8, 500.0, 1.8),
+    }
+
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:#00F5FF;
+    letter-spacing:3px;margin:8px 0 10px;">⚡ 快速套用範例 — 選一檔自動填入</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(180,200,220,0.80);
+    margin-bottom:10px;">
+以下均為<strong style="color:#FF9A3C;">尚未穩定獲利</strong>的超高速成長標的，
+財務數字為參考估計，<strong style="color:#FF3131;">請務必自行驗證最新財報</strong>再調整。
+</div>""", unsafe_allow_html=True)
+
+    ms_options = list(MS_PRESETS.keys())
+    ms_choice = st.selectbox("選擇範例股票", options=ms_options, index=0,
+                              key="ms_preset", label_visibility="collapsed")
+    msv = MS_PRESETS.get(ms_choice)
+
+    if msv is not None and st.session_state.get("_ms_preset_prev") != ms_choice:
+        (h_rev, h_shares, h_cash, h_burn, h_g1, h_gd, h_gm, h_gmt,
+         h_op, h_opi, h_dil, h_ps, h_pe, h_dr, h_yr, h_tam, h_mc) = msv
+        st.session_state["ms_rev"]         = float(h_rev)
+        st.session_state["ms_shares"]      = float(h_shares)
+        st.session_state["ms_cash"]        = float(h_cash)
+        st.session_state["ms_burn"]        = float(h_burn)
+        st.session_state["ms_rev_g_y1"]    = float(h_g1)
+        st.session_state["ms_rev_g_decel"] = float(h_gd)
+        st.session_state["ms_gm_now"]      = float(h_gm)
+        st.session_state["ms_gm_target"]   = float(h_gmt)
+        st.session_state["ms_opex_pct"]    = float(h_op)
+        st.session_state["ms_opex_improve"]= float(h_opi)
+        st.session_state["ms_dilution"]    = float(h_dil)
+        st.session_state["ms_ps_terminal"] = float(h_ps)
+        st.session_state["ms_pe_terminal"] = float(h_pe)
+        st.session_state["ms_dr"]          = float(h_dr)
+        st.session_state["ms_years"]       = int(h_yr)
+        st.session_state["ms_tam"]         = float(h_tam)
+        st.session_state["ms_mktcap"]      = float(h_mc)
+        st.session_state["_ms_preset_prev"] = ms_choice
+        st.rerun()
+
+    msv = MS_PRESETS.get(ms_choice)
+    if msv is not None and ms_choice and MS_PRESETS.get(ms_choice) is not None:
+        (p_rev, p_shares, p_cash, p_burn, p_g1, p_gd, p_gm, p_gmt,
+         p_op, p_opi, p_dil, p_ps, p_pe, p_dr, p_yr, p_tam, p_mc) = msv
+        st.markdown(f"""
+<div style="background:rgba(0,245,255,0.05);border:1px solid rgba(0,245,255,0.22);
+    border-radius:10px;padding:10px 16px;margin:6px 0 14px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(0,245,255,0.8);">
+  ✅ 已套用：<strong style="color:#00F5FF;">{ms_choice}</strong>
+  &nbsp;｜ 收入：{p_rev:.1f}M &nbsp;｜ 股數：{p_shares:.0f}M股
+  &nbsp;｜ 現金：{p_cash:.0f}M &nbsp;｜ 年燒：{p_burn:.0f}M
+  &nbsp;｜ Y1成長：{p_g1*100:.0f}% &nbsp;｜ TAM：${p_tam:.0f}B
+</div>""", unsafe_allow_html=True)
+
+    # ── 參數輸入：分組卡片 ──────────────────────────────────────────────────────
+    # ┌─── GROUP A: 公司基本財務 ────────────────────────────────────────────────┐
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#00F5FF;
+    letter-spacing:3px;margin:20px 0 12px;border-bottom:1px solid rgba(0,245,255,0.15);
+    padding-bottom:6px;">🏦 GROUP A · 公司現況財務數據</div>""", unsafe_allow_html=True)
+
+    ga1, ga2, ga3, ga4 = st.columns(4)
+    with ga1:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:5px;">
+💰 年收入 TTM（$M 百萬美元）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+最近12個月總收入（美元百萬）。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Yahoo Finance → Financials → Revenue TTM。
+QBTS≈$8M，IONQ≈$22M，RGTI≈$12M。
+</div>""", unsafe_allow_html=True)
+        ms_rev = st.number_input("年收入", min_value=0.1, step=1.0, format="%.1f",
+                                  key="ms_rev", label_visibility="collapsed")
+
+    with ga2:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:5px;">
+📊 流通股數（百萬股）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+含 Warrants 的完全稀釋股數（Fully Diluted）。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Yahoo Finance → Statistics → Shares Outstanding。
+QBTS≈185M，IONQ≈310M。
+</div>""", unsafe_allow_html=True)
+        ms_shares = st.number_input("流通股數(M)", min_value=1.0, step=10.0, format="%.1f",
+                                     key="ms_shares", label_visibility="collapsed")
+
+    with ga3:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+💵 現金與約當（$M）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+最新季報的 Cash + Short-term Investments（現金糧草）。<br>
+<strong style="color:#FF3131;">⚠️ 這決定公司還能撐多久不增資稀釋你。</strong>
+</div>""", unsafe_allow_html=True)
+        ms_cash = st.number_input("現金($M)", min_value=0.0, step=10.0, format="%.1f",
+                                   key="ms_cash", label_visibility="collapsed")
+
+    with ga4:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+🔥 年燒錢金額（$M）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+年度 Operating Cash Outflow（運營現金流出）。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Cash Flow Statement → 取負數的 Operating CF。
+</div>""", unsafe_allow_html=True)
+        ms_burn = st.number_input("年燒錢($M)", min_value=0.1, step=5.0, format="%.1f",
+                                   key="ms_burn", label_visibility="collapsed")
+
+    # ┌─── GROUP B: 成長路徑假設 ────────────────────────────────────────────────┐
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD700;
+    letter-spacing:3px;margin:20px 0 12px;border-bottom:1px solid rgba(255,215,0,0.15);
+    padding-bottom:6px;">📈 GROUP B · 成長路徑假設</div>""", unsafe_allow_html=True)
+
+    gb1, gb2, gb3 = st.columns(3)
+    with gb1:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:5px;">
+🚀 第1年收入成長率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+最樂觀的近期收入 YoY 成長（衰減曲線的起點）。<br>
+量子股：0.60~0.90（60%~90%）。<br>
+<strong style="color:#FF9A3C;">哪裡查：</strong>近2季財報 Revenue YoY%。
+</div>""", unsafe_allow_html=True)
+        ms_rev_g_y1 = st.number_input("Y1成長率", min_value=0.05, max_value=5.0,
+                                       step=0.05, format="%.2f",
+                                       key="ms_rev_g_y1", label_visibility="collapsed")
+
+    with gb2:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,215,0,0.9);letter-spacing:1px;margin-bottom:5px;">
+📉 成長衰減速度（每年）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+每年成長率<strong style="color:#FF3131;">衰減的幅度</strong>（0.12 = 每年少12%）。<br>
+例：0.70 → 0.62 → 0.54 → 0.48…<br>
+<strong style="color:#FFD700;">保守：0.15，基準：0.12，樂觀：0.08</strong>
+</div>""", unsafe_allow_html=True)
+        ms_rev_g_decel = st.number_input("成長衰減", min_value=0.01, max_value=0.50,
+                                          step=0.01, format="%.2f",
+                                          key="ms_rev_g_decel", label_visibility="collapsed")
+
+    with gb3:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(0,245,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+📅 推演年限（年）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+建議 7 年（給足夠時間讓成長兌現）。<br>
+量子電腦這類需要較長時間的技術，可設 8 年。<br>
+<strong style="color:#FF3131;">不建議超過 10 年</strong>，預測誤差急劇放大。
+</div>""", unsafe_allow_html=True)
+        ms_years = st.number_input("推演年限", min_value=3, max_value=12, step=1,
+                                    key="ms_years", label_visibility="collapsed")
+
+    # ┌─── GROUP C: 毛利率與費用結構 ────────────────────────────────────────────┐
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FF9A3C;
+    letter-spacing:3px;margin:20px 0 12px;border-bottom:1px solid rgba(255,154,60,0.15);
+    padding-bottom:6px;">🏗️ GROUP C · 毛利率改善路徑 & 費用結構</div>""", unsafe_allow_html=True)
+
+    gc1, gc2, gc3, gc4 = st.columns(4)
+    with gc1:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,154,60,0.9);letter-spacing:1px;margin-bottom:5px;">
+📦 當前毛利率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+(收入 - 直接成本) ÷ 收入。<br>
+量子股通常 40~65%（硬體+軟體混合）。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Income Statement → Gross Profit ÷ Revenue。
+</div>""", unsafe_allow_html=True)
+        ms_gm_now = st.number_input("當前毛利率", min_value=0.0, max_value=1.0,
+                                     step=0.01, format="%.2f",
+                                     key="ms_gm_now", label_visibility="collapsed")
+
+    with gc2:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,154,60,0.9);letter-spacing:1px;margin-bottom:5px;">
+🎯 目標成熟毛利率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+成熟期（推演期末）預期的毛利率。<br>
+軟體/量子雲端成熟期：70~85%。<br>
+<strong style="color:#00F5FF;">AWS、Azure 軟體業務毛利率≈70%+</strong>。
+</div>""", unsafe_allow_html=True)
+        ms_gm_target = st.number_input("目標毛利率", min_value=0.0, max_value=0.99,
+                                        step=0.01, format="%.2f",
+                                        key="ms_gm_target", label_visibility="collapsed")
+
+    with gc3:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,154,60,0.9);letter-spacing:1px;margin-bottom:5px;">
+💸 當前費用佔收入比</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+(R&D + S&M + G&A) ÷ 收入。&gt;1.0 = 嚴重虧損。<br>
+QBTS≈1.8，IONQ≈1.5，RGTI≈1.9。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Operating Expenses ÷ Revenue TTM。
+</div>""", unsafe_allow_html=True)
+        ms_opex_pct = st.number_input("費用佔比", min_value=0.10, max_value=5.0,
+                                       step=0.05, format="%.2f",
+                                       key="ms_opex_pct", label_visibility="collapsed")
+
+    with gc4:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(255,154,60,0.9);letter-spacing:1px;margin-bottom:5px;">
+⬇️ 費用年均改善幅度</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+費用佔比每年下降多少（營收槓桿效應）。<br>
+快速改善：0.15~0.20；溫和：0.10~0.13。<br>
+<strong style="color:#FF3131;">越高 = 越快達到獲利</strong>。
+</div>""", unsafe_allow_html=True)
+        ms_opex_improve = st.number_input("費用改善", min_value=0.01, max_value=0.50,
+                                           step=0.01, format="%.2f",
+                                           key="ms_opex_improve", label_visibility="collapsed")
+
+    # ┌─── GROUP D: 稀釋 / 終端定價 / 折現 / TAM ────────────────────────────────┐
+    st.markdown("""
+<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#B77DFF;
+    letter-spacing:3px;margin:20px 0 12px;border-bottom:1px solid rgba(183,125,255,0.15);
+    padding-bottom:6px;">💎 GROUP D · 稀釋 / 定價倍數 / 折現率 / TAM</div>""",
+                unsafe_allow_html=True)
+
+    gd1, gd2, gd3 = st.columns(3)
+    with gd1:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(183,125,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+📉 年股數稀釋率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+每年因<strong style="color:#FF3131;">SBC + 增資</strong>增加的股數佔比。<br>
+量子股通常 8~15%/年。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>近2年 Shares Outstanding 對比 YoY%。
+</div>""", unsafe_allow_html=True)
+        ms_dilution = st.number_input("年稀釋率", min_value=0.0, max_value=0.5,
+                                       step=0.01, format="%.2f",
+                                       key="ms_dilution", label_visibility="collapsed")
+
+    with gd2:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(183,125,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+🏷️ 終端 P/S（未盈利時）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+若推演期末仍虧損，以此 P/S 倍數定價。<br>
+高成長科技：15~25x，泡沫情境：30~50x。<br>
+<strong style="color:#00FF7F;">同行對比：IONQ 當前約 70x P/S（含成長溢價）</strong>。
+</div>""", unsafe_allow_html=True)
+        ms_ps_terminal = st.number_input("終端P/S", min_value=1.0, max_value=200.0,
+                                          step=1.0, key="ms_ps_terminal",
+                                          label_visibility="collapsed")
+
+    with gd3:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(183,125,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+💹 終端 P/E（盈利後用）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+若推演期末已獲利，以此 P/E 定價。<br>
+高成長科技：60~100x，穩定成長後：30~50x。<br>
+<strong style="color:#FFD700;">一旦量子電腦商業化，可期望給予高 P/E 溢價</strong>。
+</div>""", unsafe_allow_html=True)
+        ms_pe_terminal = st.number_input("終端P/E", min_value=1.0, max_value=300.0,
+                                          step=1.0, key="ms_pe_terminal",
+                                          label_visibility="collapsed")
+
+    gd4, gd5, gd6 = st.columns(3)
+    with gd4:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(183,125,255,0.9);letter-spacing:1px;margin-bottom:5px;">
+📉 折現率</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+反映<strong style="color:#FF3131;">高度不確定性的風險溢價</strong>。<br>
+<strong style="color:#FFD700;">量子/航太：0.20~0.25</strong>（20%~25%）。<br>
+一般科技成長股：0.15；穩健型：0.10。
+</div>""", unsafe_allow_html=True)
+        ms_dr = st.number_input("折現率", min_value=0.05, max_value=0.50,
+                                 step=0.01, format="%.2f",
+                                 key="ms_dr", label_visibility="collapsed")
+
+    with gd5:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(0,255,127,0.9);letter-spacing:1px;margin-bottom:5px;">
+🌐 TAM 總可尋址市場（$B）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+公司所在市場的<strong style="color:#00FF7F;">全球可尋址市場規模（十億美元）</strong>。<br>
+量子電腦TAM≈$65B（2030E），太空通信≈$1T+。<br>
+<strong style="color:#FFD700;">用來計算你現在的股價隱含多少市占率。</strong>
+</div>""", unsafe_allow_html=True)
+        ms_tam = st.number_input("TAM($B)", min_value=0.1, max_value=10000.0,
+                                  step=1.0, format="%.1f",
+                                  key="ms_tam", label_visibility="collapsed")
+
+    with gd6:
+        st.markdown("""<div style="font-family:'JetBrains Mono',monospace;font-size:11px;
+font-weight:700;color:rgba(0,255,127,0.9);letter-spacing:1px;margin-bottom:5px;">
+🏦 當前市值（$B）</div>
+<div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+color:rgba(190,210,230,0.80);line-height:1.7;margin-bottom:7px;">
+目前公司總市值（Market Cap，十億美元）。<br>
+<strong style="color:#FFD700;">哪裡查：</strong>Yahoo Finance → Market Cap。<br>
+用於計算隱含 P/S 和 TAM 滲透率。
+</div>""", unsafe_allow_html=True)
+        ms_mktcap = st.number_input("市值($B)", min_value=0.01, max_value=10000.0,
+                                     step=0.1, format="%.2f",
+                                     key="ms_mktcap", label_visibility="collapsed")
+
+    # ── 計算按鈕 ────────────────────────────────────────────────────────────────
+    st.markdown('<div style="height:14px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="t3-action">', unsafe_allow_html=True)
+    run_ms = st.button("🌙  執行 MOONSHOT ARK 五情境推演", key="ms_calc",
+                        use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if not run_ms:
+        return
+
+    st.toast("🌙 正在推演五情境月球砲目標價…", icon="⏳")
+
+    # ── 定義五情境乘數 ──────────────────────────────────────────────────────────
+    SCENARIOS = {
+        '💀 Deep Bear': {'g_decel_mult': 2.20, 'gm_target_adj': -0.18, 'terminal_mult': 0.45},
+        '🐻 Bear':       {'g_decel_mult': 1.45, 'gm_target_adj': -0.10, 'terminal_mult': 0.70},
+        '⚖️ Base':        {'g_decel_mult': 1.00, 'gm_target_adj':  0.00, 'terminal_mult': 1.00},
+        '🚀 Bull':        {'g_decel_mult': 0.70, 'gm_target_adj':  0.06, 'terminal_mult': 1.35},
+        '🌙 Moonshot':   {'g_decel_mult': 0.40, 'gm_target_adj':  0.12, 'terminal_mult': 1.80},
+    }
+
+    scenario_results = {}
+    for s_name, s_mult in SCENARIOS.items():
+        r = calculate_moonshot_valuation(
+            ms_rev, ms_shares, ms_cash, ms_burn,
+            ms_rev_g_y1, ms_rev_g_decel,
+            ms_gm_now, ms_gm_target,
+            ms_opex_pct, ms_opex_improve,
+            ms_dilution, ms_ps_terminal, ms_pe_terminal,
+            ms_dr, int(ms_years), scenario_mult=s_mult
+        )
+        scenario_results[s_name] = r
+
+    base_result = scenario_results['⚖️ Base']
+    if base_result is None:
+        st.toast("⚠️ 計算失敗，請確認所有欄位已填寫且股數 > 0", icon="⚡")
+        return
+
+    base_tp     = base_result['terminal_price']
+    base_by     = base_result['breakeven_year']
+    base_method = base_result['used_method']
+    base_proj   = base_result['projections']
+    runway_yrs  = base_result['cash_runway_years']
+    final_shares= base_result['terminal_shares']
+
+    upside = (base_tp - cp) / cp * 100 if cp > 0 else 0
+    up_col = "#00FF7F" if upside > 50 else "#FFD700" if upside > 0 else "#FF3131"
+
+    by_str  = f"第 {base_by} 年" if base_by else "推演期內未獲利"
+    by_col  = "#00FF7F" if base_by else "#FF9A3C"
+    rw_str  = f"第 {runway_yrs} 年耗盡" if runway_yrs else "跑道充足"
+    rw_col  = "#FF3131" if runway_yrs and runway_yrs <= 2 else \
+              "#FFD700" if runway_yrs and runway_yrs <= 4 else "#00FF7F"
+
+    dilution_total = ((1 + ms_dilution) ** int(ms_years) - 1) * 100
+    implied_ps = (ms_mktcap * 1000) / ms_rev if ms_rev > 0 else 0
+
+    verdict = ("🟢 強力低估 — 成長兌現則超額回報" if upside > 50 else
+               "🟡 合理偏低 — 需持續驗證成長路徑" if upside > 15 else
+               "⚪ 接近合理 — 市場已充分反映成長預期" if upside > -20 else
+               "🔴 高估警示 — 市場已過度定價未來成長")
+
+    # ── 區塊1: 基準情境主要 KPI ──────────────────────────────────────────────────
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#00F5FF;
+    letter-spacing:3px;margin:22px 0 12px;">🎯 基準情境（Base Case）推演結果</div>""",
+                unsafe_allow_html=True)
+
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 18px;">
+
+  <div style="background:rgba(0,245,255,0.07);border:1px solid rgba(0,245,255,0.3);
+      border-top:3px solid #00F5FF;border-radius:16px;padding:18px 14px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(0,245,255,0.55);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">🌙 Moonshot 目標價</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:46px;color:#00F5FF;line-height:1;
+        margin-bottom:6px;">{base_tp:.2f}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(0,245,255,0.45);">
+        {int(ms_years)}年後折現 · {base_method}</div>
+  </div>
+
+  <div style="border:1px solid {up_col}44;border-top:3px solid {up_col};
+      border-radius:16px;padding:18px 14px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(200,215,230,0.4);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">📍 市價 {cp:.2f} 對比</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:46px;color:{up_col};line-height:1;
+        margin-bottom:6px;">{upside:+.1f}%</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:12px;color:{up_col};font-weight:700;">
+        {verdict}</div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border:1px solid {by_col}44;
+      border-top:3px solid {by_col};border-radius:16px;padding:18px 14px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(200,215,230,0.4);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">⚡ EBITDA 轉盈點</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:{by_col};line-height:1.1;
+        margin-bottom:6px;">{by_str}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(200,215,230,0.45);">
+        終端定價：{base_method}</div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.2);border:1px solid {rw_col}44;
+      border-top:3px solid {rw_col};border-radius:16px;padding:18px 14px;text-align:center;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(200,215,230,0.4);
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">💸 現金跑道</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:{rw_col};line-height:1.1;
+        margin-bottom:6px;">{rw_str}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(200,215,230,0.45);">
+        現金 {ms_cash:.0f}M · 年燒 {ms_burn:.0f}M</div>
+  </div>
+
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 區塊2: 五情境對比 ─────────────────────────────────────────────────────────
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FFD700;
+    letter-spacing:3px;margin:22px 0 12px;">📊 五情境目標價總覽</div>""",
+                unsafe_allow_html=True)
+
+    s_colors = {
+        '💀 Deep Bear': '#FF3131',
+        '🐻 Bear':       '#FF6B6B',
+        '⚖️ Base':        '#FFD700',
+        '🚀 Bull':        '#00FF7F',
+        '🌙 Moonshot':   '#B77DFF',
+    }
+
+    scenario_cards_html = '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px;">'
+    for s_name, s_res in scenario_results.items():
+        s_col = s_colors.get(s_name, '#888')
+        if s_res:
+            s_tp   = s_res['terminal_price']
+            s_up   = (s_tp - cp) / cp * 100 if cp > 0 else 0
+            s_by   = s_res['breakeven_year']
+            s_by_s = f"Y+{s_by}" if s_by else "未轉盈"
+            s_dir  = "⬆" if s_tp >= cp else "⬇"
+            s_meth = s_res['used_method']
+            s_brd  = f"2px solid {s_col}" if s_name == '⚖️ Base' else f"1px solid {s_col}55"
+        else:
+            s_tp, s_up, s_by_s, s_dir, s_meth = 0, -100, "N/A", "⬇", "N/A"
+            s_brd = f"1px solid {s_col}33"
+        scenario_cards_html += f"""
+<div style="background:rgba(0,0,0,0.25);border:{s_brd};border-top:3px solid {s_col};
+    border-radius:14px;padding:16px 10px;text-align:center;">
+  <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:{s_col};letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">{s_name}</div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:38px;color:{s_col};
+      line-height:1;margin-bottom:6px;">{s_tp:.2f}</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
+      color:{"#00FF7F" if s_up >= 0 else "#FF3131"};">{s_dir} {abs(s_up):.0f}% vs 市價</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+      color:rgba(180,200,220,0.45);margin-top:4px;">轉盈：{s_by_s} · {s_meth}</div>
+</div>"""
+    scenario_cards_html += '</div>'
+    st.markdown(scenario_cards_html, unsafe_allow_html=True)
+
+    # ── 區塊2b: 五情境 Altair 條形圖 ─────────────────────────────────────────────
+    bar_rows = []
+    for s_name, s_res in scenario_results.items():
+        tp_val = s_res['terminal_price'] if s_res else 0
+        bar_rows.append({
+            "情境": s_name.split(' ', 1)[-1],   # 去掉 emoji
+            "目標價": tp_val,
+            "顏色": s_colors.get(s_name, '#888'),
+        })
+    bar_rows.append({"情境": "📍 現在市價", "目標價": cp, "顏色": "#00F5FF"})
+    bar_df_ms = pd.DataFrame(bar_rows)
+
+    bar_ms = (
+        alt.Chart(bar_df_ms)
+        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+        .encode(
+            x=alt.X("情境:N", sort=None,
+                    axis=alt.Axis(labelColor="#778899", titleColor="#445566",
+                                  labelFontSize=12, labelFont="Rajdhani")),
+            y=alt.Y("目標價:Q", title="推算目標股價",
+                    axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
+                    scale=alt.Scale(zero=False)),
+            color=alt.Color("顏色:N", scale=None),
+            tooltip=["情境", alt.Tooltip("目標價:Q", format=".2f")]
+        )
+        .properties(
+            height=280,
+            background="rgba(0,0,0,0)",
+            title=alt.TitleParams(f"五情境推算目標價對比 ({int(ms_years)}年後折現)",
+                                   color="#FFD700", fontSize=12, font="JetBrains Mono")
+        )
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(bar_ms), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 區塊3: 逐年成長路徑表（Base Case）────────────────────────────────────────
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FF9A3C;
+    letter-spacing:3px;margin:22px 0 10px;">📈 逐年成長路徑模擬（Base Case）</div>""",
+                unsafe_allow_html=True)
+
+    rows_html = ""
+    for _, row in base_proj.iterrows():
+        yr    = int(row['Year'])
+        ni_c  = "#00FF7F" if row['EBITDA'] > 0 else "#FF6B6B"
+        gr_c  = "#00F5FF"
+        prof_b = ('<span style="color:#00FF7F;font-weight:700;">✅ 轉盈</span>'
+                  if row['Profitable']
+                  else '<span style="color:#FF6B6B;">🔴 虧損</span>')
+        cash_s = (f"<span style='color:{'#00FF7F' if row['CashBal'] and row['CashBal'] > 50 else '#FF3131'};'>"
+                  f"{row['CashBal']:.0f}M</span>" if row['CashBal'] is not None else "—")
+        rows_html += f"""
+<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+  <td style="padding:7px 9px;font-family:'Bebas Neue',sans-serif;font-size:16px;color:#FF9A3C;">
+    Y+{yr}</td>
+  <td style="padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:{gr_c};">
+    {row['GrowthRate']:.0f}%</td>
+  <td style="padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#00F5FF;">
+    {row['Revenue']:,.1f}M</td>
+  <td style="padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#FFD700;">
+    {row['GrossMargin']:.1f}%</td>
+  <td style="padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:{ni_c};">
+    {row['EBITDA']:,.1f}M</td>
+  <td style="padding:7px 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#B77DFF;">
+    {row['Shares']:.0f}M</td>
+  <td style="padding:7px 9px;">{cash_s}</td>
+  <td style="padding:7px 9px;">{prof_b}</td>
+</tr>"""
+
+    st.markdown(f"""
+<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,154,60,0.15);
+    border-radius:14px;overflow:hidden;margin:10px 0;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:rgba(255,154,60,0.08);border-bottom:1px solid rgba(255,154,60,0.25);">
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(255,154,60,0.7);letter-spacing:2px;text-align:left;">年度</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(0,245,255,0.7);letter-spacing:2px;text-align:left;">成長率</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(0,245,255,0.7);letter-spacing:2px;text-align:left;">收入</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(255,215,0,0.7);letter-spacing:2px;text-align:left;">毛利率</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(255,107,107,0.7);letter-spacing:2px;text-align:left;">EBITDA</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(183,125,255,0.7);letter-spacing:2px;text-align:left;">稀釋股數</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(0,255,127,0.6);letter-spacing:2px;text-align:left;">現金餘</th>
+        <th style="padding:9px 9px;font-family:'JetBrains Mono',monospace;font-size:9px;
+            color:rgba(200,215,230,0.5);letter-spacing:2px;text-align:left;">狀態</th>
+      </tr>
+    </thead>
+    <tbody>{rows_html}</tbody>
+  </table>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 區塊3b: 收入 + EBITDA 雙軌路徑圖 ────────────────────────────────────────
+    pcd = base_proj.copy()
+    pcd['年度'] = pcd['Year'].apply(lambda x: f"Y+{x}")
+    pcd['EBITDA_clip'] = pcd['EBITDA'].clip(lower=pcd['Revenue'] * -3)
+
+    rev_b = alt.Chart(pcd).mark_bar(
+        cornerRadiusTopLeft=6, cornerRadiusTopRight=6,
+        opacity=0.65, color='#FF9A3C'
+    ).encode(
+        x=alt.X('年度:N', sort=None,
+                axis=alt.Axis(labelColor='#888', labelFontSize=13, labelFont='Rajdhani')),
+        y=alt.Y('Revenue:Q', title='百萬美元',
+                axis=alt.Axis(labelColor='#556677', titleColor='#445566'),
+                scale=alt.Scale(zero=True)),
+        tooltip=[alt.Tooltip('年度:N'),
+                 alt.Tooltip('Revenue:Q', title='收入', format=',.1f'),
+                 alt.Tooltip('GrowthRate:Q', title='YoY%', format='.0f')]
+    )
+    ebitda_l = alt.Chart(pcd).mark_line(
+        color='#00FF7F', strokeWidth=3,
+        point=alt.OverlayMarkDef(color='#00FF7F', size=80)
+    ).encode(
+        x='年度:N',
+        y=alt.Y('EBITDA_clip:Q',
+                tooltip=[alt.Tooltip('EBITDA:Q', title='EBITDA', format=',.1f')])
+    )
+    zero_l = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+        color='#FF3131', strokeDash=[4, 4], strokeWidth=2
+    ).encode(y='y:Q')
+
+    combo_ms = (rev_b + ebitda_l + zero_l).resolve_scale(y='independent').properties(
+        height=270, background='rgba(0,0,0,0)',
+        title=alt.TitleParams('收入路徑（橘柱）× EBITDA（綠線）· 紅線=損益平衡',
+                               color='#FF9A3C', fontSize=12, font='JetBrains Mono')
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(combo_ms), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 區塊4: 風險雷達儀表板 ──────────────────────────────────────────────────────
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FF3131;
+    letter-spacing:3px;margin:22px 0 12px;">🛡️ 風險雷達儀表板</div>""",
+                unsafe_allow_html=True)
+
+    # 1. 現金跑道風險
+    raw_runway = ms_cash / ms_burn if ms_burn > 0 else 99
+    if raw_runway < 1.5:
+        rr_lvl, rr_c, rr_icon, rr_desc = "🔴 極高危", "#FF3131", "💀", "現金不足 1.5 年！極可能大規模增資稀釋！"
+    elif raw_runway < 2.5:
+        rr_lvl, rr_c, rr_icon, rr_desc = "🟠 高風險", "#FF9A3C", "⚠️", "現金約 2 年，預期 6~12 個月內發布增資計劃"
+    elif raw_runway < 4.0:
+        rr_lvl, rr_c, rr_icon, rr_desc = "🟡 中等", "#FFD700", "👀", "現金跑道約 3~4 年，近期壓力不大但需關注"
+    else:
+        rr_lvl, rr_c, rr_icon, rr_desc = "🟢 安全", "#00FF7F", "✅", "現金充足，近期無稀釋壓力"
+
+    # 2. 稀釋損傷風險
+    dil_7yr = dilution_total
+    if dil_7yr > 100:
+        dr_lvl, dr_c, dr_icon, dr_desc = "🔴 極嚴重", "#FF3131", "💀", f"{int(ms_years)}年後股數翻倍以上，嚴重侵蝕每股價值"
+    elif dil_7yr > 60:
+        dr_lvl, dr_c, dr_icon, dr_desc = "🟠 嚴重", "#FF9A3C", "⚠️", f"{int(ms_years)}年累積稀釋超 60%，每股成長大幅打折"
+    elif dil_7yr > 30:
+        dr_lvl, dr_c, dr_icon, dr_desc = "🟡 中等", "#FFD700", "👀", f"累積稀釋 {dil_7yr:.0f}%，成長需超額補償稀釋損失"
+    else:
+        dr_lvl, dr_c, dr_icon, dr_desc = "🟢 可控", "#00FF7F", "✅", f"累積稀釋 {dil_7yr:.0f}%，在可接受範圍內"
+
+    # 3. 估值泡沫風險（隱含 P/S）
+    if implied_ps > 80:
+        vr_lvl, vr_c, vr_icon, vr_desc = "🔴 極度泡沫", "#FF3131", "🫧", f"隱含P/S {implied_ps:.0f}x，市場定價極為樂觀，修正風險大"
+    elif implied_ps > 40:
+        vr_lvl, vr_c, vr_icon, vr_desc = "🟠 高估值", "#FF9A3C", "⚠️", f"隱含P/S {implied_ps:.0f}x，高成長假設需要嚴格兌現"
+    elif implied_ps > 15:
+        vr_lvl, vr_c, vr_icon, vr_desc = "🟡 偏高", "#FFD700", "👀", f"隱含P/S {implied_ps:.0f}x，合理的高成長溢價"
+    else:
+        vr_lvl, vr_c, vr_icon, vr_desc = "🟢 合理", "#00FF7F", "✅", f"隱含P/S {implied_ps:.0f}x，估值相對合理"
+
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 18px;">
+
+  <div style="background:rgba(0,0,0,0.25);border:1px solid {rr_c}44;
+      border-left:4px solid {rr_c};border-radius:14px;padding:18px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:{rr_c};
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">
+        {rr_icon} 現金跑道風險</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:{rr_c};
+        margin-bottom:8px;">{rr_lvl}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:17px;color:{rr_c};
+        margin-bottom:8px;">{raw_runway:.1f} 年</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+        color:rgba(200,215,230,0.70);line-height:1.6;">{rr_desc}</div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.25);border:1px solid {dr_c}44;
+      border-left:4px solid {dr_c};border-radius:14px;padding:18px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:{dr_c};
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">
+        {dr_icon} 稀釋損傷風險</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:{dr_c};
+        margin-bottom:8px;">{dr_lvl}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:17px;color:{dr_c};
+        margin-bottom:8px;">+{dil_7yr:.0f}% 股數</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+        color:rgba(200,215,230,0.70);line-height:1.6;">{dr_desc}</div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.25);border:1px solid {vr_c}44;
+      border-left:4px solid {vr_c};border-radius:14px;padding:18px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:{vr_c};
+        letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">
+        {vr_icon} 估值泡沫風險</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:{vr_c};
+        margin-bottom:8px;">{vr_lvl}</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:17px;color:{vr_c};
+        margin-bottom:8px;">{implied_ps:.0f}x P/S</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+        color:rgba(200,215,230,0.70);line-height:1.6;">{vr_desc}</div>
+  </div>
+
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 區塊5: TAM 滲透率分析 ──────────────────────────────────────────────────────
+    tam_r = calculate_tam_penetration(ms_rev, ms_tam, ms_mktcap, ms_ps_terminal)
+    cur_p   = tam_r['current_pen']
+    impl_r  = tam_r['implied_rev_m']
+    impl_p  = tam_r['implied_pen']
+    mc10_b  = tam_r['ten_pct_mktcap_b']
+
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#00FF7F;
+    letter-spacing:3px;margin:22px 0 12px;">🌐 TAM 滲透率分析 — 你需要吃掉多少市場？</div>""",
+                unsafe_allow_html=True)
+
+    st.markdown(f"""
+<div style="background:rgba(0,255,127,0.04);border:1px solid rgba(0,255,127,0.22);
+    border-radius:14px;padding:20px 24px;margin-bottom:16px;">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;">
+
+    <div style="text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(0,255,127,0.55);
+          letter-spacing:3px;margin-bottom:8px;">📍 現在的市場滲透率</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:#00FF7F;line-height:1;">
+          {cur_p:.2f}%</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(200,215,230,0.65);margin-top:6px;">
+          收入 {ms_rev:.1f}M ÷ TAM {ms_tam:.0f}B × 1000<br>
+          <strong style="color:#FFD700;">⭐ 你現在渺小到接近零</strong></div>
+    </div>
+
+    <div style="text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(255,154,60,0.55);
+          letter-spacing:3px;margin-bottom:8px;">🎯 市值隱含需要多少收入</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:#FF9A3C;line-height:1;">
+          {impl_r:,.0f}M</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(200,215,230,0.65);margin-top:6px;">
+          市值 {ms_mktcap:.2f}B ÷ P/S {ms_ps_terminal:.0f}x<br>
+          = 佔TAM的 <strong style="color:#FF9A3C;">{impl_p:.1f}%</strong></div>
+    </div>
+
+    <div style="text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(183,125,255,0.55);
+          letter-spacing:3px;margin-bottom:8px;">🌙 達到10% TAM後的潛在市值</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:#B77DFF;line-height:1;">
+          ${mc10_b:.1f}B</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:13px;
+          color:rgba(200,215,230,0.65);margin-top:6px;">
+          10% × TAM × P/S {ms_ps_terminal:.0f}x<br>
+          vs 現在市值 <strong style="color:#B77DFF;">{ms_mktcap:.2f}B</strong></div>
+    </div>
+
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # TAM 滲透率 bar chart
+    tam_chart_df = pd.DataFrame([
+        {"類別": "現在滲透率", "滲透率%": round(cur_p, 3), "顏色": "#00FF7F"},
+        {"類別": "市值隱含需要", "滲透率%": round(impl_p, 2), "顏色": "#FF9A3C"},
+        {"類別": "10% TAM 目標", "滲透率%": 10.0, "顏色": "#B77DFF"},
+    ])
+    tam_ch = (
+        alt.Chart(tam_chart_df)
+        .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+        .encode(
+            x=alt.X("類別:N", sort=None,
+                    axis=alt.Axis(labelColor="#778899", labelFontSize=12, labelFont="Rajdhani")),
+            y=alt.Y("滲透率%:Q", title="市場滲透率 (%)",
+                    axis=alt.Axis(labelColor="#556677", titleColor="#445566")),
+            color=alt.Color("顏色:N", scale=None),
+            tooltip=["類別", alt.Tooltip("滲透率%:Q", format=".3f")]
+        )
+        .properties(height=240, background="rgba(0,0,0,0)",
+                    title=alt.TitleParams("TAM 滲透率對比（現在 vs 市值隱含 vs 10%目標）",
+                                          color="#00FF7F", fontSize=12, font="JetBrains Mono"))
+    )
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(_cfg(tam_ch), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 區塊6: 折現率敏感性分析 ────────────────────────────────────────────────────
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#FF6BFF;
+    letter-spacing:3px;margin:22px 0 10px;">📊 折現率敏感性分析（Base Case）</div>""",
+                unsafe_allow_html=True)
+
+    ms_dr_range = [0.10, 0.13, 0.15, 0.18, 0.20, 0.22, 0.25, 0.30]
+    ms_sens_rows = []
+    for d in ms_dr_range:
+        sr = calculate_moonshot_valuation(
+            ms_rev, ms_shares, ms_cash, ms_burn,
+            ms_rev_g_y1, ms_rev_g_decel,
+            ms_gm_now, ms_gm_target,
+            ms_opex_pct, ms_opex_improve,
+            ms_dilution, ms_ps_terminal, ms_pe_terminal,
+            d, int(ms_years)
+        )
+        fv2 = sr['terminal_price'] if sr else 0
+        up2 = (fv2 - cp) / cp * 100 if cp > 0 else 0
+        ms_sens_rows.append({
+            "折現率": f"{d*100:.0f}%",
+            "推算目標價": round(fv2, 2),
+            "溢價折價": round(up2, 1),
+            "顏色": "#00FF7F" if up2 > 0 else "#FF3131"
+        })
+
+    ms_sens_df = pd.DataFrame(ms_sens_rows)
+    ms_sens_ch = (
+        alt.Chart(ms_sens_df)
+        .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+        .encode(
+            x=alt.X("折現率:N", sort=None,
+                    axis=alt.Axis(labelColor="#778899", labelFontSize=12)),
+            y=alt.Y("推算目標價:Q", title="折現後目標價",
+                    axis=alt.Axis(labelColor="#556677", titleColor="#445566"),
+                    scale=alt.Scale(zero=False)),
+            color=alt.Color("顏色:N", scale=None),
+            tooltip=["折現率",
+                     alt.Tooltip("推算目標價:Q", format=".2f"),
+                     alt.Tooltip("溢價折價:Q", format="+.1f")]
+        )
+        .properties(height=250, background="rgba(0,0,0,0)",
+                    title=alt.TitleParams("折現率敏感性 — 水平線=當前市價",
+                                          color="#FF6BFF", fontSize=12, font="JetBrains Mono"))
+    )
+    ms_rule = alt.Chart(pd.DataFrame({"cp": [cp]})).mark_rule(
+        color="#00F5FF", strokeDash=[6, 3], strokeWidth=2
+    ).encode(y="cp:Q")
+    st.markdown('<div class="t3-chart">', unsafe_allow_html=True)
+    st.altair_chart(
+        _cfg(alt.layer(ms_sens_ch, ms_rule).properties(background="rgba(0,0,0,0)")),
+        use_container_width=True
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── 區塊7: Valkyrie AI 摘要 ────────────────────────────────────────────────────
+    bull_tp = scenario_results.get('🚀 Bull', {})
+    bear_tp = scenario_results.get('🐻 Bear', {})
+    bull_price = bull_tp['terminal_price'] if bull_tp else 0
+    bear_price = bear_tp['terminal_price'] if bear_tp else 0
+    moon_tp_val = scenario_results.get('🌙 Moonshot', {})
+    moon_price  = moon_tp_val['terminal_price'] if moon_tp_val else 0
+
+    by_display = f"第{base_by}年" if base_by else "推演期內未轉盈"
+    summary_ms = (
+        f"【Moonshot ARK 推演摘要 — {ticker}】"
+        f"市價 {cp:.2f}，Base Case 推算 {int(ms_years)} 年目標價 {base_tp:.2f}"
+        f"（折現率 {ms_dr*100:.0f}%，{base_method}），"
+        f"{'高於' if base_tp > cp else '低於'}市價 {abs(upside):.0f}%。"
+        f"Bear Case {bear_price:.2f} → Base {base_tp:.2f} → Bull {bull_price:.2f} → Moonshot {moon_price:.2f}。"
+        f"EBITDA 轉盈點：{by_display}，"
+        f"現金跑道 {raw_runway:.1f} 年（{rr_lvl.split()[0]}），"
+        f"{int(ms_years)}年累積稀釋 {dil_7yr:.0f}%（{dr_lvl.split()[0]}），"
+        f"當前隱含P/S {implied_ps:.0f}x（{vr_lvl.split()[0]}）。"
+        f"⚠️ 此類標的不確定性極高，務必嚴格控制倉位，嚴禁重倉。"
+    )
+
+    st.markdown("""<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:#00F5FF;
+    letter-spacing:3px;margin:22px 0 10px;">🧠 AI 戰術摘要</div>""", unsafe_allow_html=True)
+    st.markdown('<div class="terminal-box">', unsafe_allow_html=True)
+    if f"ms_streamed_{ticker}" not in st.session_state:
+        st.write_stream(_stream_text(summary_ms, speed=0.010))
+        st.session_state[f"ms_streamed_{ticker}"] = True
+    else:
+        st.markdown(
+            f'<div style="font-family:JetBrains Mono,monospace;font-size:11px;'
+            f'color:rgba(0,245,255,0.75);line-height:1.9;">{summary_ms}</div>',
+            unsafe_allow_html=True
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.toast("✅ Moonshot ARK 推演完成！", icon="🌙")
+
+
+# ══════════════════════════════════════════════════════════════
 # 🎯 POSTER CONFIGURATION
 # ══════════════════════════════════════════════════════════════
 POSTERS = [
@@ -2199,7 +3364,8 @@ POSTERS = [
     ("t4", "🗓️", "月K線", "MONTHLY", "#FF3131"),
     ("t5", "🧠", "ARK戰情", "ARK DESK", "#00FF7F"),
     ("t6", "💎", "智能估值", "VALUATION", "#B77DFF"),
-    ("t7", "🌊", "5波模擬", "ELLIOTT", "#FF6BFF")
+    ("t7", "🌊", "5波模擬", "ELLIOTT", "#FF6BFF"),
+    ("t8", "🌙", "月球砲ARK", "MOONSHOT", "#00F5FF"),
 ]
 
 RENDER = {
@@ -2209,7 +3375,8 @@ RENDER = {
     "t4": _t4,
     "t5": _t5,
     "t6": _t6,
-    "t7": _t7
+    "t7": _t7,
+    "t8": _t8,
 }
 
 # ══════════════════════════════════════════════════════════════
@@ -2423,7 +3590,7 @@ def render():
             unsafe_allow_html=True
         )
         
-        p_cols = st.columns(7)
+        p_cols = st.columns(8)
         for col, (key, icon, label, tag, accent) in zip(p_cols, POSTERS):
             is_a = (active == key)
             brd = f"2px solid {accent}" if is_a else "1px solid rgba(255,255,255,0.07)"
@@ -2464,7 +3631,7 @@ def render():
                 fn(sdf, v_ticker, cp, m87, m87p5, m284)
             elif active in ("t2", "t3", "t4"):
                 fn(sdf, v_ticker)
-            elif active in ("t5", "t6"):
+            elif active in ("t5", "t6", "t8"):
                 fn(v_ticker, cp)
             elif active == "t7":
                 fn(sdf)
