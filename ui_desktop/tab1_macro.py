@@ -897,88 +897,6 @@ def _calculate_futures_targets():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_1_1_hud():
-    # ═══════════════════════════════════════════════════════════════════════════
-    # [NEW] LAYER 1: GLOBAL OVERWATCH (No CB Required)
-    # ═══════════════════════════════════════════════════════════════════════════
-    st.markdown("### 🔭 全域戰情中心")
-
-    # Manual Trigger
-    if "macro_init" not in st.session_state:
-        if st.button("🚀 啟動全域監控 (SPX / TWD / DXY / VIX)", use_container_width=True, type="primary"):
-            st.session_state.macro_init = True
-            st.rerun()
-        return
-
-    # Fetch Global Data - ONE TICKER AT A TIME to avoid NaN
-    with st.spinner("📡 連線全球戰情數據中..."):
-        c1, c2, c3, c4 = st.columns(4)
-        
-        # S&P 500
-        with c1:
-            try:
-                spx_ticker = yf.Ticker("^GSPC")
-                spx_hist = spx_ticker.history(period="5d")
-                if len(spx_hist) >= 2:
-                    spx_current = spx_hist['Close'].iloc[-1]
-                    spx_prev = spx_hist['Close'].iloc[-2]
-                    spx_delta = (spx_current - spx_prev) / spx_prev
-                    st.metric("🇺🇸 S&P 500", f"{spx_current:,.0f}", f"{spx_delta:.2%}")
-                else:
-                    st.metric("🇺🇸 S&P 500", "N/A", "0.00%")
-            except:
-                st.metric("🇺🇸 S&P 500", "Error", "0.00%")
-        
-        # USD/TWD
-        with c2:
-            try:
-                twd_ticker = yf.Ticker("TWD=X")
-                twd_hist = twd_ticker.history(period="5d")
-                if len(twd_hist) >= 2:
-                    twd_current = twd_hist['Close'].iloc[-1]
-                    twd_prev = twd_hist['Close'].iloc[-2]
-                    twd_delta = (twd_current - twd_prev) / twd_prev
-                    st.metric("🇹🇼 USD/TWD", f"{twd_current:.3f}", f"{twd_delta:.2%}", delta_color="inverse")
-                else:
-                    st.metric("🇹🇼 USD/TWD", "N/A", "0.00%")
-            except:
-                st.metric("🇹🇼 USD/TWD", "Error", "0.00%")
-        
-        # DXY
-        with c3:
-            try:
-                dxy_ticker = yf.Ticker("DX-Y.NYB")
-                dxy_hist = dxy_ticker.history(period="5d")
-                if len(dxy_hist) >= 2:
-                    dxy_current = dxy_hist['Close'].iloc[-1]
-                    dxy_prev = dxy_hist['Close'].iloc[-2]
-                    dxy_delta = (dxy_current - dxy_prev) / dxy_prev
-                    st.metric("💵 DXY", f"{dxy_current:.2f}", f"{dxy_delta:.2%}", delta_color="inverse")
-                else:
-                    st.metric("💵 DXY", "N/A", "0.00%")
-            except:
-                st.metric("💵 DXY", "Error", "0.00%")
-        
-        # VIX
-        with c4:
-            try:
-                vix_ticker = yf.Ticker("^VIX")
-                vix_hist = vix_ticker.history(period="5d")
-                if len(vix_hist) >= 2:
-                    vix_current = vix_hist['Close'].iloc[-1]
-                    vix_prev = vix_hist['Close'].iloc[-2]
-                    vix_delta = vix_current - vix_prev
-                    vix_col = "inverse" if vix_delta < 0 else "normal"
-                    st.metric("🌪️ VIX", f"{vix_current:.2f}", f"{vix_delta:+.2f}", delta_color=vix_col)
-                else:
-                    st.metric("🌪️ VIX", "N/A", "0.00")
-            except:
-                st.metric("🌪️ VIX", "Error", "0.00")
-    
-    st.divider()
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # [ORIGINAL] LAYER 2: FULL MACRO RISK HUD (CB Required - PRESERVED)
-    # ═══════════════════════════════════════════════════════════════════════════
     # ─── 1.1 HERO BILLBOARD ──────────────────────────────────────────────────
     _sec_header("🚦", "宏觀風控儀表", "MACRO HUD")
     macro, _, _ = _load_engines()
@@ -1069,7 +987,11 @@ def render_1_1_hud():
 </div>""", unsafe_allow_html=True)
 
     else:
-        st.info("💡 上傳 CB 清單可解鎖完整風控儀表 (SIGNAL/VIX/PR90/PTT/TSE 深度分析)")
+        st.markdown("""
+<div class="hero-container">
+  <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
+  <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
+</div>""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
