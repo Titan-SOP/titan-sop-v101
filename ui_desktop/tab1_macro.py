@@ -15,6 +15,8 @@ import pandas as pd
 import numpy as np
 import altair as alt
 import plotly.graph_objects as go
+import plotly.express as px
+import yfinance as yf
 from datetime import datetime
 import time
 
@@ -1158,68 +1160,183 @@ def render_1_3_pr90():
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_1_4_heatmap():
-    _sec_header("🗺️", "族群熱度雷達", "SECTOR HEATMAP")
-    macro, kb, _ = _load_engines()
-    df = st.session_state.get('df', pd.DataFrame())
+def render_1_4_heatmap():  # Keep function name for compatibility
+    """
+    🌊 GLOBAL LIQUIDITY TIDES (全球資金潮汐)
+    Monitor interest rates, currencies, and real assets flow direction
+    """
+    st.markdown("### 🌊 全球資金潮汐 (Global Liquidity Tides)")
+    st.caption("監測 [利率]、[匯率] 與 [實體資產] 的資金流動方向")
 
-    if not df.empty:
-        if 'sector_heatmap' not in st.session_state:
-            st.session_state.sector_heatmap = pd.DataFrame()
+    # 1. Manual Trigger (Lazy Loading)
+    if not st.session_state.get('tides_active', False):
+        if st.button("🔄 啟動潮汐偵測 (Scan Liquidity)", key="btn_tides", 
+                     use_container_width=True, type="primary"):
+            st.session_state.tides_active = True
+            st.rerun()
+        return
 
-        st.markdown('<div class="action-wrap">', unsafe_allow_html=True)
-        if st.button("🛰️  SCAN SECTOR HEATMAP", key="btn_heatmap"):
-            st.toast("🚀 掃描族群資金流向中…", icon="⏳")
-            with st.spinner("Analyzing sector capital flows…"):
-                st.session_state.sector_heatmap = macro.analyze_sector_heatmap(df, kb)
-            st.toast("✅ 族群熱度雷達掃描完成！", icon="🗺️")
-        st.markdown('</div>', unsafe_allow_html=True)
+    # 2. Data Fetching - 9 Global Assets
+    with st.spinner("📡 正在攔截全球資金訊號..."):
+        try:
+            # Define tickers with friendly names
+            tickers = {
+                "🇺🇸 美債10Y": "^TNX",
+                "🏦 Fed利率(13W)": "^IRX",
+                "💵 美元指數": "DX-Y.NYB",
+                "🇹🇼 台幣匯率": "TWD=X",
+                "🥇 黃金 (Gold)": "GC=F",
+                "🥈 白銀 (Silver)": "SI=F",
+                "🛢️ 原油 (Oil)": "CL=F",
+                "📈 標普500": "^GSPC",
+                "🇹🇼 台股加權": "^TWII"
+            }
+            
+            # Fetch data (last 3 months)
+            ticker_symbols = list(tickers.values())
+            raw_df = yf.download(ticker_symbols, period="3mo", progress=False)
+            
+            # Handle data extraction
+            if 'Close' in raw_df.columns:
+                df = raw_df['Close']
+            else:
+                df = raw_df
+            
+            # Rename columns to friendly names
+            inv_tickers = {v: k for k, v in tickers.items()}
+            df = df.rename(columns=inv_tickers)
+            
+            if df.empty or len(df) < 2:
+                st.error("❌ 無法取得數據，請稍後重試")
+                return
 
-        if not st.session_state.sector_heatmap.empty:
-            st.caption("「多頭比例」= 族群中股價站上 87MA 生命線的比例")
-            hm = st.session_state.sector_heatmap.copy()
+            # 3. Top Row Metrics (4 Key Indicators)
+            latest = df.iloc[-1]
+            prev = df.iloc[-2]
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                # US 10Y Yield (The Anchor)
+                us10y = latest.get("🇺🇸 美債10Y", 0)
+                us10y_prev = prev.get("🇺🇸 美債10Y", 0)
+                us10y_delta = us10y - us10y_prev
+                st.metric("🇺🇸 美債10Y", f"{us10y:.2f}%", f"{us10y_delta:+.2f}%")
+            
+            with col2:
+                # USD/TWD (The Flow)
+                twd = latest.get("🇹🇼 台幣匯率", 0)
+                twd_prev = prev.get("🇹🇼 台幣匯率", 1)
+                twd_delta = (twd - twd_prev) / twd_prev if twd_prev != 0 else 0
+                st.metric("🇹🇼 USD/TWD", f"{twd:.3f}", f"{twd_delta:.2%}", delta_color="inverse")
+            
+            with col3:
+                # Gold (The Hedge)
+                gold = latest.get("🥇 黃金 (Gold)", 0)
+                gold_prev = prev.get("🥇 黃金 (Gold)", 1)
+                gold_delta = (gold - gold_prev) / gold_prev if gold_prev != 0 else 0
+                st.metric("🥇 黃金", f"${gold:,.0f}", f"{gold_delta:.2%}")
+            
+            with col4:
+                # Oil (The Inflation)
+                oil = latest.get("🛢️ 原油 (Oil)", 0)
+                oil_prev = prev.get("🛢️ 原油 (Oil)", 1)
+                oil_delta = (oil - oil_prev) / oil_prev if oil_prev != 0 else 0
+                st.metric("🛢️ 原油", f"${oil:.2f}", f"{oil_delta:.2%}")
 
-            def colorize_ratio(val):
-                try:
-                    v = float(val)
-                    if v >= 70:   return 'background-color:rgba(255,49,49,0.30)'
-                    elif v >= 50: return 'background-color:rgba(255,215,0,0.22)'
-                    else:         return 'background-color:rgba(38,166,154,0.20)'
-                except: return ''
+            # 4. Yield Curve Warning (The Siren)
+            st.divider()
+            us10y_val = latest.get("🇺🇸 美債10Y", 0)
+            fed13w_val = latest.get("🏦 Fed利率(13W)", 0)
+            spread = us10y_val - fed13w_val
+            
+            if spread < 0:
+                st.error(
+                    f"🔴 **嚴重警訊：殖利率曲線倒掛 (Inverted)** | "
+                    f"利差: {spread:.2f}% (市場預期衰退/降息)"
+                )
+            else:
+                st.success(
+                    f"🟢 **資金結構正常 (Normal Curve)** | "
+                    f"利差: {spread:.2f}% (利於長期投資)"
+                )
 
-            styled = hm.style.applymap(colorize_ratio, subset=['多頭比例 (%)'])
-            st.dataframe(styled, use_container_width=True)
+            # 5. The Battle Map (Normalized Trend Chart)
+            st.divider()
+            st.markdown("#### ⚔️ 資產走勢對決 (Normalized 3-Month Comparison)")
+            st.caption("所有資產標準化至起始點 0%，顯示相對漲跌幅")
+            
+            # Default selection (must exist in columns)
+            default_cols = ["🇺🇸 美債10Y", "🇹🇼 台幣匯率", "🥇 黃金 (Gold)", "🇹🇼 台股加權"]
+            default_cols = [c for c in default_cols if c in df.columns]
+            
+            # Multi-select for asset comparison
+            selected_assets = st.multiselect(
+                "選擇對比資產 (Select Assets):",
+                options=df.columns.tolist(),
+                default=default_cols,
+                key="tides_multiselect"
+            )
+            
+            if selected_assets:
+                # Normalize: (Price / Start_Price - 1) * 100
+                norm_df = df[selected_assets].copy()
+                for col in norm_df.columns:
+                    if norm_df[col].iloc[0] != 0:
+                        norm_df[col] = (norm_df[col] / norm_df[col].iloc[0] - 1) * 100
+                
+                # Create Plotly line chart
+                fig = px.line(
+                    norm_df,
+                    x=norm_df.index,
+                    y=norm_df.columns,
+                    markers=False,
+                    labels={"value": "相對漲跌幅 (%)", "variable": "資產"}
+                )
+                
+                fig.update_layout(
+                    template="plotly_dark",
+                    height=480,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(8,12,18,0.6)',
+                    font=dict(family='Rajdhani', size=12, color='#B0C0D0'),
+                    hovermode="x unified",
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="center",
+                        x=0.5,
+                        bgcolor='rgba(0,0,0,0.3)',
+                        bordercolor='rgba(255,255,255,0.1)',
+                        borderwidth=1
+                    ),
+                    xaxis=dict(
+                        showgrid=True,
+                        gridcolor='rgba(255,255,255,0.05)',
+                        zeroline=False
+                    ),
+                    yaxis=dict(
+                        showgrid=True,
+                        gridcolor='rgba(255,255,255,0.05)',
+                        zeroline=True,
+                        zerolinecolor='rgba(255,215,0,0.3)',
+                        zerolinewidth=2
+                    ),
+                    margin=dict(l=20, r=20, t=60, b=20)
+                )
+                
+                st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.info("💡 請至少選擇一個資產進行對比")
 
-            if '產業' in hm.columns and 'CB 數量' in hm.columns:
-                try:
-                    fig_pie = go.Figure(go.Pie(
-                        labels=hm['產業'], values=hm['CB 數量'], hole=0.48,
-                        marker=dict(
-                            colors=['#FF3131','#FFD700','#00F5FF','#00FF7F',
-                                    '#FF69B4','#FFA07A','#9370DB','#26A69A'],
-                            line=dict(color='rgba(0,0,0,0.5)', width=1)
-                        ),
-                        textfont=dict(color='#EEE', size=13, family='Rajdhani'),
-                    ))
-                    fig_pie.update_layout(
-                        title=dict(text="各族群 CB 數量佔比",
-                                   font=dict(color='#FFD700', size=14, family='JetBrains Mono')),
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        height=320, margin=dict(t=40, b=0, l=0, r=0),
-                        legend=dict(font=dict(color='#B0C0D0', size=12, family='Rajdhani'))
-                    )
-                    st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                except Exception: pass
-        else:
-            st.markdown('<div class="empty-state"><div class="empty-icon">🛰️</div>'
-                        '<div class="empty-text">CLICK TO SCAN</div></div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="empty-state"><div class="empty-icon">📂</div>'
-                    '<div class="empty-text">UPLOAD CB LIST TO ACTIVATE</div></div>',
-                    unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"❌ Tides System Failure: {e}")
+            import traceback
+            with st.expander("🔍 Debug Trace"):
+                st.code(traceback.format_exc())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
