@@ -4807,16 +4807,16 @@ def render():
 
                 # ── poster card overlays the button, pointer-events:none ──
                 st.markdown(f"""
-<div style="position:relative;height:128px;background:{bg_c};border:{brd};
+<div style="position:relative;height:160px;background:{bg_c};border:{brd};
     border-radius:14px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:6px;box-shadow:{glow};
     margin-top:-38px;pointer-events:none;z-index:1;overflow:hidden;">
   {top_line}
   <div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 6px {accent}44);">{icon}</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
-      color:{lbl_c};text-align:center;padding:0 4px;letter-spacing:0.3px;">{label}</div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:7px;color:{tag_c};
-      letter-spacing:2px;text-transform:uppercase;">{tag}</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;
+      color:{lbl_c};text-align:center;padding:0 4px;letter-spacing:0.3px;line-height:1.1;">{label}</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:26px;color:{tag_c};
+      letter-spacing:1px;text-transform:uppercase;line-height:1.1;">{tag}</div>
 </div>""", unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)

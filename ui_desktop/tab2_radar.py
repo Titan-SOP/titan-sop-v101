@@ -2028,13 +2028,13 @@ def render():
         glow  = f"0 0 20px rgba({rgb},0.14), 0 8px 26px rgba(0,0,0,0.4)" if is_a else "none"
         with col:
             st.markdown(
-                f'<div style="height:108px;background:{bg_c};border:{brd};border-radius:16px;'
+                f'<div style="height:160px;background:{bg_c};border:{brd};border-radius:16px;'
                 f'display:flex;flex-direction:column;align-items:center;justify-content:center;'
                 f'gap:6px;box-shadow:{glow};margin-bottom:-56px;pointer-events:none;'
                 f'position:relative;z-index:0;">'
                 f'<div style="font-size:28px">{icon}</div>'
-                f'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:{lbl_c}">{label_zh}</div>'
-                f'<div style="font-family:JetBrains Mono,monospace;font-size:7px;color:#223;letter-spacing:2px">{label_en}</div>'
+                f'<div style="font-family:Rajdhani,sans-serif;font-size:28px;font-weight:700;color:{lbl_c};text-align:center;padding:0 4px;line-height:1.1;">{label_zh}</div>'
+                f'<div style="font-family:JetBrains Mono,monospace;font-size:26px;color:#556;letter-spacing:1px;text-transform:uppercase;line-height:1.1;">{label_en}</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
