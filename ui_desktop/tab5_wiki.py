@@ -264,6 +264,196 @@ def _fetch(symbol: str):
 
 
 # ════════════════════════════════════════════════════════════════════
+# 5.4 艾蜜莉 — 基本面補充引擎 (Multi-Source Fundamental Fetcher)
+# 第一性原則：info 若空/不完整，直接從財報三表補抓所有所需指標
+# 不影響 5.1 / 5.2 / 5.3 / 5.5 / 5.6
+# ════════════════════════════════════════════════════════════════════
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_fundamentals_54(symbol: str) -> dict:
+    """
+    5.4 艾蜜莉專用多源基本面引擎。
+    來源優先順序：
+      1. tk.info          — 主源 (可能因 yfinance 版本而缺失財務 key)
+      2. tk.fast_info     — 即時行情衍生指標 (P/E、市值等)
+      3. quarterly_income_stmt → TTM EPS (近4季加總)
+      4. income_stmt      — 年度財報 EPS fallback
+      5. balance_sheet    — D/E、bookValue、currentRatio、ROE
+      6. cash_flow        — freeCashflow (直取或 OCF-CapEx 計算)
+    """
+    result: dict = {}
+    try:
+        sym = symbol.upper()
+        resolved = sym
+
+        # ── 台股後綴偵測 ──
+        if _is_tw_ticker(sym):
+            for suffix in [".TW", ".TWO"]:
+                try:
+                    td = yf.download(sym + suffix, period="2d", progress=False)
+                    if not td.empty:
+                        resolved = sym + suffix
+                        break
+                except Exception:
+                    continue
+
+        tk = yf.Ticker(resolved)
+
+        # ── 來源 1: info ──
+        try:
+            raw_info = tk.info or {}
+            for k, v in raw_info.items():
+                if v is not None:
+                    result[k] = v
+        except Exception:
+            pass
+
+        # ── 來源 2: fast_info (即時行情，最穩定) ──
+        try:
+            fi = tk.fast_info
+            _fi_map = {
+                "currentPrice":     getattr(fi, "last_price", None),
+                "marketCap":        getattr(fi, "market_cap", None),
+                "fiftyTwoWeekHigh": getattr(fi, "fifty_two_week_high", None),
+                "fiftyTwoWeekLow":  getattr(fi, "fifty_two_week_low", None),
+                "trailingPE":       getattr(fi, "p_e_ratio", None),
+                "sharesOutstanding":getattr(fi, "shares", None),
+            }
+            for k, v in _fi_map.items():
+                if v is not None and not result.get(k):
+                    try:
+                        result[k] = float(v)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # ── 來源 3+4: income_stmt → EPS (TTM 優先) ──
+        if not result.get("trailingEps"):
+            # 嘗試季度 (TTM = 近4季加總)
+            try:
+                qinc = tk.quarterly_income_stmt
+                if qinc is not None and not qinc.empty:
+                    for eps_key in ["Diluted EPS", "Basic EPS"]:
+                        if eps_key in qinc.index:
+                            vals = qinc.loc[eps_key].dropna()
+                            if len(vals) >= 4:
+                                result["trailingEps"] = float(vals.iloc[:4].sum())
+                            elif len(vals) > 0:
+                                result["trailingEps"] = float(vals.iloc[0])
+                            break
+            except Exception:
+                pass
+
+            # 季度失敗則用年度
+            if not result.get("trailingEps"):
+                try:
+                    ainc = tk.income_stmt
+                    if ainc is not None and not ainc.empty:
+                        for eps_key in ["Diluted EPS", "Basic EPS"]:
+                            if eps_key in ainc.index:
+                                vals = ainc.loc[eps_key].dropna()
+                                if len(vals) > 0:
+                                    v = float(vals.iloc[0])
+                                    if v != 0:
+                                        result["trailingEps"] = v
+                                break
+                except Exception:
+                    pass
+
+        # ── 來源 5: balance_sheet → D/E、bookValue、currentRatio、ROE ──
+        try:
+            bs = tk.balance_sheet
+            if bs is not None and not bs.empty:
+                def _bs_get(keys):
+                    for k in keys:
+                        if k in bs.index:
+                            vals = bs.loc[k].dropna()
+                            if len(vals) > 0:
+                                return float(vals.iloc[0])
+                    return None
+
+                equity = _bs_get(["Stockholders Equity",
+                                  "Total Equity Gross Minority Interest",
+                                  "Common Stock Equity"])
+                debt   = _bs_get(["Total Debt",
+                                  "Long Term Debt And Capital Lease Obligation",
+                                  "Long Term Debt"])
+                cur_a  = _bs_get(["Current Assets", "Total Current Assets"])
+                cur_l  = _bs_get(["Current Liabilities",
+                                  "Total Current Liabilities Net Minority Interest",
+                                  "Total Current Liabilities",
+                                  "Current Liabilities"])
+
+                if equity and debt and not result.get("debtToEquity"):
+                    result["debtToEquity"] = (debt / abs(equity)) * 100
+
+                if equity and not result.get("bookValue"):
+                    shares = result.get("sharesOutstanding") or result.get("impliedSharesOutstanding")
+                    if shares and shares > 0:
+                        result["bookValue"] = equity / shares
+
+                if cur_a and cur_l and cur_l != 0 and not result.get("currentRatio"):
+                    result["currentRatio"] = cur_a / cur_l
+
+                # ROE = Net Income / Equity
+                if not result.get("returnOnEquity") and equity and equity != 0:
+                    try:
+                        ainc = tk.income_stmt
+                        if ainc is not None and not ainc.empty:
+                            ni = None
+                            for k in ["Net Income", "Net Income Common Stockholders"]:
+                                if k in ainc.index:
+                                    vals = ainc.loc[k].dropna()
+                                    if len(vals) > 0:
+                                        ni = float(vals.iloc[0])
+                                        break
+                            if ni is not None:
+                                result["returnOnEquity"] = ni / abs(equity)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # ── 來源 6: cash_flow → freeCashflow ──
+        if not result.get("freeCashflow"):
+            try:
+                cf = tk.cash_flow
+                if cf is not None and not cf.empty:
+                    def _cf_get(keys):
+                        for k in keys:
+                            if k in cf.index:
+                                vals = cf.loc[k].dropna()
+                                if len(vals) > 0:
+                                    return float(vals.iloc[0])
+                        return None
+
+                    fcf = _cf_get(["Free Cash Flow"])
+                    if fcf is not None:
+                        result["freeCashflow"] = fcf
+                    else:
+                        # OCF - CapEx 計算
+                        ocf  = _cf_get(["Operating Cash Flow",
+                                        "Cash Flow From Continuing Operating Activities"])
+                        capx = _cf_get(["Capital Expenditure",
+                                        "Purchase Of Property Plant And Equipment"])
+                        if ocf is not None and capx is not None:
+                            result["freeCashflow"] = ocf + capx   # CapEx 通常為負
+            except Exception:
+                pass
+
+        # ── P/B 補算 (priceToBook = currentPrice / bookValue) ──
+        if not result.get("priceToBook") and result.get("currentPrice") and result.get("bookValue"):
+            bv = result["bookValue"]
+            if bv and bv != 0:
+                result["priceToBook"] = result["currentPrice"] / bv
+
+    except Exception:
+        pass
+
+    return result
+
+
+# ════════════════════════════════════════════════════════════════════
 # HERO + SEARCH
 # ════════════════════════════════════════════════════════════════════
 def _hero(symbol: str):
@@ -908,6 +1098,16 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     Fusion: Value Traffic Light + PE River Chart (8x/12x/16x/20x) + Mine Sweeper.
     Public-facing function name per spec.
     """
+    # ── 5.4 艾蜜莉 基本面補充引擎 ──────────────────────────────────────
+    # 第一性原則修復：yfinance 0.2.44+ 的 tk.info 可能缺失 EPS/FCF/D&E 等
+    # 財務 key。從多源補抓後與原 info 合併，原 info 的非 None 值優先。
+    _suppl = _fetch_fundamentals_54(ticker)
+    _merged = dict(_suppl)                               # 先鋪補充數據
+    _merged.update({k: v for k, v in info.items()       # 再蓋上原 info 有效值
+                    if v is not None})
+    info = _merged
+    # ────────────────────────────────────────────────────────────────────
+
     _hd("5.4", "🚦 價值紅綠燈 + PE河流圖 + 掃雷大隊",
         "PE河流 8×/12×/16×/20× · 財務地雷掃除 · DDM · Graham · 安全邊際", "#FF9A3C")
 
