@@ -34,6 +34,82 @@ def stream_generator(text):
 
 
 # ══════════════════════════════════════════════════════════════════
+# 🔧 CORE UTILITY: 正確的即時報價查詢（台股/美股/ETF 通用）
+# ══════════════════════════════════════════════════════════════════
+def _is_tw_ticker(t: str) -> bool:
+    """判斷是否為台股代號（純數字開頭，4~6碼）"""
+    return bool(re.match(r'^[0-9]', t)) and 4 <= len(t) <= 6
+
+
+def _fetch_latest_prices(orig_tickers: list) -> dict:
+    """
+    輸入原始代號列表（含台股/美股/ETF/CASH混合），
+    回傳 {原始代號: 最新收盤價} dict。
+
+    修正邏輯：
+    1. 台股代號自動加 .TW 後綴查詢
+    2. 若 .TW 查無資料，fallback 試 .TWO（興櫃/上櫃）
+    3. 多 ticker 批量下載時用 query_t → orig_t 反向對照
+    4. 全程維護原始代號作為 key，不污染外部資料
+    """
+    prices = {}
+    non_cash = [t for t in orig_tickers if t.upper() not in ('CASH', 'USD', 'TWD')]
+    if not non_cash:
+        return prices
+
+    tw_tickers  = [t for t in non_cash if _is_tw_ticker(t)]
+    us_tickers  = [t for t in non_cash if not _is_tw_ticker(t)]
+
+    def _dl_close(query_list):
+        """下載並回傳最新一日收盤，支援單/多 ticker。"""
+        if not query_list:
+            return {}
+        try:
+            raw = yf.download(query_list, period="5d", progress=False, auto_adjust=True)
+            if raw.empty:
+                return {}
+            close = raw['Close'] if 'Close' in raw.columns else raw
+            if isinstance(close, pd.Series):
+                # 單一 ticker
+                val = close.dropna().iloc[-1] if not close.dropna().empty else None
+                return {query_list[0]: float(val)} if val is not None else {}
+            else:
+                # 多 ticker → DataFrame，欄名即 query ticker
+                last = close.dropna(how='all').iloc[-1]
+                return {k: float(v) for k, v in last.items() if pd.notna(v)}
+        except Exception:
+            return {}
+
+    # ── 台股：先試 .TW，失敗的 fallback .TWO ──
+    if tw_tickers:
+        tw_query = [f"{t}.TW" for t in tw_tickers]
+        tw_raw   = _dl_close(tw_query)
+        # 對照回原始代號
+        missing_tw = []
+        for orig, q in zip(tw_tickers, tw_query):
+            if q in tw_raw and pd.notna(tw_raw[q]):
+                prices[orig] = tw_raw[q]
+            else:
+                missing_tw.append(orig)
+        # fallback .TWO
+        if missing_tw:
+            two_query = [f"{t}.TWO" for t in missing_tw]
+            two_raw   = _dl_close(two_query)
+            for orig, q in zip(missing_tw, two_query):
+                if q in two_raw and pd.notna(two_raw[q]):
+                    prices[orig] = two_raw[q]
+
+    # ── 美股：直接用原始代號 ──
+    if us_tickers:
+        us_raw = _dl_close(us_tickers)
+        for orig in us_tickers:
+            if orig in us_raw and pd.notna(us_raw[orig]):
+                prices[orig] = us_raw[orig]
+
+    return prices
+
+
+# ══════════════════════════════════════════════════════════════════
 # 🎯 FEATURE 1: TACTICAL GUIDE MODAL
 # ══════════════════════════════════════════════════════════════════
 @st.dialog("🔰 戰術指導 Mode")
@@ -813,30 +889,19 @@ def _inject_css():
 def _render_hero_billboard():
     """Massive cinematic banner showing Total Net Worth + PnL."""
     pf = st.session_state.portfolio_df.copy()
-    asset_tickers = pf[pf['資產類別'] != 'Cash']['資產代號'].tolist()
+    all_tickers = pf['資產代號'].tolist()
 
-    # Fetch latest prices
-    lp_map = {}
-    if asset_tickers:
-        try:
-            tickers_query = [
-                f"{t}.TW" if re.match(r'^[0-9]', t) and 4 <= len(t) <= 6 else t
-                for t in asset_tickers
-            ]
-            pd_ = yf.download(tickers_query, period="1d", progress=False)['Close']
-            if len(tickers_query) == 1:
-                lp_map = {asset_tickers[0]: float(pd_.iloc[-1])}
-            else:
-                raw = pd_.iloc[-1].to_dict() if isinstance(pd_, pd.DataFrame) else {}
-                for orig_t, query_t in zip(asset_tickers, tickers_query):
-                    if query_t in raw:
-                        lp_map[orig_t] = raw[query_t]
-                    elif orig_t in raw:
-                        lp_map[orig_t] = raw[orig_t]
-        except Exception:
-            pass
+    # ── [FIX] 使用統一報價函式，正確處理台股/美股/ETF ──
+    lp_map = _fetch_latest_prices(all_tickers)
 
-    pf['現價']       = pf['資產代號'].map(lp_map).fillna(1.0)
+    # Cash 類資產：現價 = 買入均價（面值）
+    for _, row in pf[pf['資產類別'] == 'Cash'].iterrows():
+        lp_map[row['資產代號']] = float(row['買入均價'])
+
+    pf['現價'] = pf['資產代號'].map(lp_map)
+    # 仍查不到的 fallback 買入均價（避免顯示 NaN）
+    mask = pf['現價'].isna()
+    pf.loc[mask, '現價'] = pf.loc[mask, '買入均價']
     pf['市值']       = pf['持有數量 (股)'] * pf['現價']
     pf['未實現損益'] = (pf['現價'] - pf['買入均價']) * pf['持有數量 (股)']
 
@@ -938,18 +1003,16 @@ def _s41():
 
     # Recompute if hero data not available
     if '市值' not in ptd.columns:
-        asset_tickers = ptd[ptd['資產類別'] != 'Cash']['資產代號'].tolist()
-        lp_map = {}
-        if asset_tickers:
-            try:
-                pd_ = yf.download(asset_tickers, period="1d", progress=False)['Close']
-                if len(asset_tickers) == 1:
-                    lp_map = {asset_tickers[0]: float(pd_.iloc[-1])}
-                else:
-                    lp_map = {k: float(v) for k, v in pd_.iloc[-1].to_dict().items()}
-            except Exception:
-                st.toast("⚠️ 無法獲取即時市價，部分計算欄位將不顯示。", icon="⚡")
-        ptd['現價']       = ptd['資產代號'].map(lp_map).fillna(1.0)
+        all_tickers = ptd['資產代號'].tolist()
+        # ── [FIX] 使用統一報價函式 ──
+        lp_map = _fetch_latest_prices(all_tickers)
+        # Cash fallback
+        for _, row in ptd[ptd['資產類別'] == 'Cash'].iterrows():
+            lp_map[row['資產代號']] = float(row['買入均價'])
+
+        ptd['現價'] = ptd['資產代號'].map(lp_map)
+        mask = ptd['現價'].isna()
+        ptd.loc[mask, '現價'] = ptd.loc[mask, '買入均價']
         ptd['市值']       = ptd['持有數量 (股)'] * ptd['現價']
         ptd['未實現損益'] = (ptd['現價'] - ptd['買入均價']) * ptd['持有數量 (股)']
 
@@ -1505,12 +1568,20 @@ def _s44():
     tickers = pf['資產代號'].tolist()
     with st.spinner("正在獲取最新市價…"):
         try:
-            pd_ = yf.download(tickers, period="1d", progress=False)['Close']
-            latest = pd_.iloc[-1] if isinstance(pd_, pd.DataFrame) else pd_
-            # [FIX] avoid chained fillna DeprecationWarning
-            lp_series = pf['資產代號'].map(
-                latest.to_dict() if hasattr(latest, 'to_dict') else {})
-            pf['最新市價']   = pd.to_numeric(lp_series, errors='coerce').fillna(1.0)
+            # ── [FIX] 使用統一報價函式，正確處理台股/美股/ETF ──
+            lp_map = _fetch_latest_prices(tickers)
+            # Cash 類用買入均價
+            for _, row in pf[pf['資產類別'] == 'Cash'].iterrows():
+                lp_map[row['資產代號']] = float(row['買入均價'])
+
+            lp_series = pf['資產代號'].map(lp_map)
+            # 仍查不到的 fallback 買入均價
+            mask = lp_series.isna()
+            lp_series = lp_series.copy()
+            lp_series[mask] = pf.loc[mask, '買入均價'].values
+
+            pf['最新市價']   = pd.to_numeric(lp_series, errors='coerce').fillna(
+                                    pf['買入均價'])
             pf['目前市值']   = pf['持有數量 (股)'] * pf['最新市價']
             total_v          = pf['目前市值'].sum()
             pf['目前權重 %'] = (pf['目前市值'] / total_v) * 100
