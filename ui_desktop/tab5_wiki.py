@@ -138,44 +138,129 @@ def _is_tw_ticker(symbol: str) -> bool:
     return bool(_re.fullmatch(r'\d{4,6}[A-Z0-9]*', symbol.upper()))
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+def _is_rate_limit_error(e: Exception) -> bool:
+    """判斷是否為 yfinance 429 / Rate Limit 錯誤"""
+    msg = str(e).lower()
+    return any(k in msg for k in ["429", "too many requests", "rate limit",
+                                   "ratelimit", "request limit", "quota"])
+
+
+def _yf_call_with_backoff(fn, max_retries: int = 3, base_delay: float = 2.0):
+    """
+    對任意 yfinance 呼叫加指數退避重試。
+    - max_retries: 最多重試幾次（不含首次嘗試）
+    - base_delay: 首次 retry 等待秒數（之後 ×2）
+    """
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            return fn(), None
+        except Exception as e:
+            last_exc = e
+            if _is_rate_limit_error(e):
+                if attempt < max_retries:
+                    wait = base_delay * (2 ** attempt)      # 2s → 4s → 8s
+                    time.sleep(wait)
+                    continue
+                # 超過重試次數，回傳明確的 429 訊息
+                return None, ("⏳ yfinance 請求過於頻繁（HTTP 429）。請稍候 30 秒再重試。"
+                              "若持續發生，請切換到其他代號後再切回。")
+            else:
+                return None, str(e)
+    return None, str(last_exc)
+
+
+# ── TTL 提高到 1800s (30 分鐘)，大幅降低重複呼叫 API 的頻率 ──
+@st.cache_data(ttl=1800, show_spinner=False)
 def _fetch(symbol: str):
+    """
+    統一資料抓取引擎 — Rate-Limit Safe Edition
+    修復重點：
+      1. TTL 300s → 1800s，減少 cache miss 頻率
+      2. 台股後綴偵測改用 download() 而非 history()，節省一次 API 呼叫
+      3. history("1y") 與 history("3y") 合併為單次 download("max") 再切片
+      4. info / holders 各自加指數退避保護
+      5. holders 為非關鍵資料，失敗不影響主流程
+    """
     try:
         sym_upper = symbol.upper()
+        resolved  = sym_upper  # 最終使用的 ticker（含後綴）
+
+        # ── Step 1: 台股後綴自動偵測（單次 download，比 Ticker.history 省一次呼叫） ──
         if _is_tw_ticker(sym_upper):
             for suffix in [".TW", ".TWO"]:
-                try:
-                    _tk = yf.Ticker(sym_upper + suffix)
-                    _h = _tk.history(period="5d")
-                    if not _h.empty:
-                        symbol = sym_upper + suffix
-                        break
-                except Exception:
-                    continue
-        tk = yf.Ticker(symbol)
-        h1 = tk.history(period="1y")
-        h3 = tk.history(period="3y")
-        if h1.empty:
+                test_sym = sym_upper + suffix
+                test_data, err = _yf_call_with_backoff(
+                    lambda s=test_sym: yf.download(s, period="5d", progress=False),
+                    max_retries=2, base_delay=2.0
+                )
+                if err and "429" in err:
+                    return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err
+                if test_data is not None and not test_data.empty:
+                    resolved = test_sym
+                    break
+            else:
+                # 兩個後綴都查不到
+                return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), \
+                       f"查無台股數據 '{sym_upper}'。請確認上市/上櫃代號。"
+
+        # ── Step 2: 一次性下載 3 年日線（再切成 1y / 3y，只打一次 API） ──
+        raw_data, dl_err = _yf_call_with_backoff(
+            lambda: yf.download(resolved, period="3y", progress=False, auto_adjust=True),
+            max_retries=3, base_delay=3.0
+        )
+        if dl_err:
+            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), dl_err
+        if raw_data is None or raw_data.empty:
             return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), \
-                   f"查無數據 '{symbol}'。請確認代號是否正確。"
-        for h in [h1, h3]:
-            if hasattr(h.index, "tz") and h.index.tz is not None:
-                h.index = h.index.tz_localize(None)
-        info = tk.info or {}
-        # Also try to get top_holdings for ETF X-Ray
+                   f"查無數據 '{resolved}'。請確認代號是否正確。"
+
+        # 處理 MultiIndex 欄位（yf.download 多 ticker 時會有）
+        if isinstance(raw_data.columns, pd.MultiIndex):
+            raw_data.columns = raw_data.columns.get_level_values(0)
+
+        # 去掉時區避免後續運算警告
+        if hasattr(raw_data.index, "tz") and raw_data.index.tz is not None:
+            raw_data.index = raw_data.index.tz_localize(None)
+
+        cutoff_1y = datetime.now() - timedelta(days=365)
+        h1 = raw_data[raw_data.index >= cutoff_1y].copy()
+        h3 = raw_data.copy()
+
+        if h1.empty:
+            h1 = raw_data.tail(252).copy()  # fallback: 取最後 252 筆
+
+        # ── Step 3: info（帶退避保護，加一點 jitter 避免與 download 撞） ──
+        time.sleep(0.3)   # 主動讓 API server 喘口氣
+        tk = yf.Ticker(resolved)
+        info_result, info_err = _yf_call_with_backoff(
+            lambda: tk.info,
+            max_retries=2, base_delay=2.0
+        )
+        if info_err and "429" in info_err:
+            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), info_err
+        info = info_result or {}
+
+        # ── Step 4: 持股資料（非關鍵，失敗優雅降級，不 retry） ──
+        time.sleep(0.2)
         try:
-            inst_holders = tk.institutional_holders
-            if inst_holders is None: inst_holders = pd.DataFrame()
+            inst_holders = tk.institutional_holders or pd.DataFrame()
         except Exception:
             inst_holders = pd.DataFrame()
+
         try:
-            mf_holders = tk.mutualfund_holders
-            if mf_holders is None: mf_holders = pd.DataFrame()
+            mf_holders = tk.mutualfund_holders or pd.DataFrame()
         except Exception:
             mf_holders = pd.DataFrame()
+
         return h1, h3, info, inst_holders, mf_holders, None
+
     except Exception as e:
-        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), str(e)
+        err_msg = str(e)
+        if _is_rate_limit_error(e):
+            err_msg = ("⏳ yfinance 請求過於頻繁（HTTP 429）。請稍候 30 秒再重試。"
+                       "若持續發生，請切換到其他代號後再切回。")
+        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err_msg
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1523,9 +1608,31 @@ def render():
         h1, h3, info, holders, mf_holders, err = _fetch(symbol)
 
     if err:
-        icon = "⏳" if "429" in err or "頻繁" in err or "rate" in err.lower() else "💀"
+        is_rate_limit = "429" in err or "頻繁" in err or "rate" in err.lower() or "⏳" in err
+        icon = "⏳" if is_rate_limit else "💀"
         st.toast(f"❌ {err}", icon=icon)
-        st.toast("💡 美股: AAPL · NVDA  |  台股: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
+
+        if is_rate_limit:
+            st.markdown(f"""
+<div style="background:rgba(255,165,0,.07);border:1px solid rgba(255,165,0,.35);
+     border-left:4px solid #FF9A3C;border-radius:10px;padding:22px 26px;margin:16px 0;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#FF9A3C;
+       letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;">⏳ API 請求限速中 (HTTP 429)</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:17px;color:rgba(255,220,150,.8);line-height:1.7;">
+    yfinance 偵測到短時間內呼叫次數過多，已自動暫停請求。<br>
+    <strong style="color:#FFD700;">建議做法：</strong><br>
+    &nbsp;&nbsp;① 等待 30–60 秒後點擊「🔍 鎖定」重新查詢<br>
+    &nbsp;&nbsp;② 暫時切換到其他代號，再切回<br>
+    &nbsp;&nbsp;③ 若頻繁發生，可切換網路（換 IP）後重試
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
+       color:rgba(255,165,0,.4);margin-top:14px;letter-spacing:1px;">
+    快取 TTL: 1800s · 下次自動刷新前請勿重複送出同一代號
+  </div>
+</div>""", unsafe_allow_html=True)
+        else:
+            st.toast("💡 美股: AAPL · NVDA  |  台股: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
+
         _nav()
         if st.session_state.get("t5_active") == "5.6":
             _s56()
