@@ -257,13 +257,61 @@ def _run_stress_test(portfolio_text):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  DEFAULT PORTFOLIO
+#  ENHANCED DEFAULT PORTFOLIO (使用者要求的11檔持倉)
 # ══════════════════════════════════════════════════════════════════
 _DEFAULT_PORTFOLIO = pd.DataFrame([
-    {'資產代號': '2330', '持有數量 (股)': 1000, '買入均價': 550.0,    '資產類別': 'Stock'},
-    {'資產代號': 'NVDA', '持有數量 (股)': 10,   '買入均價': 400.0,    '資產類別': 'US_Stock'},
-    {'資產代號': 'CASH', '持有數量 (股)': 1,    '買入均價': 500000.0, '資產類別': 'Cash'},
+    # 台股核心（3檔）
+    {'資產代號': '2330',    '持有數量 (股)': 1000,  '買入均價': 1000.0, '資產類別': 'Stock'},
+    {'資產代號': '006208',  '持有數量 (股)': 10000, '買入均價': 35.0,   '資產類別': 'ETF'},
+    {'資產代號': '00675L',  '持有數量 (股)': 5000,  '買入均價': 50.0,   '資產類別': 'ETF'},
+    # 美股科技巨頭（4檔）
+    {'資產代號': 'TSLA',    '持有數量 (股)': 50,    '買入均價': 250.0,  '資產類別': 'US_Stock'},
+    {'資產代號': 'PLTR',    '持有數量 (股)': 200,   '買入均價': 25.0,   '資產類別': 'US_Stock'},
+    {'資產代號': 'GOOGL',   '持有數量 (股)': 80,    '買入均價': 140.0,  '資產類別': 'US_Stock'},
+    {'資產代號': 'NVDA',    '持有數量 (股)': 100,   '買入均價': 500.0,  '資產類別': 'US_Stock'},
+    {'資產代號': 'AVGO',    '持有數量 (股)': 30,    '買入均價': 1500.0, '資產類別': 'US_Stock'},
+    # 量子科技（3檔）
+    {'資產代號': 'RGTI',    '持有數量 (股)': 500,   '買入均價': 15.0,   '資產類別': 'US_Stock'},
+    {'資產代號': 'IONQ',    '持有數量 (股)': 300,   '買入均價': 20.0,   '資產類別': 'US_Stock'},
+    {'資產代號': 'QBTS',    '持有數量 (股)': 400,   '買入均價': 8.0,    '資產類別': 'US_Stock'},
 ])
+
+# ══════════════════════════════════════════════════════════════════
+#  QUICK TEMPLATES (快速範本系統)
+# ══════════════════════════════════════════════════════════════════
+PORTFOLIO_TEMPLATES = {
+    "🎯 預設持倉 (科技+量子)": _DEFAULT_PORTFOLIO.copy(),
+    
+    "🚀 純科技股組合": pd.DataFrame([
+        {'資產代號': 'NVDA',  '持有數量 (股)': 100,  '買入均價': 500.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'TSLA',  '持有數量 (股)': 80,   '買入均價': 250.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'GOOGL', '持有數量 (股)': 100,  '買入均價': 140.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AVGO',  '持有數量 (股)': 40,   '買入均價': 1500.0, '資產類別': 'US_Stock'},
+        {'資產代號': '2330',  '持有數量 (股)': 1000, '買入均價': 1000.0, '資產類別': 'Stock'},
+    ]),
+    
+    "💎 量子科技專注": pd.DataFrame([
+        {'資產代號': 'IONQ', '持有數量 (股)': 500, '買入均價': 20.0, '資產類別': 'US_Stock'},
+        {'資產代號': 'RGTI', '持有數量 (股)': 800, '買入均價': 15.0, '資產類別': 'US_Stock'},
+        {'資產代號': 'QBTS', '持有數量 (股)': 600, '買入均價': 8.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'NVDA', '持有數量 (股)': 100, '買入均價': 500.0,'資產類別': 'US_Stock'},
+    ]),
+    
+    "🇹🇼 台股核心組合": pd.DataFrame([
+        {'資產代號': '2330',   '持有數量 (股)': 2000,  '買入均價': 1000.0, '資產類別': 'Stock'},
+        {'資產代號': '006208', '持有數量 (股)': 20000, '買入均價': 35.0,   '資產類別': 'ETF'},
+        {'資產代號': '2454',   '持有數量 (股)': 1000,  '買入均價': 1200.0, '資產類別': 'Stock'},
+        {'資產代號': '2317',   '持有數量 (股)': 1000,  '買入均價': 600.0,  '資產類別': 'Stock'},
+        {'資產代號': '00675L', '持有數量 (股)': 5000,  '買入均價': 50.0,   '資產類別': 'ETF'},
+    ]),
+    
+    "⚖️ 平衡配置": pd.DataFrame([
+        {'資產代號': '006208', '持有數量 (股)': 15000, '買入均價': 35.0,     '資產類別': 'ETF'},
+        {'資產代號': 'SPY',    '持有數量 (股)': 100,   '買入均價': 450.0,    '資產類別': 'US_Stock'},
+        {'資產代號': 'QQQ',    '持有數量 (股)': 80,    '買入均價': 380.0,    '資產類別': 'US_Stock'},
+        {'資產代號': 'CASH',   '持有數量 (股)': 1,     '買入均價': 500000.0, '資產類別': 'Cash'},
+    ]),
+}
 
 def _ensure_portfolio():
     if 'portfolio_df' not in st.session_state:
@@ -699,7 +747,38 @@ def _render_nav_rail():
 #  SECTION 4.1 — 戰略資產配置
 # ══════════════════════════════════════════════════════════════════
 def _s41():
-    st.markdown('<div class="t4-sec-head" style="--sa:#00F5FF"><div class="t4-sec-num">4.1</div><div><div class="t4-sec-title">戰略資產配置</div><div class="t4-sec-sub">Strategic Asset Allocation</div></div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="t4-sec-head" style="--sa:#00F5FF"><div class="t4-sec-num">4.1</div><div><div class="t4-sec-title">戰略資產配置</div><div class="t4-sec-sub">Strategic Asset Allocation · Enhanced</div></div></div>', unsafe_allow_html=True)
+    
+    # 操作說明 Info Box
+    st.markdown("""
+<div style="background:linear-gradient(135deg, rgba(0,245,255,0.03), rgba(0,245,255,0.01));border:1px solid rgba(0,245,255,0.15);border-left:3px solid #00F5FF;border-radius:10px;padding:16px;margin:16px 0;font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(255,255,255,0.8);line-height:1.6;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00F5FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:700;">💡 操作指引</div>
+    <strong>快速開始：</strong>
+    <ul style="margin:8px 0 0 20px;padding-left:0;">
+        <li>選擇「快速範本」立即載入預設組合</li>
+        <li>點擊表格任意欄位直接編輯（台股1張=1000股）</li>
+        <li>使用「+」按鈕新增資產，「-」刪除資產</li>
+        <li>儲存後自動同步到所有模組（4.2~4.5）</li>
+    </ul>
+    <strong>進階功能：</strong> 批量匯入CSV、快速範本
+</div>
+""", unsafe_allow_html=True)
+    
+    # 快速範本選擇器
+    st.markdown("### 🚀 快速範本")
+    
+    cols = st.columns(5)
+    template_keys = list(PORTFOLIO_TEMPLATES.keys())
+    
+    for i, template_name in enumerate(template_keys):
+        with cols[i % 5]:
+            if st.button(template_name, key=f"template_{i}_v200", use_container_width=True):
+                st.session_state.portfolio_df = PORTFOLIO_TEMPLATES[template_name].copy()
+                st.toast(f"✅ 已載入範本：{template_name}", icon="🎯")
+                st.rerun()
+    
+    st.divider()
+    st.markdown("### 📊 持倉明細")
     st.toast("ℹ️ 台股 1 張請輸入 1000；美股以 1 股為單位；現金請輸入總額。此處可直接編輯您的資產。", icon="📡")
 
     ptd = st.session_state.get('_hero_pf', st.session_state.portfolio_df.copy())
@@ -772,6 +851,39 @@ def _s41():
   <div style="font-family:var(--f-i);font-size:40px;font-weight:800;color:{pnl_c};line-height:1;margin-bottom:6px;letter-spacing:-1px;">{arr} {abs(total_pnl):,.0f}</div>
   <div style="font-family:var(--f-b);font-size:15px;color:{pnl_c};font-weight:700;">{(total_pnl/total_v)*100:+.2f}% 報酬率</div>
 </div>""", unsafe_allow_html=True)
+        
+        # 批量操作功能
+        st.markdown("---")
+        st.markdown("### 🔧 批量操作")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("💾 匯出 CSV", key="export_csv_v200", use_container_width=True):
+                csv = ptd.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📥 下載持倉",
+                    data=csv,
+                    file_name=f"portfolio_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key="download_csv_v200",
+                    use_container_width=True
+                )
+        
+        with col2:
+            uploaded = st.file_uploader("📂 匯入 CSV", type=['csv'], key="upload_csv_v200", label_visibility="collapsed")
+            if uploaded:
+                try:
+                    imported_df = pd.read_csv(uploaded)
+                    required_cols = ['資產代號','持有數量 (股)','買入均價','資產類別']
+                    if all(col in imported_df.columns for col in required_cols):
+                        st.session_state.portfolio_df = imported_df[required_cols].copy()
+                        st.toast("✅ 成功匯入持倉資料", icon="🎯")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ CSV 缺少必要欄位：{required_cols}")
+                except Exception as e:
+                    st.error(f"❌ 匯入失敗：{e}")
 
 
 # ══════════════════════════════════════════════════════════════════
