@@ -138,319 +138,44 @@ def _is_tw_ticker(symbol: str) -> bool:
     return bool(_re.fullmatch(r'\d{4,6}[A-Z0-9]*', symbol.upper()))
 
 
-def _is_rate_limit_error(e: Exception) -> bool:
-    """判斷是否為 yfinance 429 / Rate Limit 錯誤"""
-    msg = str(e).lower()
-    return any(k in msg for k in ["429", "too many requests", "rate limit",
-                                   "ratelimit", "request limit", "quota"])
-
-
-def _yf_call_with_backoff(fn, max_retries: int = 3, base_delay: float = 2.0):
-    """
-    對任意 yfinance 呼叫加指數退避重試。
-    - max_retries: 最多重試幾次（不含首次嘗試）
-    - base_delay: 首次 retry 等待秒數（之後 ×2）
-    """
-    last_exc = None
-    for attempt in range(max_retries + 1):
-        try:
-            return fn(), None
-        except Exception as e:
-            last_exc = e
-            if _is_rate_limit_error(e):
-                if attempt < max_retries:
-                    wait = base_delay * (2 ** attempt)      # 2s → 4s → 8s
-                    time.sleep(wait)
-                    continue
-                # 超過重試次數，回傳明確的 429 訊息
-                return None, ("⏳ yfinance 請求過於頻繁（HTTP 429）。請稍候 30 秒再重試。"
-                              "若持續發生，請切換到其他代號後再切回。")
-            else:
-                return None, str(e)
-    return None, str(last_exc)
-
-
-# ── TTL 提高到 1800s (30 分鐘)，大幅降低重複呼叫 API 的頻率 ──
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _fetch(symbol: str):
-    """
-    統一資料抓取引擎 — Rate-Limit Safe Edition
-    修復重點：
-      1. TTL 300s → 1800s，減少 cache miss 頻率
-      2. 台股後綴偵測改用 download() 而非 history()，節省一次 API 呼叫
-      3. history("1y") 與 history("3y") 合併為單次 download("max") 再切片
-      4. info / holders 各自加指數退避保護
-      5. holders 為非關鍵資料，失敗不影響主流程
-    """
     try:
         sym_upper = symbol.upper()
-        resolved  = sym_upper  # 最終使用的 ticker（含後綴）
-
-        # ── Step 1: 台股後綴自動偵測（單次 download，比 Ticker.history 省一次呼叫） ──
         if _is_tw_ticker(sym_upper):
             for suffix in [".TW", ".TWO"]:
-                test_sym = sym_upper + suffix
-                test_data, err = _yf_call_with_backoff(
-                    lambda s=test_sym: yf.download(s, period="5d", progress=False),
-                    max_retries=2, base_delay=2.0
-                )
-                if err and "429" in err:
-                    return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err
-                if test_data is not None and not test_data.empty:
-                    resolved = test_sym
-                    break
-            else:
-                # 兩個後綴都查不到
-                return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), \
-                       f"查無台股數據 '{sym_upper}'。請確認上市/上櫃代號。"
-
-        # ── Step 2: 一次性下載 3 年日線（再切成 1y / 3y，只打一次 API） ──
-        raw_data, dl_err = _yf_call_with_backoff(
-            lambda: yf.download(resolved, period="3y", progress=False, auto_adjust=True),
-            max_retries=3, base_delay=3.0
-        )
-        if dl_err:
-            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), dl_err
-        if raw_data is None or raw_data.empty:
-            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), \
-                   f"查無數據 '{resolved}'。請確認代號是否正確。"
-
-        # 處理 MultiIndex 欄位（yf.download 多 ticker 時會有）
-        if isinstance(raw_data.columns, pd.MultiIndex):
-            raw_data.columns = raw_data.columns.get_level_values(0)
-
-        # 去掉時區避免後續運算警告
-        if hasattr(raw_data.index, "tz") and raw_data.index.tz is not None:
-            raw_data.index = raw_data.index.tz_localize(None)
-
-        cutoff_1y = datetime.now() - timedelta(days=365)
-        h1 = raw_data[raw_data.index >= cutoff_1y].copy()
-        h3 = raw_data.copy()
-
-        if h1.empty:
-            h1 = raw_data.tail(252).copy()  # fallback: 取最後 252 筆
-
-        # ── Step 3: info（帶退避保護，加一點 jitter 避免與 download 撞） ──
-        time.sleep(0.3)   # 主動讓 API server 喘口氣
-        tk = yf.Ticker(resolved)
-        info_result, info_err = _yf_call_with_backoff(
-            lambda: tk.info,
-            max_retries=2, base_delay=2.0
-        )
-        if info_err and "429" in info_err:
-            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), info_err
-        info = info_result or {}
-
-        # ── Step 4: 持股資料（非關鍵，失敗優雅降級，不 retry） ──
-        time.sleep(0.2)
-        try:
-            inst_holders = tk.institutional_holders or pd.DataFrame()
-        except Exception:
-            inst_holders = pd.DataFrame()
-
-        try:
-            mf_holders = tk.mutualfund_holders or pd.DataFrame()
-        except Exception:
-            mf_holders = pd.DataFrame()
-
-        return h1, h3, info, inst_holders, mf_holders, None
-
-    except Exception as e:
-        err_msg = str(e)
-        if _is_rate_limit_error(e):
-            err_msg = ("⏳ yfinance 請求過於頻繁（HTTP 429）。請稍候 30 秒再重試。"
-                       "若持續發生，請切換到其他代號後再切回。")
-        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), err_msg
-
-
-# ════════════════════════════════════════════════════════════════════
-# 5.4 艾蜜莉 — 基本面補充引擎 (Multi-Source Fundamental Fetcher)
-# 第一性原則：info 若空/不完整，直接從財報三表補抓所有所需指標
-# 不影響 5.1 / 5.2 / 5.3 / 5.5 / 5.6
-# ════════════════════════════════════════════════════════════════════
-@st.cache_data(ttl=1800, show_spinner=False)
-def _fetch_fundamentals_54(symbol: str) -> dict:
-    """
-    5.4 艾蜜莉專用多源基本面引擎。
-    來源優先順序：
-      1. tk.info          — 主源 (可能因 yfinance 版本而缺失財務 key)
-      2. tk.fast_info     — 即時行情衍生指標 (P/E、市值等)
-      3. quarterly_income_stmt → TTM EPS (近4季加總)
-      4. income_stmt      — 年度財報 EPS fallback
-      5. balance_sheet    — D/E、bookValue、currentRatio、ROE
-      6. cash_flow        — freeCashflow (直取或 OCF-CapEx 計算)
-    """
-    result: dict = {}
-    try:
-        sym = symbol.upper()
-        resolved = sym
-
-        # ── 台股後綴偵測 ──
-        if _is_tw_ticker(sym):
-            for suffix in [".TW", ".TWO"]:
                 try:
-                    td = yf.download(sym + suffix, period="2d", progress=False)
-                    if not td.empty:
-                        resolved = sym + suffix
+                    _tk = yf.Ticker(sym_upper + suffix)
+                    _h = _tk.history(period="5d")
+                    if not _h.empty:
+                        symbol = sym_upper + suffix
                         break
                 except Exception:
                     continue
-
-        tk = yf.Ticker(resolved)
-
-        # ── 來源 1: info ──
+        tk = yf.Ticker(symbol)
+        h1 = tk.history(period="1y")
+        h3 = tk.history(period="3y")
+        if h1.empty:
+            return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), \
+                   f"查無數據 '{symbol}'。請確認代號是否正確。"
+        for h in [h1, h3]:
+            if hasattr(h.index, "tz") and h.index.tz is not None:
+                h.index = h.index.tz_localize(None)
+        info = tk.info or {}
+        # Also try to get top_holdings for ETF X-Ray
         try:
-            raw_info = tk.info or {}
-            for k, v in raw_info.items():
-                if v is not None:
-                    result[k] = v
+            inst_holders = tk.institutional_holders
+            if inst_holders is None: inst_holders = pd.DataFrame()
         except Exception:
-            pass
-
-        # ── 來源 2: fast_info (即時行情，最穩定) ──
+            inst_holders = pd.DataFrame()
         try:
-            fi = tk.fast_info
-            _fi_map = {
-                "currentPrice":     getattr(fi, "last_price", None),
-                "marketCap":        getattr(fi, "market_cap", None),
-                "fiftyTwoWeekHigh": getattr(fi, "fifty_two_week_high", None),
-                "fiftyTwoWeekLow":  getattr(fi, "fifty_two_week_low", None),
-                "trailingPE":       getattr(fi, "p_e_ratio", None),
-                "sharesOutstanding":getattr(fi, "shares", None),
-            }
-            for k, v in _fi_map.items():
-                if v is not None and not result.get(k):
-                    try:
-                        result[k] = float(v)
-                    except Exception:
-                        pass
+            mf_holders = tk.mutualfund_holders
+            if mf_holders is None: mf_holders = pd.DataFrame()
         except Exception:
-            pass
-
-        # ── 來源 3+4: income_stmt → EPS (TTM 優先) ──
-        if not result.get("trailingEps"):
-            # 嘗試季度 (TTM = 近4季加總)
-            try:
-                qinc = tk.quarterly_income_stmt
-                if qinc is not None and not qinc.empty:
-                    for eps_key in ["Diluted EPS", "Basic EPS"]:
-                        if eps_key in qinc.index:
-                            vals = qinc.loc[eps_key].dropna()
-                            if len(vals) >= 4:
-                                result["trailingEps"] = float(vals.iloc[:4].sum())
-                            elif len(vals) > 0:
-                                result["trailingEps"] = float(vals.iloc[0])
-                            break
-            except Exception:
-                pass
-
-            # 季度失敗則用年度
-            if not result.get("trailingEps"):
-                try:
-                    ainc = tk.income_stmt
-                    if ainc is not None and not ainc.empty:
-                        for eps_key in ["Diluted EPS", "Basic EPS"]:
-                            if eps_key in ainc.index:
-                                vals = ainc.loc[eps_key].dropna()
-                                if len(vals) > 0:
-                                    v = float(vals.iloc[0])
-                                    if v != 0:
-                                        result["trailingEps"] = v
-                                break
-                except Exception:
-                    pass
-
-        # ── 來源 5: balance_sheet → D/E、bookValue、currentRatio、ROE ──
-        try:
-            bs = tk.balance_sheet
-            if bs is not None and not bs.empty:
-                def _bs_get(keys):
-                    for k in keys:
-                        if k in bs.index:
-                            vals = bs.loc[k].dropna()
-                            if len(vals) > 0:
-                                return float(vals.iloc[0])
-                    return None
-
-                equity = _bs_get(["Stockholders Equity",
-                                  "Total Equity Gross Minority Interest",
-                                  "Common Stock Equity"])
-                debt   = _bs_get(["Total Debt",
-                                  "Long Term Debt And Capital Lease Obligation",
-                                  "Long Term Debt"])
-                cur_a  = _bs_get(["Current Assets", "Total Current Assets"])
-                cur_l  = _bs_get(["Current Liabilities",
-                                  "Total Current Liabilities Net Minority Interest",
-                                  "Total Current Liabilities",
-                                  "Current Liabilities"])
-
-                if equity and debt and not result.get("debtToEquity"):
-                    result["debtToEquity"] = (debt / abs(equity)) * 100
-
-                if equity and not result.get("bookValue"):
-                    shares = result.get("sharesOutstanding") or result.get("impliedSharesOutstanding")
-                    if shares and shares > 0:
-                        result["bookValue"] = equity / shares
-
-                if cur_a and cur_l and cur_l != 0 and not result.get("currentRatio"):
-                    result["currentRatio"] = cur_a / cur_l
-
-                # ROE = Net Income / Equity
-                if not result.get("returnOnEquity") and equity and equity != 0:
-                    try:
-                        ainc = tk.income_stmt
-                        if ainc is not None and not ainc.empty:
-                            ni = None
-                            for k in ["Net Income", "Net Income Common Stockholders"]:
-                                if k in ainc.index:
-                                    vals = ainc.loc[k].dropna()
-                                    if len(vals) > 0:
-                                        ni = float(vals.iloc[0])
-                                        break
-                            if ni is not None:
-                                result["returnOnEquity"] = ni / abs(equity)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
-        # ── 來源 6: cash_flow → freeCashflow ──
-        if not result.get("freeCashflow"):
-            try:
-                cf = tk.cash_flow
-                if cf is not None and not cf.empty:
-                    def _cf_get(keys):
-                        for k in keys:
-                            if k in cf.index:
-                                vals = cf.loc[k].dropna()
-                                if len(vals) > 0:
-                                    return float(vals.iloc[0])
-                        return None
-
-                    fcf = _cf_get(["Free Cash Flow"])
-                    if fcf is not None:
-                        result["freeCashflow"] = fcf
-                    else:
-                        # OCF - CapEx 計算
-                        ocf  = _cf_get(["Operating Cash Flow",
-                                        "Cash Flow From Continuing Operating Activities"])
-                        capx = _cf_get(["Capital Expenditure",
-                                        "Purchase Of Property Plant And Equipment"])
-                        if ocf is not None and capx is not None:
-                            result["freeCashflow"] = ocf + capx   # CapEx 通常為負
-            except Exception:
-                pass
-
-        # ── P/B 補算 (priceToBook = currentPrice / bookValue) ──
-        if not result.get("priceToBook") and result.get("currentPrice") and result.get("bookValue"):
-            bv = result["bookValue"]
-            if bv and bv != 0:
-                result["priceToBook"] = result["currentPrice"] / bv
-
-    except Exception:
-        pass
-
-    return result
+            mf_holders = pd.DataFrame()
+        return h1, h3, info, inst_holders, mf_holders, None
+    except Exception as e:
+        return pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame(), pd.DataFrame(), str(e)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1098,16 +823,6 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     Fusion: Value Traffic Light + PE River Chart (8x/12x/16x/20x) + Mine Sweeper.
     Public-facing function name per spec.
     """
-    # ── 5.4 艾蜜莉 基本面補充引擎 ──────────────────────────────────────
-    # 第一性原則修復：yfinance 0.2.44+ 的 tk.info 可能缺失 EPS/FCF/D&E 等
-    # 財務 key。從多源補抓後與原 info 合併，原 info 的非 None 值優先。
-    _suppl = _fetch_fundamentals_54(ticker)
-    _merged = dict(_suppl)                               # 先鋪補充數據
-    _merged.update({k: v for k, v in info.items()       # 再蓋上原 info 有效值
-                    if v is not None})
-    info = _merged
-    # ────────────────────────────────────────────────────────────────────
-
     _hd("5.4", "🚦 價值紅綠燈 + PE河流圖 + 掃雷大隊",
         "PE河流 8×/12×/16×/20× · 財務地雷掃除 · DDM · Graham · 安全邊際", "#FF9A3C")
 
@@ -1377,169 +1092,6 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
          f"{info.get('returnOnEquity', 0) * 100:.1f}%" if info.get("returnOnEquity") else "N/A",
          ">15%=優秀",
          "#00FF7F" if (info.get("returnOnEquity") or 0) > 0.15 else "#FFD700")
-
-    # =================================================================
-    # NEW FEATURE: MONTE CARLO PRICE SIMULATION (Appended to 5.4)
-    # =================================================================
-    st.divider()
-    st.markdown("### 🌌 蒙地卡羅量子預測 (Monte Carlo Simulation)")
-    st.caption("基於幾何布朗運動 (GBM) 與歷史波動率，模擬未來 30 天的 1,000 種價格平行宇宙。")
-
-    if st.button("🎲 啟動未來 30 天軌跡模擬 (Run Simulation)",
-                 key=f"mc_sim_{ticker}", use_container_width=True):
-        with st.spinner("🧠 正在啟動量子演算，展開平行宇宙..."):
-            try:
-                # 1. 優先使用已傳入的 hist3y，避免重複打 API 造成 429
-                if hist3y is not None and not hist3y.empty:
-                    _hist_src = hist3y.copy()
-                    if hasattr(_hist_src.index, "tz") and _hist_src.index.tz is not None:
-                        _hist_src.index = _hist_src.index.tz_localize(None)
-                    # 取最近 252 交易日（≈1 年）計算波動率
-                    hist = _hist_src["Close"].dropna().tail(252) if "Close" in _hist_src.columns \
-                           else _hist_src.iloc[:, 0].dropna().tail(252)
-                else:
-                    # fallback: 直接下載（TTL 已由 _fetch 快取，通常不重複打）
-                    _dl = yf.download(ticker, period="1y", progress=False)
-                    if _dl.empty:
-                        st.error("❌ 無法取得足夠歷史數據進行模擬。")
-                        return
-                    _close = _dl["Close"] if "Close" in _dl.columns else _dl.iloc[:, 0]
-                    if isinstance(_close, pd.DataFrame):
-                        _close = _close.iloc[:, 0]
-                    hist = _close.dropna()
-
-                if len(hist) < 30:
-                    st.error("❌ 歷史數據不足 30 筆，無法建立有效波動率模型。")
-                    return
-
-                # 2. Calculate Parameters
-                returns = hist.pct_change().dropna()
-                mu  = float(returns.mean())   # 日漂移率
-                vol = float(returns.std())    # 日波動率
-                S0  = float(hist.iloc[-1])    # 當前股價
-
-                days        = 30
-                simulations = 1000
-
-                # 3. Geometric Brownian Motion (GBM)
-                # S_t = S_{t-1} * exp((μ - 0.5σ²)dt + σ√dt·Z)，dt=1 日
-                np.random.seed(None)   # 每次模擬結果不同，保留隨機性
-                simulated_paths       = np.zeros((days, simulations))
-                simulated_paths[0]    = S0
-
-                rand_matrix = np.random.normal(0, 1, (days - 1, simulations))
-                drift       = (mu - 0.5 * vol ** 2)
-                for t in range(1, days):
-                    simulated_paths[t] = (
-                        simulated_paths[t - 1]
-                        * np.exp(drift + vol * rand_matrix[t - 1])
-                    )
-
-                # 4. Visualization
-                fig = go.Figure()
-                time_array = np.arange(days)
-
-                # 100 條半透明路徑作為背景情境
-                for i in range(100):
-                    fig.add_trace(go.Scatter(
-                        x=time_array, y=simulated_paths[:, i],
-                        mode='lines',
-                        line=dict(color='rgba(0,245,255,0.05)', width=1),
-                        showlegend=False, hoverinfo='skip',
-                    ))
-
-                # 百分位數曲線
-                p5  = np.percentile(simulated_paths,  5, axis=1)
-                p50 = np.percentile(simulated_paths, 50, axis=1)
-                p95 = np.percentile(simulated_paths, 95, axis=1)
-
-                # P95/P5 填色區間
-                fig.add_trace(go.Scatter(
-                    x=np.concatenate([time_array, time_array[::-1]]),
-                    y=np.concatenate([p95, p5[::-1]]),
-                    fill='toself',
-                    fillcolor='rgba(0,245,255,0.04)',
-                    line=dict(color='rgba(0,0,0,0)'),
-                    name='90% 信賴區間',
-                    hoverinfo='skip',
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p95, mode='lines',
-                    line=dict(color='#00FF9D', width=2, dash='dash'),
-                    name='95% 樂觀預期 (P95)',
-                ))
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p50, mode='lines',
-                    line=dict(color='#FFB800', width=3),
-                    name='50% 機率中位數 (P50)',
-                ))
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p5, mode='lines',
-                    line=dict(color='#FF4B4B', width=2, dash='dash'),
-                    name='5% 悲觀預期 (P5)',
-                ))
-
-                # 起點標線
-                fig.add_hline(
-                    y=S0, line_dash='dot',
-                    line_color='rgba(255,255,255,0.25)',
-                    annotation_text=f"現價 {S0:.2f}",
-                    annotation_font=dict(color='rgba(255,255,255,0.5)', size=11),
-                )
-
-                fig.update_layout(
-                    template='plotly_dark',
-                    height=500,
-                    title=f"🎯 {ticker} 未來 30 天價格機率分佈（GBM · {simulations:,} 次模擬）",
-                    xaxis_title="未來天數 (Days)",
-                    yaxis_title="模擬價格 (Simulated Price)",
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    hovermode='x unified',
-                    legend=dict(font=dict(color='#B0C0D0', size=11)),
-                    margin=dict(t=50, b=40, l=60, r=20),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-                # 5. Strategic Conclusion
-                final_prices = simulated_paths[-1, :]
-                prob_up  = float(np.sum(final_prices > S0)) / simulations
-                max_loss = (float(p5[-1])  - S0) / S0
-                max_gain = (float(p95[-1]) - S0) / S0
-
-                st.markdown("##### 📊 模擬結果戰略解析 (Simulation Metrics)")
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("30天後上漲機率",        f"{prob_up:.1%}")
-                c2.metric("極端悲觀預期 (P5 跌幅)", f"{max_loss:.1%}",
-                          delta="向下支撐", delta_color="inverse")
-                c3.metric("極端樂觀預期 (P95 漲幅)",f"{max_gain:.1%}",
-                          delta="向上爆發")
-                c4.metric("日波動率 (σ)",           f"{vol:.2%}",
-                          delta=f"年化 {vol * (252**0.5):.2%}")
-
-                if prob_up > 0.6:
-                    st.success(
-                        "⚡ [Valkyrie AI 判定] 歷史波動率與漂移項顯示，"
-                        "該標的具備強烈的向上期望值。"
-                        "結合上方基本面若為便宜價，建議可大膽建倉。"
-                    )
-                elif prob_up < 0.4:
-                    st.warning(
-                        "⚠️ [Valkyrie AI 判定] 模擬勝率偏低，"
-                        "向下修正風險大於向上期望值，建議觀望或縮小部位。"
-                    )
-                else:
-                    st.info(
-                        "⚖️ [Valkyrie AI 判定] 多空機率僵局，"
-                        "股價將陷入震盪，請嚴格設定停損點。"
-                    )
-
-            except Exception as e:
-                st.error(f"蒙地卡羅運算失敗: {e}")
-                with st.expander("🔍 Debug"):
-                    import traceback as _tb
-                    st.code(_tb.format_exc())
 
 
 def _s54(hist3y, info, symbol):
@@ -1971,31 +1523,9 @@ def render():
         h1, h3, info, holders, mf_holders, err = _fetch(symbol)
 
     if err:
-        is_rate_limit = "429" in err or "頻繁" in err or "rate" in err.lower() or "⏳" in err
-        icon = "⏳" if is_rate_limit else "💀"
+        icon = "⏳" if "429" in err or "頻繁" in err or "rate" in err.lower() else "💀"
         st.toast(f"❌ {err}", icon=icon)
-
-        if is_rate_limit:
-            st.markdown(f"""
-<div style="background:rgba(255,165,0,.07);border:1px solid rgba(255,165,0,.35);
-     border-left:4px solid #FF9A3C;border-radius:10px;padding:22px 26px;margin:16px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#FF9A3C;
-       letter-spacing:3px;text-transform:uppercase;margin-bottom:12px;">⏳ API 請求限速中 (HTTP 429)</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:17px;color:rgba(255,220,150,.8);line-height:1.7;">
-    yfinance 偵測到短時間內呼叫次數過多，已自動暫停請求。<br>
-    <strong style="color:#FFD700;">建議做法：</strong><br>
-    &nbsp;&nbsp;① 等待 30–60 秒後點擊「🔍 鎖定」重新查詢<br>
-    &nbsp;&nbsp;② 暫時切換到其他代號，再切回<br>
-    &nbsp;&nbsp;③ 若頻繁發生，可切換網路（換 IP）後重試
-  </div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
-       color:rgba(255,165,0,.4);margin-top:14px;letter-spacing:1px;">
-    快取 TTL: 1800s · 下次自動刷新前請勿重複送出同一代號
-  </div>
-</div>""", unsafe_allow_html=True)
-        else:
-            st.toast("💡 美股: AAPL · NVDA  |  台股: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
-
+        st.toast("💡 美股: AAPL · NVDA  |  台股: 2330 · 00675L · 5274  |  ETF: SPY · QQQ", icon="📡")
         _nav()
         if st.session_state.get("t5_active") == "5.6":
             _s56()
