@@ -34,3 +34,4 @@ chainlit
 rich
 typer
 questionary
+matplotlib
