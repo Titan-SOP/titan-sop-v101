@@ -124,19 +124,39 @@ def _run_fast_backtest(ticker, start_date="2023-01-01", initial_capital=1_000_00
 
 
 @st.cache_data(ttl=7200)
+def _fetch_price_data(ticker, start_date):
+    """共用的價格資料下載，自動處理台股/美股/TWO後綴，回傳實際起始日。"""
+    original_ticker = ticker
+    is_tw = re.match(r'^[0-9]', ticker) and 4 <= len(ticker) <= 6
+    if is_tw:
+        ticker = f"{ticker}.TW"
+    df = yf.download(ticker, start=start_date, progress=False)
+    if df.empty and is_tw:
+        df = yf.download(f"{original_ticker}.TWO", start=start_date, progress=False)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    return df
+
+
+@st.cache_data(ttl=7200)
 def _run_ma_strategy_backtest(ticker, strategy_name, start_date="2015-01-01",
-                               initial_capital=1_000_000):
-    """15 種均線策略回測引擎 — identical to original run_ma_strategy_backtest()"""
+                               initial_capital=1_000_000, commission=0.001425,
+                               slippage=0.001):
+    """
+    15 種均線策略回測引擎 (V200 Enhanced)
+    新增: 交易成本(手續費+滑點)、交易次數、平均持倉天數、
+          年化波動率、Calmar Ratio、買進持有基準、VOO 基準
+    """
     try:
-        original_ticker = ticker
-        if re.match(r'^[0-9]', ticker) and 4 <= len(ticker) <= 6:
-            ticker = f"{ticker}.TW"
-        df = yf.download(ticker, start=start_date, progress=False)
-        if df.empty and re.match(r'^[0-9]', original_ticker) and 4 <= len(original_ticker) <= 6:
-            df = yf.download(f"{original_ticker}.TWO", start=start_date, progress=False)
-        if df.empty or len(df) < 300: return None
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
+        df = _fetch_price_data(ticker, start_date)
+        # 若資料不足，從最早可得日期開始（上市期間不足問題）
+        if df.empty:
+            return None
+        # 至少需 300 天以計算 284MA
+        if len(df) < 300:
+            df = _fetch_price_data(ticker, "2000-01-01")
+            if df.empty or len(df) < 300:
+                return None
 
         for w, n in [(20,'MA20'),(43,'MA43'),(60,'MA60'),(87,'MA87'),(284,'MA284')]:
             df[n] = df['Close'].rolling(w).mean()
@@ -173,24 +193,91 @@ def _run_ma_strategy_backtest(ticker, strategy_name, start_date="2015-01-01",
                     pos = False
                 df.iloc[i, df.columns.get_loc('Signal')] = 1 if pos else 0
 
-        df['Pct_Change']      = df['Close'].pct_change()
-        df['Strategy_Return'] = df['Signal'].shift(1) * df['Pct_Change']
-        df['Equity']          = (1 + df['Strategy_Return'].fillna(0)).cumprod() * initial_capital
-        df['Drawdown']        = (df['Equity'] / df['Equity'].cummax()) - 1
+        # ── 交易成本：每次訊號切換時扣手續費+滑點 ──
+        df['Pct_Change']   = df['Close'].pct_change()
+        df['Trade']        = df['Signal'].diff().abs().fillna(0)  # 1=切換點
+        cost_per_trade     = commission + slippage
+        df['Cost']         = df['Trade'] * cost_per_trade  # 每次進出扣一次
+        df['Net_Return']   = df['Signal'].shift(1) * df['Pct_Change'] - df['Cost']
+        df['Equity']       = (1 + df['Net_Return'].fillna(0)).cumprod() * initial_capital
+        df['Drawdown']     = (df['Equity'] / df['Equity'].cummax()) - 1
 
-        num_years    = len(df) / 252
-        total_return = df['Equity'].iloc[-1] / initial_capital - 1
-        cagr         = ((1 + total_return) ** (1 / num_years)) - 1 if num_years > 0 else 0
+        # ── 買進持有 (Buy & Hold) — 第一性原理：不操作會怎樣? ──
+        df['BH_Return']    = df['Pct_Change']
+        df['BH_Equity']    = (1 + df['BH_Return'].fillna(0)).cumprod() * initial_capital
+        df['BH_Drawdown']  = (df['BH_Equity'] / df['BH_Equity'].cummax()) - 1
+
+        num_years      = len(df) / 252
+        total_return   = df['Equity'].iloc[-1] / initial_capital - 1
+        cagr           = ((1 + total_return) ** (1 / num_years)) - 1 if num_years > 0 else 0
+        bh_return      = df['BH_Equity'].iloc[-1] / initial_capital - 1
+        bh_cagr        = ((1 + bh_return) ** (1 / num_years)) - 1 if num_years > 0 else 0
+        alpha_vs_bh    = cagr - bh_cagr  # 策略相對買持超額報酬
+
+        # ── 進階指標 ──
+        daily_ret      = df['Net_Return'].dropna()
+        ann_vol        = daily_ret.std() * np.sqrt(252)
+        sharpe         = (daily_ret.mean() * 252 - 0.02) / ann_vol if ann_vol > 0 else 0
+        mdd            = df['Drawdown'].min()
+        calmar         = cagr / abs(mdd) if mdd != 0 else 0
+
+        # ── 交易統計 ──
+        trade_entries  = df[df['Trade'] == 1].index
+        num_trades     = len(trade_entries) // 2 + 1  # 進出各算一次
+        hold_days_total= df[df['Signal'].shift(1) == 1].shape[0]
+        avg_hold_days  = hold_days_total / max(num_trades, 1)
+        time_in_mkt    = df['Signal'].mean()  # 在市場中的時間佔比
+
+        actual_start   = str(df.index[0].date())
 
         return {
             "strategy_name":      strategy_name,
             "cagr":               cagr,
             "final_equity":       df['Equity'].iloc[-1],
-            "max_drawdown":       df['Drawdown'].min(),
+            "max_drawdown":       mdd,
             "future_10y_capital": initial_capital * ((1 + cagr) ** 10),
             "num_years":          num_years,
             "equity_curve":       df['Equity'],
             "drawdown_series":    df['Drawdown'],
+            # 新增指標
+            "ann_vol":            ann_vol,
+            "sharpe":             sharpe,
+            "calmar":             calmar,
+            "num_trades":         num_trades,
+            "avg_hold_days":      avg_hold_days,
+            "time_in_market":     time_in_mkt,
+            "alpha_vs_bh":        alpha_vs_bh,
+            # 買進持有 benchmark
+            "bh_cagr":            bh_cagr,
+            "bh_equity":          df['BH_Equity'].iloc[-1],
+            "bh_max_drawdown":    df['BH_Drawdown'].min(),
+            "bh_equity_curve":    df['BH_Equity'],
+            "actual_start":       actual_start,
+        }
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=7200)
+def _fetch_voo_benchmark(start_date, initial_capital=1_000_000):
+    """下載 VOO 作為全球股市基準，回傳權益曲線與 CAGR。"""
+    try:
+        df = yf.download("VOO", start=start_date, progress=False)
+        if df.empty: return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df['Ret']    = df['Close'].pct_change()
+        df['Equity'] = (1 + df['Ret'].fillna(0)).cumprod() * initial_capital
+        num_years    = len(df) / 252
+        total_ret    = df['Equity'].iloc[-1] / initial_capital - 1
+        cagr         = ((1 + total_ret) ** (1 / num_years)) - 1 if num_years > 0 else 0
+        df['Drawdown'] = (df['Equity'] / df['Equity'].cummax()) - 1
+        return {
+            "cagr":         cagr,
+            "final_equity": df['Equity'].iloc[-1],
+            "max_drawdown": df['Drawdown'].min(),
+            "equity_curve": df['Equity'],
+            "num_years":    num_years,
         }
     except Exception:
         return None
@@ -310,6 +397,69 @@ PORTFOLIO_TEMPLATES = {
         {'資產代號': 'SPY',    '持有數量 (股)': 100,   '買入均價': 450.0,    '資產類別': 'US_Stock'},
         {'資產代號': 'QQQ',    '持有數量 (股)': 80,    '買入均價': 380.0,    '資產類別': 'US_Stock'},
         {'資產代號': 'CASH',   '持有數量 (股)': 1,     '買入均價': 500000.0, '資產類別': 'Cash'},
+    ]),
+
+    # ── 5 NEW TEMPLATES ──────────────────────────────────────────────
+    "🦅 科技七巨頭 Mag7": pd.DataFrame([
+        # Magnificent 7: AAPL MSFT GOOGL AMZN META NVDA TSLA
+        {'資產代號': 'AAPL',  '持有數量 (股)': 120,  '買入均價': 185.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'MSFT',  '持有數量 (股)': 80,   '買入均價': 420.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'GOOGL', '持有數量 (股)': 150,  '買入均價': 175.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AMZN',  '持有數量 (股)': 100,  '買入均價': 195.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'META',  '持有數量 (股)': 60,   '買入均價': 560.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'NVDA',  '持有數量 (股)': 150,  '買入均價': 130.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'TSLA',  '持有數量 (股)': 80,   '買入均價': 250.0,  '資產類別': 'US_Stock'},
+    ]),
+
+    "💻 科技十巨頭 Tech10": pd.DataFrame([
+        # Mag7 + AVGO + ORCL + AMD
+        {'資產代號': 'AAPL',  '持有數量 (股)': 80,   '買入均價': 185.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'MSFT',  '持有數量 (股)': 50,   '買入均價': 420.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'GOOGL', '持有數量 (股)': 80,   '買入均價': 175.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AMZN',  '持有數量 (股)': 60,   '買入均價': 195.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'META',  '持有數量 (股)': 40,   '買入均價': 560.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'NVDA',  '持有數量 (股)': 100,  '買入均價': 130.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'TSLA',  '持有數量 (股)': 60,   '買入均價': 250.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AVGO',  '持有數量 (股)': 30,   '買入均價': 1500.0, '資產類別': 'US_Stock'},
+        {'資產代號': 'ORCL',  '持有數量 (股)': 100,  '買入均價': 180.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AMD',   '持有數量 (股)': 100,  '買入均價': 160.0,  '資產類別': 'US_Stock'},
+    ]),
+
+    "🤖 AI 革命主題": pd.DataFrame([
+        # AI基礎設施 + 應用層
+        {'資產代號': 'NVDA',  '持有數量 (股)': 150,  '買入均價': 130.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AMD',   '持有數量 (股)': 100,  '買入均價': 160.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'AVGO',  '持有數量 (股)': 25,   '買入均價': 1500.0, '資產類別': 'US_Stock'},
+        {'資產代號': 'PLTR',  '持有數量 (股)': 300,  '買入均價': 25.0,   '資產類別': 'US_Stock'},
+        {'資產代號': 'MSFT',  '持有數量 (股)': 50,   '買入均價': 420.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'GOOGL', '持有數量 (股)': 80,   '買入均價': 175.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'META',  '持有數量 (股)': 40,   '買入均價': 560.0,  '資產類別': 'US_Stock'},
+        {'資產代號': '2330',  '持有數量 (股)': 500,  '買入均價': 1000.0, '資產類別': 'Stock'},
+        {'資產代號': '2454',  '持有數量 (股)': 500,  '買入均價': 1200.0, '資產類別': 'Stock'},
+    ]),
+
+    "🛡️ 防禦型配置": pd.DataFrame([
+        # 高股息+債券ETF+公用事業+消費必需
+        {'資產代號': 'VYM',   '持有數量 (股)': 200,  '買入均價': 120.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'SCHD',  '持有數量 (股)': 200,  '買入均價': 85.0,   '資產類別': 'US_Stock'},
+        {'資產代號': 'BND',   '持有數量 (股)': 400,  '買入均價': 72.0,   '資產類別': 'US_Bond'},
+        {'資產代號': 'JNJ',   '持有數量 (股)': 100,  '買入均價': 148.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'PG',    '持有數量 (股)': 100,  '買入均價': 162.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'KO',    '持有數量 (股)': 200,  '買入均價': 62.0,   '資產類別': 'US_Stock'},
+        {'資產代號': '0056',  '持有數量 (股)': 10000,'買入均價': 34.0,   '資產類別': 'ETF'},
+        {'資產代號': 'CASH',  '持有數量 (股)': 1,    '買入均價': 300000.0,'資產類別': 'Cash'},
+    ]),
+
+    "🌏 全球分散配置": pd.DataFrame([
+        # 美股大盤+新興市場+歐洲+台股+黃金+債券
+        {'資產代號': 'VTI',   '持有數量 (股)': 150,  '買入均價': 240.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'VEA',   '持有數量 (股)': 200,  '買入均價': 50.0,   '資產類別': 'US_Stock'},
+        {'資產代號': 'VWO',   '持有數量 (股)': 200,  '買入均價': 42.0,   '資產類別': 'US_Stock'},
+        {'資產代號': 'GLD',   '持有數量 (股)': 80,   '買入均價': 195.0,  '資產類別': 'US_Stock'},
+        {'資產代號': 'BND',   '持有數量 (股)': 250,  '買入均價': 72.0,   '資產類別': 'US_Bond'},
+        {'資產代號': '006208','持有數量 (股)': 10000, '買入均價': 35.0,   '資產類別': 'ETF'},
+        {'資產代號': '00713', '持有數量 (股)': 5000,  '買入均價': 60.0,   '資產類別': 'ETF'},
+        {'資產代號': 'CASH',  '持有數量 (股)': 1,    '買入均價': 200000.0,'資產類別': 'Cash'},
     ]),
 }
 
@@ -767,15 +917,18 @@ def _s41():
     # 快速範本選擇器
     st.markdown("### 🚀 快速範本")
     
-    cols = st.columns(5)
     template_keys = list(PORTFOLIO_TEMPLATES.keys())
-    
-    for i, template_name in enumerate(template_keys):
-        with cols[i % 5]:
-            if st.button(template_name, key=f"template_{i}_v200", use_container_width=True):
-                st.session_state.portfolio_df = PORTFOLIO_TEMPLATES[template_name].copy()
-                st.toast(f"✅ 已載入範本：{template_name}", icon="🎯")
-                st.rerun()
+    # 每行 5 個，自動分行
+    num_cols = 5
+    for row_start in range(0, len(template_keys), num_cols):
+        row_keys = template_keys[row_start:row_start + num_cols]
+        cols = st.columns(num_cols)
+        for i, template_name in enumerate(row_keys):
+            with cols[i]:
+                if st.button(template_name, key=f"template_{row_start+i}_v200", use_container_width=True):
+                    st.session_state.portfolio_df = PORTFOLIO_TEMPLATES[template_name].copy()
+                    st.toast(f"✅ 已載入範本：{template_name}", icon="🎯")
+                    st.rerun()
     
     st.divider()
     st.markdown("### 📊 持倉明細")
@@ -1005,17 +1158,43 @@ def _s42():
 
 
 # ══════════════════════════════════════════════════════════════════
-#  SECTION 4.3 — 均線戰法回測實驗室
+#  SECTION 4.3 — 均線戰法回測實驗室 (V200 Enhanced)
 # ══════════════════════════════════════════════════════════════════
 def _s43():
-    st.markdown('<div class="t4-sec-head" style="--sa:#FF9A3C"><div class="t4-sec-num">4.3</div><div><div class="t4-sec-title" style="color:#FF9A3C;">均線戰法實驗室</div><div class="t4-sec-sub">15 MA Strategies · 10-Year Wealth Projection</div></div></div>', unsafe_allow_html=True)
-    st.toast("ℹ️ 選擇一檔標的，自動執行 15 種均線策略回測，推演 10 年財富變化。", icon="📡")
+    st.markdown(
+        '<div class="t4-sec-head" style="--sa:#FF9A3C">'
+        '<div class="t4-sec-num">4.3</div>'
+        '<div><div class="t4-sec-title" style="color:#FF9A3C;">均線戰法實驗室</div>'
+        '<div class="t4-sec-sub">15 MA Strategies · vs Buy&Hold · vs VOO · 10-Year Projection</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    st.toast("ℹ️ 選擇標的與回測期間，自動執行 15 種均線策略，並與「直接持有」和「VOO」比較。", icon="📡")
 
     pf = st.session_state.get('portfolio_df', pd.DataFrame())
     if pf.empty:
         st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡"); return
 
-    sel_t = st.selectbox("選擇回測標的", options=pf['資產代號'].tolist(), key="ma_lab_ticker_v200")
+    # ── 設定列：標的 + 日期選擇器 ──────────────────────────────────
+    cfg_col1, cfg_col2, cfg_col3 = st.columns([2, 2, 1])
+    with cfg_col1:
+        sel_t = st.selectbox("選擇回測標的", options=pf['資產代號'].tolist(), key="ma_lab_ticker_v200")
+    with cfg_col2:
+        backtest_start = st.date_input(
+            "回測起始日期（若上市不足將自動調整）",
+            value=datetime(2015, 1, 1).date(),
+            min_value=datetime(1990, 1, 1).date(),
+            max_value=datetime.now().date(),
+            key="ma_lab_start_date_v200",
+        )
+    with cfg_col3:
+        commission_pct = st.number_input(
+            "手續費率 %",
+            min_value=0.0, max_value=1.0, value=0.1425, step=0.01,
+            key="ma_lab_commission_v200",
+            help="台股預設 0.1425%；美股約 0%（券商免佣）",
+        )
+
     strategies = [
         "價格 > 20MA","價格 > 43MA","價格 > 60MA","價格 > 87MA","價格 > 284MA",
         "非對稱: P>20進 / P<60出",
@@ -1031,93 +1210,267 @@ def _s43():
     st.markdown('</div>', unsafe_allow_html=True)
 
     if run_lab:
-        with st.spinner(f"正在對 {sel_t} 執行 15 種均線策略回測…"):
+        start_str = str(backtest_start)
+        comm = commission_pct / 100.0
+        with st.spinner(f"正在對 {sel_t} 執行 15 種均線策略回測（含交易成本，手續費 {commission_pct:.4f}%）…"):
             ma_results = [r for s in strategies
-                          if (r := _run_ma_strategy_backtest(sel_t, s,
-                              start_date="2015-01-01", initial_capital=1_000_000))]
-            # [FIX] Save ticker key separately to prevent stale display
-            st.session_state.ma_lab_results     = ma_results
-            st.session_state.ma_lab_result_tick = sel_t
+                          if (r := _run_ma_strategy_backtest(
+                              sel_t, s,
+                              start_date=start_str,
+                              initial_capital=1_000_000,
+                              commission=comm,
+                              slippage=0.001))]
+        with st.spinner("下載 VOO 基準資料…"):
+            voo_res = _fetch_voo_benchmark(start_str, initial_capital=1_000_000)
 
-    # [FIX] Check the saved ticker key (not the widget key) to prevent stale display
+        # 記錄有效的實際起始日（由回測引擎自動偵測）
+        actual_start = ma_results[0]['actual_start'] if ma_results else start_str
+
+        st.session_state.ma_lab_results     = ma_results
+        st.session_state.ma_lab_result_tick = sel_t
+        st.session_state.ma_lab_voo         = voo_res
+        st.session_state.ma_lab_actual_start= actual_start
+
     if ('ma_lab_results' not in st.session_state
             or st.session_state.get('ma_lab_result_tick') != sel_t):
         return
 
-    results = st.session_state.ma_lab_results
-    if not results:
-        st.toast(f"❌ 無法取得 {sel_t} 的回測數據。", icon="💀"); return
+    results      = st.session_state.ma_lab_results
+    voo_res      = st.session_state.get('ma_lab_voo')
+    actual_start = st.session_state.get('ma_lab_actual_start', str(backtest_start))
 
-    st.toast(f"✅ {sel_t} — 15 種均線策略回測完成", icon="🎯")
+    if not results:
+        st.toast(f"❌ 無法取得 {sel_t} 的回測數據（資料不足或代號錯誤）。", icon="💀"); return
+
+    st.toast(f"✅ {sel_t} — 15 種均線策略回測完成，實際起始: {actual_start}", icon="🎯")
+
+    # ── 基準橫幅：Buy & Hold vs VOO ────────────────────────────────
+    bh_cagr     = results[0]['bh_cagr']
+    bh_equity   = results[0]['bh_equity']
+    bh_mdd      = results[0]['bh_max_drawdown']
+    voo_cagr    = voo_res['cagr']    if voo_res else float('nan')
+    voo_equity  = voo_res['final_equity'] if voo_res else float('nan')
+    voo_mdd     = voo_res['max_drawdown'] if voo_res else float('nan')
+
+    st.markdown("### 📌 基準比較 (同期間、同本金 100 萬)")
+    bm_c1, bm_c2, bm_c3 = st.columns(3)
+    def _bm_card(col, label, color, cagr_v, equity_v, mdd_v, icon):
+        with col:
+            st.markdown(f"""
+<div style="background:rgba(0,0,0,.28);border:1px solid {color}33;border-top:3px solid {color};
+     border-radius:12px;padding:18px 16px;text-align:center;">
+  <div style="font-family:var(--f-m);font-size:9px;color:{color};letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">{icon} {label}</div>
+  <div style="font-family:var(--f-i);font-size:36px;font-weight:800;color:#FFF;line-height:1;letter-spacing:-1px;">{equity_v:,.0f}</div>
+  <div style="font-family:var(--f-m);font-size:10px;color:rgba(255,255,255,.3);margin:4px 0 10px;">元 (終值)</div>
+  <div style="display:flex;justify-content:center;gap:18px;">
+    <div><div style="font-size:9px;color:{color};font-family:var(--f-m);letter-spacing:1px;">CAGR</div>
+         <div style="font-size:18px;font-weight:800;color:#FFF;font-family:var(--f-i);">{cagr_v:.2%}</div></div>
+    <div><div style="font-size:9px;color:#FF6B6B;font-family:var(--f-m);letter-spacing:1px;">MAX DD</div>
+         <div style="font-size:18px;font-weight:800;color:#FF6B6B;font-family:var(--f-i);">{mdd_v:.2%}</div></div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    _bm_card(bm_c1, f"{sel_t} 直接持有", "#00F5FF", bh_cagr, bh_equity, bh_mdd, "🏦")
+    if voo_res:
+        _bm_card(bm_c2, "VOO 標普500 ETF",    "#FFD700", voo_cagr, voo_equity, voo_mdd, "🇺🇸")
+    else:
+        with bm_c2:
+            st.warning("VOO 資料下載失敗")
+
+    # 最佳策略 vs 買持
+    best_r = max(results, key=lambda x: x['cagr'])
+    beat_bh_color = "#00FF7F" if best_r['alpha_vs_bh'] > 0 else "#FF3131"
+    beat_bh_icon  = "✅ 超越" if best_r['alpha_vs_bh'] > 0 else "❌ 落後"
+    with bm_c3:
+        st.markdown(f"""
+<div style="background:rgba(0,0,0,.28);border:1px solid {beat_bh_color}33;border-top:3px solid {beat_bh_color};
+     border-radius:12px;padding:18px 16px;text-align:center;">
+  <div style="font-family:var(--f-m);font-size:9px;color:{beat_bh_color};letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;">🏆 最佳均線策略</div>
+  <div style="font-family:var(--f-d);font-size:14px;color:#DDE;letter-spacing:1px;margin-bottom:8px;">{best_r['strategy_name'][:22]}</div>
+  <div style="font-family:var(--f-i);font-size:36px;font-weight:800;color:#FFF;line-height:1;letter-spacing:-1px;">{best_r['final_equity']:,.0f}</div>
+  <div style="font-family:var(--f-m);font-size:10px;color:rgba(255,255,255,.3);margin:4px 0 10px;">元 (終值)</div>
+  <div style="font-size:14px;font-weight:700;color:{beat_bh_color};font-family:var(--f-b);">{beat_bh_icon} Buy&Hold<br>α = {best_r['alpha_vs_bh']:+.2%}</div>
+</div>""", unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── 完整策略績效表 (含所有新指標) ──────────────────────────────
     wd = pd.DataFrame([{
         '策略名稱':           r['strategy_name'],
-        '年化報酬 (CAGR)':   r['cagr'],
-        '回測期末資金':       r['final_equity'],
-        '最大回撤':           r['max_drawdown'],
-        '未來 10 年預期資金': r['future_10y_capital'],
+        '年化報酬 CAGR':     r['cagr'],
+        '年化波動率':         r['ann_vol'],
+        'Sharpe Ratio':      r['sharpe'],
+        'Calmar Ratio':      r['calmar'],
+        '最大回撤 MDD':       r['max_drawdown'],
+        '交易次數':           r['num_trades'],
+        '平均持倉天數':        r['avg_hold_days'],
+        '在場時間 %':         r['time_in_market'],
+        'α vs Buy&Hold':     r['alpha_vs_bh'],
+        '回測期末資金':        r['final_equity'],
+        '未來10年推估':        r['future_10y_capital'],
         '回測年數':           r['num_years'],
-    } for r in results]).sort_values('年化報酬 (CAGR)', ascending=False)
+    } for r in results]).sort_values('年化報酬 CAGR', ascending=False)
 
-    st.subheader("📊 策略績效與財富推演")
-    st.dataframe(wd.style.format({
-        '年化報酬 (CAGR)':   '{:.2%}', '回測期末資金':       '{:,.0f}',
-        '最大回撤':           '{:.2%}', '未來 10 年預期資金': '{:,.0f}',
-        '回測年數':           '{:.1f}',
-    }), use_container_width=True)
-    
-    # FEATURE 3: Valkyrie Typewriter for strategy summary
-    st.markdown("**🎯 策略分析總結**")
-    best_strategy = wd.iloc[0]
-    worst_strategy = wd.iloc[-1]
-    strategy_summary = f"針對 {sel_t} 執行的 15 種均線策略回測已完成。最佳策略為「{best_strategy['策略名稱']}」，年化報酬率達 {best_strategy['年化報酬 (CAGR)']:.2%}，10 年後預期資金可達 {best_strategy['未來 10 年預期資金']:,.0f} 元。最差策略為「{worst_strategy['策略名稱']}」，年化報酬率為 {worst_strategy['年化報酬 (CAGR)']:.2%}。建議根據風險承受度選擇適合的策略進行實盤操作。"
-    st.write_stream(stream_generator(strategy_summary))
+    st.subheader("📊 策略完整績效表（含成本、比較基準）")
 
-    # CAGR Ranking Bar Chart
-    st.markdown('<div class="t4-chart-panel"><div class="t4-chart-lbl">▸ CAGR strategy ranking</div>', unsafe_allow_html=True)
-    bar_s = wd.sort_values('年化報酬 (CAGR)', ascending=True)
-    colors = ['#00FF7F' if v > 0.10 else ('#FFD700' if v > 0 else '#FF6B6B')
-              for v in bar_s['年化報酬 (CAGR)']]
+    def _color_alpha(val):
+        color = '#00FF7F' if val > 0 else '#FF6B6B'
+        return f'color: {color}; font-weight: bold'
+    def _color_cagr(val):
+        color = '#00FF7F' if val > bh_cagr else '#FF6B6B'
+        return f'color: {color}'
+
+    styled = (wd.style
+        .format({
+            '年化報酬 CAGR':   '{:.2%}',
+            '年化波動率':       '{:.2%}',
+            'Sharpe Ratio':    '{:.2f}',
+            'Calmar Ratio':    '{:.2f}',
+            '最大回撤 MDD':     '{:.2%}',
+            '交易次數':         '{:.0f}',
+            '平均持倉天數':     '{:.0f}',
+            '在場時間 %':       '{:.1%}',
+            'α vs Buy&Hold':   '{:+.2%}',
+            '回測期末資金':     '{:,.0f}',
+            '未來10年推估':     '{:,.0f}',
+            '回測年數':         '{:.1f}',
+        })
+        .applymap(_color_alpha, subset=['α vs Buy&Hold'])
+        .applymap(_color_cagr,  subset=['年化報酬 CAGR'])
+    )
+    st.dataframe(styled, use_container_width=True)
+
+    # ── Valkyrie Typewriter 分析總結 ─────────────────────────────
+    st.markdown("**🎯 AI 策略分析總結**")
+    best_s   = wd.iloc[0]
+    worst_s  = wd.iloc[-1]
+    beat_cnt = (wd['α vs Buy&Hold'] > 0).sum()
+    voo_label = f"VOO ({voo_cagr:.2%})" if voo_res else "VOO"
+    summary_text = (
+        f"針對 {sel_t}（實際回測起始：{actual_start}）執行 15 種均線策略完成。"
+        f"最佳策略為「{best_s['策略名稱']}」，年化 {best_s['年化報酬 CAGR']:.2%}，"
+        f"Sharpe {best_s['Sharpe Ratio']:.2f}，MDD {best_s['最大回撤 MDD']:.2%}；"
+        f"10 年後預期 {best_s['未來10年推估']:,.0f} 元。"
+        f"直接持有年化 {bh_cagr:.2%}，全球基準 {voo_label}。"
+        f"15 種策略中，有 {beat_cnt} 種跑贏直接持有，{15 - beat_cnt} 種落後。"
+        f"最差策略「{worst_s['策略名稱']}」年化僅 {worst_s['年化報酬 CAGR']:.2%}。"
+        f"結論：頻繁進出並不必然優於長期持有，請根據 Alpha 欄位評估各策略是否真的值得操作。"
+    )
+    st.write_stream(stream_generator(summary_text))
+
+    # ── CAGR Ranking Bar Chart ───────────────────────────────────
+    st.markdown('<div class="t4-chart-panel"><div class="t4-chart-lbl">▸ CAGR strategy ranking vs Buy&Hold vs VOO</div>', unsafe_allow_html=True)
+    bar_s  = wd.sort_values('年化報酬 CAGR', ascending=True).copy()
+    colors = ['#00FF7F' if v > bh_cagr else ('#FFD700' if v > 0 else '#FF6B6B')
+              for v in bar_s['年化報酬 CAGR']]
     fig_bar = go.Figure(go.Bar(
-        x=bar_s['年化報酬 (CAGR)'] * 100, y=bar_s['策略名稱'], orientation='h',
+        x=bar_s['年化報酬 CAGR'] * 100, y=bar_s['策略名稱'], orientation='h',
         marker_color=colors,
-        text=[f"{v:.1f}%" for v in bar_s['年化報酬 (CAGR)'] * 100],
+        text=[f"{v:.1f}%" for v in bar_s['年化報酬 CAGR'] * 100],
         textposition='outside',
         textfont=dict(color='#DDE', size=11, family='JetBrains Mono'),
     ))
+    # Buy & Hold 基準線
+    fig_bar.add_vline(x=bh_cagr * 100, line_color='#00F5FF', line_width=2,
+                      line_dash='dash',
+                      annotation_text=f"Buy&Hold {bh_cagr:.1%}",
+                      annotation_font=dict(color='#00F5FF', size=10))
+    if voo_res:
+        fig_bar.add_vline(x=voo_cagr * 100, line_color='#FFD700', line_width=2,
+                          line_dash='dot',
+                          annotation_text=f"VOO {voo_cagr:.1%}",
+                          annotation_font=dict(color='#FFD700', size=10),
+                          annotation_position="top right")
     fig_bar.add_vline(x=0, line_color='rgba(255,255,255,0.15)', line_width=1)
     fig_bar.update_layout(
         template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)', height=420,
+        plot_bgcolor='rgba(0,0,0,0)', height=480,
         xaxis=dict(ticksuffix="%", gridcolor='rgba(255,255,255,0.04)'),
         yaxis=dict(tickfont=dict(size=11, family='Rajdhani', color='#B0C0D0')),
-        margin=dict(t=10, b=30, l=230, r=60),
+        margin=dict(t=10, b=30, l=240, r=80),
     )
     st.plotly_chart(fig_bar, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Excel download
+    # ── 權益曲線疊加圖：策略 vs Buy&Hold vs VOO ─────────────────
+    st.markdown('<div class="t4-chart-panel"><div class="t4-chart-lbl">▸ equity curves overlay — strategies vs buy&hold vs VOO</div>', unsafe_allow_html=True)
+    pal_lines = ['#B77DFF','#FF9A3C','#00FF7F','#FF3131','#4dc8ff','#FF6BFF']
+    fig_ov = go.Figure()
+    for i, res in enumerate(results):
+        eq = res['equity_curve']
+        norm = (eq / eq.iloc[0]) * 100
+        fig_ov.add_trace(go.Scatter(
+            x=norm.index, y=norm.values, name=res['strategy_name'][:18],
+            line=dict(color=pal_lines[i % len(pal_lines)], width=1),
+            opacity=0.55,
+            hovertemplate=f"<b>{res['strategy_name'][:18]}</b> %{{y:.1f}}<extra></extra>"))
+    # Buy & Hold (粗線)
+    bh_eq  = results[0]['bh_equity_curve']
+    bh_norm = (bh_eq / bh_eq.iloc[0]) * 100
+    fig_ov.add_trace(go.Scatter(
+        x=bh_norm.index, y=bh_norm.values, name=f"📌 {sel_t} Buy&Hold",
+        line=dict(color='#00F5FF', width=3),
+        hovertemplate=f"<b>Buy&Hold</b> %{{y:.1f}}<extra></extra>"))
+    # VOO (粗線)
+    if voo_res:
+        voo_eq   = voo_res['equity_curve']
+        voo_norm = (voo_eq / voo_eq.iloc[0]) * 100
+        fig_ov.add_trace(go.Scatter(
+            x=voo_norm.index, y=voo_norm.values, name="🇺🇸 VOO",
+            line=dict(color='#FFD700', width=3, dash='dash'),
+            hovertemplate="<b>VOO</b> %{y:.1f}<extra></extra>"))
+    fig_ov.add_hline(y=100, line_dash='dot', line_color='rgba(255,255,255,0.12)')
+    fig_ov.update_layout(
+        template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)', height=400, hovermode='x unified',
+        legend=dict(font=dict(color='#B0C0D0',size=10,family='Rajdhani')),
+        margin=dict(t=10,b=40,l=50,r=10),
+        yaxis=dict(gridcolor='rgba(255,255,255,0.04)', title="標準化淨值 (Base=100)"),
+        xaxis=dict(gridcolor='rgba(255,255,255,0.04)'),
+    )
+    st.plotly_chart(fig_ov, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Excel 下載（含更多欄位）────────────────────────────────────
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='xlsxwriter') as w:
         wd.to_excel(w, index=False, sheet_name='MA_Backtest_Report')
+        # 加一張基準頁
+        bm_df = pd.DataFrame([
+            {'基準': f'{sel_t} Buy&Hold', 'CAGR': bh_cagr, '期末資金': bh_equity, 'MDD': bh_mdd},
+            {'基準': 'VOO', 'CAGR': voo_cagr if voo_res else None,
+             '期末資金': voo_equity if voo_res else None, 'MDD': voo_mdd if voo_res else None},
+        ])
+        bm_df.to_excel(w, index=False, sheet_name='基準比較')
     st.markdown('<div class="t4-action-g">', unsafe_allow_html=True)
-    st.download_button("📥 下載戰術回測報表 (Excel)", buf.getvalue(),
-        f"{sel_t}_ma_lab_report.xlsx",
+    st.download_button("📥 下載完整戰術回測報表 (Excel)", buf.getvalue(),
+        f"{sel_t}_ma_lab_full_report.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     st.markdown('</div>', unsafe_allow_html=True)
     st.divider()
 
-    # Strategy chart
-    st.subheader("📈 策略視覺化")
+    # ── 單策略深度圖表 ────────────────────────────────────────────
+    st.subheader("📈 單策略深度視覺化")
     sel_s = st.selectbox("選擇策略查看圖表",
                          [r['strategy_name'] for r in results], key="ma_chart_v200")
     sel_r = next((r for r in results if r['strategy_name'] == sel_s), None)
     if sel_r:
         eq = sel_r['equity_curve'].reset_index(); eq.columns = ['Date','Equity']
-        fig_eq = px.line(eq, x='Date', y='Equity',
-                         title=f"{sel_t} — {sel_s} 權益曲線",
-                         labels={'Equity':'資金 (元)','Date':'日期'})
-        fig_eq.update_traces(line_color='#2ECC71')
-        fig_eq.update_layout(template='plotly_dark')
+        bh_eq_df = sel_r['bh_equity_curve'].reset_index(); bh_eq_df.columns = ['Date','BH']
+
+        fig_eq = go.Figure()
+        fig_eq.add_trace(go.Scatter(x=eq['Date'], y=eq['Equity'],
+            name=f"均線策略: {sel_s[:20]}", line=dict(color='#2ECC71', width=2)))
+        fig_eq.add_trace(go.Scatter(x=bh_eq_df['Date'], y=bh_eq_df['BH'],
+            name=f"{sel_t} Buy&Hold", line=dict(color='#00F5FF', width=2, dash='dash')))
+        if voo_res:
+            voo_eq_df = voo_res['equity_curve'].reset_index(); voo_eq_df.columns = ['Date','VOO']
+            fig_eq.add_trace(go.Scatter(x=voo_eq_df['Date'], y=voo_eq_df['VOO'],
+                name="VOO", line=dict(color='#FFD700', width=2, dash='dot')))
+        fig_eq.update_layout(
+            title=f"{sel_t} — {sel_s} 權益曲線 vs 基準",
+            template='plotly_dark', hovermode='x unified',
+            legend=dict(font=dict(color='#B0C0D0',size=11)))
         st.plotly_chart(fig_eq, use_container_width=True)
 
         dd = sel_r['drawdown_series'].reset_index(); dd.columns = ['Date','Drawdown']
@@ -1129,6 +1482,14 @@ def _s43():
         fig_dd.update_yaxes(ticksuffix="%")
         fig_dd.update_layout(template='plotly_dark')
         st.plotly_chart(fig_dd, use_container_width=True)
+
+        # 統計摘要小卡
+        stat_cols = st.columns(4)
+        stat_cols[0].metric("交易次數", f"{sel_r['num_trades']:.0f} 次")
+        stat_cols[1].metric("平均持倉天數", f"{sel_r['avg_hold_days']:.0f} 天")
+        stat_cols[2].metric("在場時間", f"{sel_r['time_in_market']:.1%}")
+        stat_cols[3].metric("α vs Buy&Hold", f"{sel_r['alpha_vs_bh']:+.2%}",
+                            delta_color="normal" if sel_r['alpha_vs_bh'] > 0 else "inverse")
 
 
 # ══════════════════════════════════════════════════════════════════
