@@ -1556,99 +1556,267 @@ def _s43():
 
 
 # ══════════════════════════════════════════════════════════════════
-#  SECTION 4.4 — 智慧調倉計算機
+#  SECTION 4.4 — 機構級資金配置 (Markowitz Efficient Frontier)
 # ══════════════════════════════════════════════════════════════════
 def _s44():
-    st.markdown('<div class="t4-sec-head" style="--sa:#00FF7F"><div class="t4-sec-num">4.4</div><div><div class="t4-sec-title" style="color:#00FF7F;">智慧調倉計算機</div><div class="t4-sec-sub">Target Weight → Delta Shares Rebalancing Plan</div></div></div>', unsafe_allow_html=True)
+    """4.4 機構級資金配置 (Markowitz Efficient Frontier)"""
+    st.markdown(
+        '<div class="t4-sec-head" style="--sa:#00FF7F">'
+        '<div class="t4-sec-num">4.4</div>'
+        '<div><div class="t4-sec-title" style="color:#00FF7F;">機構級資金配置</div>'
+        '<div class="t4-sec-sub">Markowitz Efficient Frontier · Nobel Prize Algorithm · Monte Carlo 5000</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("透過諾貝爾經濟學獎演算法，在給定風險下計算出「預期報酬最大化」的完美資金權重。")
 
-    pf = st.session_state.get('portfolio_df', pd.DataFrame()).copy()
-    if pf.empty or '資產代號' not in pf.columns:
-        st.toast("⚠️ 請先在 4.1 配置您的戰略資產。", icon="⚡"); return
+    # ── 1. User Input ─────────────────────────────────────────────
+    st.markdown("##### 🎯 1. 輸入您的投資組合標的")
 
-    tickers = pf['資產代號'].tolist()
-    with st.spinner("正在獲取最新市價…"):
+    # 預設從 4.1 持倉自動帶入，使用者也可手動覆蓋
+    pf_default = st.session_state.get('portfolio_df', pd.DataFrame())
+    if not pf_default.empty:
+        default_tickers = ", ".join(
+            (f"{t}.TW" if _is_tw_ticker(t) else t)
+            for t in pf_default['資產代號'].tolist()
+            if str(t).upper() not in ('CASH', 'USD', 'TWD')
+        )
+    else:
+        default_tickers = "2330.TW, 2317.TW, 2454.TW, 2881.TW, 0050.TW"
+
+    tickers_input = st.text_input(
+        "輸入股票代號（以逗號分隔，台股請加 .TW）",
+        value=default_tickers,
+        help="自動從 4.1 持倉帶入，可手動修改。台股範例：2330.TW  美股範例：AAPL, NVDA",
+        key="s44_tickers_input",
+    )
+
+    rf_col, sim_col = st.columns(2)
+    with rf_col:
+        risk_free = st.number_input(
+            "無風險利率 Risk-Free Rate (%)",
+            min_value=0.0, max_value=10.0, value=2.0, step=0.1,
+            key="s44_rf_rate",
+            help="美國10年期公債約4-5%，台灣約1.5-2%",
+        ) / 100.0
+    with sim_col:
+        n_sim = st.selectbox(
+            "蒙地卡羅模擬次數",
+            options=[1000, 3000, 5000, 10000],
+            index=2,
+            key="s44_n_sim",
+            help="越多次越精確，但計算越慢。建議 5000。",
+        )
+
+    st.markdown('<div class="t4-action">', unsafe_allow_html=True)
+    run_opt = st.button("🚀 啟動量子演算 (Run Optimization)", use_container_width=True,
+                        key="s44_run_btn")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if not run_opt:
+        return
+
+    # ── 2. Parse tickers ──────────────────────────────────────────
+    tickers = [t.strip() for t in tickers_input.split(",") if t.strip()]
+    if len(tickers) < 2:
+        st.warning("⚠️ 請至少輸入兩檔標的進行配置！")
+        return
+
+    # ── 3. Fetch & Compute ────────────────────────────────────────
+    with st.spinner(f"🧠 正在抓取 {len(tickers)} 檔歷史數據並計算共變異數矩陣…"):
         try:
-            # ── [FIX] 使用統一報價函式，正確處理台股/美股/ETF ──
-            lp_map = _fetch_latest_prices(tickers)
-            # Cash 類用買入均價
-            for _, row in pf[pf['資產類別'] == 'Cash'].iterrows():
-                lp_map[row['資產代號']] = float(row['買入均價'])
+            # [FIX] .ffill() 取代已棄用的 fillna(method='ffill')
+            raw = yf.download(tickers, period="1y", progress=False)
+            if isinstance(raw.columns, pd.MultiIndex):
+                data = raw['Close']
+            else:
+                data = raw[['Close']] if 'Close' in raw.columns else raw
 
-            lp_series = pf['資產代號'].map(lp_map)
-            # 仍查不到的 fallback 買入均價
-            mask = lp_series.isna()
-            lp_series = lp_series.copy()
-            lp_series[mask] = pf.loc[mask, '買入均價'].values
+            data = data.dropna(axis=1, how='all').ffill()
 
-            pf['最新市價']   = pd.to_numeric(lp_series, errors='coerce').fillna(
-                                    pf['買入均價'])
-            pf['目前市值']   = pf['持有數量 (股)'] * pf['最新市價']
-            total_v          = pf['目前市值'].sum()
-            pf['目前權重 %'] = (pf['目前市值'] / total_v) * 100
+            valid_tickers = data.columns.tolist()
+            if len(valid_tickers) < 2:
+                st.error("❌ 有效標的不足，請檢查代號是否正確。")
+                return
 
-            st.markdown(f"""
-<div style="text-align:center;padding:10px 0 18px;">
-  <div style="font-family:var(--f-m);font-size:9px;color:rgba(0,255,127,.35);letter-spacing:4px;text-transform:uppercase;margin-bottom:6px;">CURRENT TOTAL ASSETS</div>
-  <div style="font-family:var(--f-i);font-size:52px;font-weight:800;color:#FFF;letter-spacing:-2px;line-height:1;">{total_v:,.0f}</div>
-  <div style="font-family:var(--f-m);font-size:10px;color:rgba(255,255,255,.2);letter-spacing:3px;margin-top:4px;">TWD</div>
-</div>""", unsafe_allow_html=True)
+            # 若有代號查不到，提示使用者
+            missing = [t for t in tickers if t not in valid_tickers]
+            if missing:
+                st.warning(f"⚠️ 以下代號無資料，已自動排除：{', '.join(missing)}")
 
-            # Horizontal column inputs
-            st.write("**請輸入各資產目標權重（橫向快速設定）：**")
-            tw_cols = st.columns(len(pf))
-            target_weights = []
-            for col, (_, row) in zip(tw_cols, pf.iterrows()):
-                with col:
-                    w = st.number_input(f"{row['資產代號']}",
-                        min_value=0.0, max_value=100.0,
-                        value=float(round(row['目前權重 %'], 1)),
-                        step=1.0, key=f"target_{row['資產代號']}_v200")
-                    target_weights.append(w)
+            # 日報酬 → 年化
+            returns      = data.pct_change().dropna()
+            mean_returns = returns.mean() * 252        # 年化預期報酬
+            cov_matrix   = returns.cov() * 252         # 年化共變異數矩陣
+            n_assets     = len(valid_tickers)
 
-            total_w = sum(target_weights)
-            if not (99 <= total_w <= 101):
-                st.toast(f"⚠️ 目標權重總和 {total_w:.1f}%，建議調整至接近 100%。", icon="⚡")
+            # ── 4. Monte Carlo Simulation ─────────────────────────
+            np.random.seed(42)   # 可重現性
+            results        = np.zeros((3, n_sim))
+            weights_record = np.zeros((n_sim, n_assets))
 
-            pf['目標權重 %'] = target_weights
-            pf['目標市值']   = (pf['目標權重 %'] / 100) * total_v
-            pf['調倉市值']   = pf['目標市值'] - pf['目前市值']
-            pf['調倉股數']   = (pf['調倉市值'] / pf['最新市價']).astype(int)
+            for i in range(n_sim):
+                w = np.random.random(n_assets)
+                w /= w.sum()                          # 正規化：總和 = 1
+                weights_record[i] = w
 
-            st.subheader("調倉計畫")
+                p_ret  = float(np.dot(w, mean_returns))
+                p_std  = float(np.sqrt(w.T @ cov_matrix.values @ w))
+                p_shrp = (p_ret - risk_free) / p_std if p_std > 0 else 0.0
+
+                results[0, i] = p_std    # 波動率（風險）
+                results[1, i] = p_ret    # 預期年化報酬
+                results[2, i] = p_shrp   # 夏普值
+
+            # ── 5. Optimal Portfolio (Max Sharpe) ─────────────────
+            max_sharpe_idx  = int(np.argmax(results[2]))
+            min_vol_idx     = int(np.argmin(results[0]))
+            optimal_weights = weights_record[max_sharpe_idx]
+            opt_ret  = results[1, max_sharpe_idx]
+            opt_std  = results[0, max_sharpe_idx]
+            opt_shp  = results[2, max_sharpe_idx]
+            mvp_ret  = results[1, min_vol_idx]
+            mvp_std  = results[0, min_vol_idx]
+            mvp_shp  = results[2, min_vol_idx]
+
+            # ── 6. Efficient Frontier Chart ───────────────────────
+            st.markdown("##### 🌌 2. 效率前緣微笑曲線 (The Frontier)")
+            st.caption(
+                "每個點代表一種資產配置組合。**越右**=風險越高，**越上**=報酬越高。"
+                "顏色越綠=夏普值越高（風報比越佳）。⭐ 即最佳配置。"
+            )
+
+            # [FIX] 高 Sharpe = 綠色，用 RdYlGn（非 _r 反色）
+            fig = px.scatter(
+                x=results[0, :],
+                y=results[1, :],
+                color=results[2, :],
+                color_continuous_scale="RdYlGn",
+                labels={
+                    'x':     '預期年化波動率 Volatility',
+                    'y':     '預期年化報酬 Return',
+                    'color': '夏普值 Sharpe Ratio',
+                },
+                opacity=0.55,
+            )
+
+            # 最大夏普 ⭐
+            fig.add_trace(go.Scatter(
+                x=[opt_std], y=[opt_ret],
+                mode='markers+text',
+                marker=dict(color='#00F5FF', size=18, symbol='star',
+                            line=dict(width=2, color='white')),
+                name='⭐ 最大夏普組合',
+                text=[f'🏆 Sharpe {opt_shp:.2f}'],
+                textposition='top left',
+                textfont=dict(color='#00F5FF', size=13),
+            ))
+
+            # 最小波動 ◆
+            fig.add_trace(go.Scatter(
+                x=[mvp_std], y=[mvp_ret],
+                mode='markers+text',
+                marker=dict(color='#FFD700', size=14, symbol='diamond',
+                            line=dict(width=2, color='white')),
+                name='◆ 最小波動組合',
+                text=[f'◆ Vol {mvp_std:.2%}'],
+                textposition='top right',
+                textfont=dict(color='#FFD700', size=12),
+            ))
+
+            fig.update_layout(
+                template='plotly_dark',
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=520,
+                margin=dict(t=30, b=40, l=60, r=20),
+                xaxis=dict(tickformat='.1%', gridcolor='rgba(255,255,255,0.04)'),
+                yaxis=dict(tickformat='.1%', gridcolor='rgba(255,255,255,0.04)'),
+                coloraxis_colorbar=dict(
+                    tickfont=dict(color='#A0B0C0', size=10),
+                    title=dict(text='Sharpe', font=dict(color='#A0B0C0', size=10)),
+                ),
+                legend=dict(font=dict(color='#B0C0D0', size=11, family='Rajdhani')),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # ── 7. Metrics Row ─────────────────────────────────────
+            st.markdown("##### 🏆 3. 最佳化資金權重建議 (Max Sharpe Ratio)")
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.metric("預期年化報酬",        f"{opt_ret:.2%}")
+            with c2:
+                st.metric("投資組合波動率",       f"{opt_std:.2%}",
+                          delta="風險值", delta_color="inverse")
+            with c3:
+                st.metric("夏普值 (風險報酬比)",  f"{opt_shp:.2f}",
+                          delta="越高越好")
+            with c4:
+                st.metric("無風險利率假設",       f"{risk_free:.2%}")
+
+            st.divider()
+
+            # ── 8. Weight DataFrame ───────────────────────────────
+            weight_df = pd.DataFrame({
+                '資產代號 (Ticker)':    valid_tickers,
+                '建議資金佔比 (Weight)': optimal_weights,
+            }).sort_values('建議資金佔比 (Weight)', ascending=False).reset_index(drop=True)
+
             st.dataframe(
-                pf[['資產代號','目前權重 %','目標權重 %','調倉股數']].style.format({
-                    '目前權重 %': '{:.1f}%', '目標權重 %': '{:.1f}%', '調倉股數': '{:+,}',
-                }),
+                weight_df.style
+                    .format({'建議資金佔比 (Weight)': '{:.2%}'})
+                    .background_gradient(subset=['建議資金佔比 (Weight)'], cmap='viridis'),
                 use_container_width=True,
             )
 
-            # Before/After Pie side-by-side
-            st.divider()
-            b_col, a_col = st.columns(2)
-            pal = ['#FF3131','#FFD700','#00F5FF','#00FF7F','#FF9A3C','#B77DFF']
+            # ── 9. Optimal Weights Donut Chart ────────────────────
+            st.markdown("##### 🥧 4. 最佳配置圓餅圖")
+            pal = ['#00F5FF','#FFD700','#00FF7F','#FF9A3C','#B77DFF',
+                   '#FF3131','#4dc8ff','#FF6BFF','#88FFD8','#FFAA5A']
+            fig_pie = go.Figure(go.Pie(
+                labels=weight_df['資產代號 (Ticker)'].tolist(),
+                values=weight_df['建議資金佔比 (Weight)'].tolist(),
+                hole=0.52,
+                marker=dict(
+                    colors=pal[:len(weight_df)],
+                    line=dict(color='rgba(0,0,0,.4)', width=2),
+                ),
+                textfont=dict(color='#DDE', size=12, family='Rajdhani'),
+                textinfo='label+percent',
+            ))
+            fig_pie.update_layout(
+                template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)',
+                height=360, margin=dict(t=20, b=0, l=0, r=0),
+                legend=dict(font=dict(color='#B0C0D0', size=11, family='Rajdhani')),
+                annotations=[dict(
+                    text=f"Sharpe<br>{opt_shp:.2f}",
+                    x=0.5, y=0.5, font_size=18, showarrow=False,
+                    font=dict(color='#00F5FF', family='JetBrains Mono'),
+                )],
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
 
-            def _mini_pie(labels, values, title, col):
-                with col:
-                    fig = go.Figure(go.Pie(
-                        labels=labels, values=values, hole=0.48,
-                        marker=dict(colors=pal[:len(labels)],
-                                    line=dict(color='rgba(0,0,0,.3)', width=1.2)),
-                        textfont=dict(color='#DDE', size=11, family='Rajdhani'),
-                    ))
-                    fig.update_layout(
-                        title=dict(text=title, font=dict(color='rgba(200,215,230,.4)',
-                                   size=11, family='JetBrains Mono')),
-                        template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)',
-                        height=260, margin=dict(t=30,b=0,l=0,r=0),
-                        legend=dict(font=dict(color='#A0B0C0', size=10, family='Rajdhani')),
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-
-            _mini_pie(pf['資產代號'].tolist(), pf['目前市值'].tolist(), "⬅ BEFORE", b_col)
-            _mini_pie(pf['資產代號'].tolist(), pf['目標市值'].tolist(), "AFTER ➡", a_col)
+            # ── 10. Valkyrie AI Commentary ────────────────────────
+            top_ticker = weight_df.iloc[0]['資產代號 (Ticker)']
+            top_w      = weight_df.iloc[0]['建議資金佔比 (Weight)']
+            commentary = (
+                f"根據 {n_sim:,} 次蒙地卡羅模擬與共變異數矩陣分析，"
+                f"在無風險利率 {risk_free:.1%} 的假設下，"
+                f"最佳夏普組合建議將最大比重 {top_w:.1%} 分配給 {top_ticker}。"
+                f"該組合預期年化報酬為 {opt_ret:.2%}，"
+                f"波動率為 {opt_std:.2%}，夏普值 {opt_shp:.2f}。"
+                f"效率前緣上每一個點代表一種帕雷托最優配置，"
+                f"在當前組合中無法在不增加風險的前提下進一步提升報酬。"
+                f"請注意：此結果基於過去一年歷史數據，未來報酬不保證重現，"
+                f"實際操作前請搭配基本面與總經背景進行人工判斷。"
+            )
+            st.success(f"⚡ [Valkyrie 系統分析] {commentary}")
 
         except Exception as e:
-            st.toast(f"❌ 獲取市價或計算失敗: {e}", icon="💀")
+            st.error(f"演算失敗 (Execution Error): {e}")
+            with st.expander("🔍 Debug Traceback"):
+                import traceback
+                st.code(traceback.format_exc())
 
 
 # ══════════════════════════════════════════════════════════════════
