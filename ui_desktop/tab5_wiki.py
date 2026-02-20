@@ -585,6 +585,156 @@ def render_5_1_chips_daytrade(ticker: str, df: pd.DataFrame, info: dict):
         use_container_width=True
     )
 
+    # =================================================================
+    # FEATURE: VOLUME PROFILE & VWAP (機構級動態成本分析)
+    # =================================================================
+    st.divider()
+    st.markdown("### 🐳 機構級動態成本 (Volume Profile & VWAP)")
+    st.caption("分析「價格維度」的成交量堆積，找出主力絕對防禦線 (POC) 與動態成本 (VWAP)。")
+
+    if st.button("📊 掃描主力成本輪廓 (Scan Volume Profile)",
+                 key=f"vp_scan_{ticker}", use_container_width=True):
+        with st.spinner("🧠 正在進行量價矩陣解碼..."):
+            try:
+                # 1. Fetch 3-month daily data
+                df_vp = yf.download(ticker, period="3mo", progress=False, auto_adjust=True)
+                if df_vp.empty:
+                    st.error("❌ 無法取得足夠歷史數據。")
+                    return
+
+                # 2. Flatten MultiIndex columns if present (yfinance multi-ticker quirk)
+                if isinstance(df_vp.columns, pd.MultiIndex):
+                    df_vp.columns = df_vp.columns.get_level_values(0)
+
+                # 3. 確保欄位存在且清洗
+                required_cols = {"High", "Low", "Close", "Volume"}
+                if not required_cols.issubset(set(df_vp.columns)):
+                    st.error(f"❌ 資料欄位不足，取得欄位：{list(df_vp.columns)}")
+                    return
+                df_vp = df_vp[list(required_cols)].dropna()
+                if len(df_vp) < 10:
+                    st.error("❌ 有效資料筆數不足（< 10 日），無法計算 Volume Profile。")
+                    return
+
+                # 4. VWAP — 使用 Typical Price 累計計算（真實機構算法）
+                df_vp["TP"]            = (df_vp["High"] + df_vp["Low"] + df_vp["Close"]) / 3
+                df_vp["Cumul_TPV"]     = (df_vp["TP"] * df_vp["Volume"]).cumsum()
+                df_vp["Cumul_Vol"]     = df_vp["Volume"].cumsum()
+                df_vp["VWAP"]          = df_vp["Cumul_TPV"] / df_vp["Cumul_Vol"]
+
+                # 5. Volume Profile — 50 個等距價格分箱
+                min_p  = float(df_vp["Low"].min())
+                max_p  = float(df_vp["High"].max())
+                n_bins = 50
+                bins   = np.linspace(min_p, max_p, n_bins + 1)
+                # 用 Close 作為代表價格，digitize 到對應分箱
+                df_vp["Bin"] = np.digitize(df_vp["Close"].values, bins, right=False)
+                df_vp["Bin"] = df_vp["Bin"].clip(1, n_bins)   # 確保 index 合法
+                vol_profile  = df_vp.groupby("Bin")["Volume"].sum()
+
+                # 6. POC (Point of Control) — 成交量最大分箱的中心價格
+                poc_bin   = int(vol_profile.idxmax())
+                poc_price = float((bins[poc_bin - 1] + bins[poc_bin]) / 2)
+
+                current_price = float(df_vp["Close"].iloc[-1])
+                current_vwap  = float(df_vp["VWAP"].iloc[-1])
+
+                # 7. Dual-Axis Chart：收盤價 + VWAP + POC 水平線
+                fig = go.Figure()
+
+                # 收盤價
+                fig.add_trace(go.Scatter(
+                    x=df_vp.index, y=df_vp["Close"],
+                    mode="lines", line=dict(color="#00D9FF", width=2),
+                    name="收盤價", hovertemplate="%{y:.2f}<extra>收盤價</extra>"
+                ))
+
+                # VWAP 線
+                fig.add_trace(go.Scatter(
+                    x=df_vp.index, y=df_vp["VWAP"],
+                    mode="lines", line=dict(color="#FFB800", width=2, dash="dot"),
+                    name="VWAP (季均量價)", hovertemplate="%{y:.2f}<extra>VWAP</extra>"
+                ))
+
+                # POC 水平線
+                fig.add_hline(
+                    y=poc_price,
+                    line_width=2.5, line_dash="solid", line_color="#FF4B4B",
+                    annotation_text=f"🚨 POC 主力成本密集區: {poc_price:.2f}",
+                    annotation_position="bottom right",
+                    annotation_font_color="#FF4B4B",
+                    annotation_font_size=12,
+                )
+
+                # Volume 柱狀圖（次 Y 軸，半透明背景感）
+                vol_colors = [
+                    "#00FF7F" if df_vp["Close"].iloc[i] >= df_vp["Close"].iloc[i - 1] else "#FF6060"
+                    for i in range(len(df_vp))
+                ]
+                fig.add_trace(go.Bar(
+                    x=df_vp.index, y=df_vp["Volume"],
+                    marker_color=vol_colors, opacity=0.18,
+                    name="成交量", yaxis="y2",
+                    hovertemplate="%{y:,.0f}<extra>成交量</extra>"
+                ))
+
+                fig.update_layout(
+                    template="plotly_dark",
+                    height=460,
+                    title=dict(text=f"🎯 {ticker} 動態成本與主力支撐壓力 (3個月)",
+                               font=dict(family="Rajdhani", size=16, color="#CDD")),
+                    xaxis=dict(title="時間", gridcolor="rgba(255,255,255,0.05)"),
+                    yaxis=dict(title="價格 (Price)", gridcolor="rgba(255,255,255,0.05)"),
+                    yaxis2=dict(title="成交量", overlaying="y", side="right",
+                                showgrid=False, tickfont=dict(color="rgba(160,176,208,0.3)")),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                                font=dict(color="#AAB", size=11)),
+                    margin=dict(t=50, b=40, l=60, r=60),
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                # 8. Strategic Metrics
+                st.markdown("##### 📊 籌碼成本戰略解析")
+                c1, c2, c3 = st.columns(3)
+                price_vs_vwap = (current_price - current_vwap) / current_vwap if current_vwap > 0 else 0
+                price_vs_poc  = (current_price - poc_price) / poc_price if poc_price > 0 else 0
+                c1.metric("目前股價",            f"{current_price:.2f}")
+                c2.metric("VWAP (3個月動態成本)", f"{current_vwap:.2f}",
+                          f"{price_vs_vwap:.2%}", delta_color="normal")
+                c3.metric("POC (最大量堆積區)",  f"{poc_price:.2f}",
+                          f"{price_vs_poc:.2%}",  delta_color="normal")
+
+                # 9. Valkyrie AI 戰術判斷
+                st.divider()
+                above_poc  = current_price > poc_price
+                above_vwap = current_price > current_vwap
+                if above_poc and above_vwap:
+                    st.success(
+                        f"⚡ [Valkyrie AI 判定] 股價站穩 POC（{poc_price:.2f}）與 VWAP（{current_vwap:.2f}）雙重支撐之上。"
+                        f"下方套牢賣壓極輕，資金處於順風擴張期，可偏多操作。"
+                    )
+                elif not above_poc and not above_vwap:
+                    st.error(
+                        f"🔴 [Valkyrie AI 判定] 股價（{current_price:.2f}）跌破 POC（{poc_price:.2f}）與 VWAP（{current_vwap:.2f}）。"
+                        f"上方皆為套牢冤魂，任何反彈都會遇到沉重解套賣壓，嚴禁做多！"
+                    )
+                else:
+                    poc_or_vwap = f"POC {poc_price:.2f}" if above_poc else f"VWAP {current_vwap:.2f}"
+                    st.warning(
+                        f"⚖️ [Valkyrie AI 判定] 股價糾結於 POC 與 VWAP 之間"
+                        f"（站上 {poc_or_vwap}，但仍在另一條之下）。"
+                        f"籌碼正在激烈換手，即將表態，請等待雙線同時突破訊號再行建倉。"
+                    )
+
+            except Exception as e:
+                st.error(f"量價矩陣解碼失敗: {e}")
+                with st.expander("🔍 Debug Traceback"):
+                    st.code(traceback.format_exc())
+
 
 # Keep internal alias
 def _s51(hist, info, symbol):
