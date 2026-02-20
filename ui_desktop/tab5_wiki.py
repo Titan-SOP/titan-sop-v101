@@ -211,23 +211,26 @@ def _fetch(symbol: str):
         except Exception:
             pass
 
-        # fast_info 保底（幾乎不限速，提供股價 / 市值 / PE 等基本欄位）
-        if not info or not info.get("currentPrice"):
-            try:
-                fi = tk.fast_info
-                info = {
-                    "currentPrice":      getattr(fi, "last_price",           None),
-                    "regularMarketPrice":getattr(fi, "last_price",           None),
-                    "marketCap":         getattr(fi, "market_cap",           None),
-                    "fiftyTwoWeekHigh":  getattr(fi, "fifty_two_week_high",  None),
-                    "fiftyTwoWeekLow":   getattr(fi, "fifty_two_week_low",   None),
-                    "trailingPE":        getattr(fi, "p_e_ratio",            None),
-                    "sharesOutstanding": getattr(fi, "shares",               None),
-                    **(info or {}),      # 保留原 info 已有的 key
-                }
-                info = {k: v for k, v in info.items() if v is not None}
-            except Exception:
-                pass
+        # fast_info 保底（幾乎不限速）— 只「補缺」，絕不覆蓋 tk.info 已有的財務資料
+        # 關鍵原則：艾蜜莉(5.4)需要 trailingEps/bookValue/debtToEquity 等深層欄位，
+        # 若用新 dict 取代 info，這些欄位會消失，導致 5.4 財務資料全部找不到。
+        try:
+            fi = tk.fast_info
+            _fi_patch = {
+                "currentPrice":       getattr(fi, "last_price",          None),
+                "regularMarketPrice": getattr(fi, "last_price",          None),
+                "marketCap":          getattr(fi, "market_cap",          None),
+                "fiftyTwoWeekHigh":   getattr(fi, "fifty_two_week_high", None),
+                "fiftyTwoWeekLow":    getattr(fi, "fifty_two_week_low",  None),
+                "trailingPE":         getattr(fi, "p_e_ratio",           None),
+                "sharesOutstanding":  getattr(fi, "shares",              None),
+            }
+            # 只填補 info 中缺失的 key，不覆蓋任何已有欄位
+            for _k, _v in _fi_patch.items():
+                if _v is not None and not info.get(_k):
+                    info[_k] = _v
+        except Exception:
+            pass
 
         # ── Step 4: holders — 非關鍵，失敗優雅降級（原有邏輯不變） ──
         try:
