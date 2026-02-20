@@ -1368,9 +1368,11 @@ def _s61():
                                                 line_dash="solid" if ci==0 else "dot"
                                             )
                                             fig_spec.add_annotation(
-                                                x=c['period'], y=0,
+                                                x=c['period'],
+                                                y=0.95 - ci*0.15,
+                                                yref='paper',
                                                 text=f"C{ci+1}<br>{c['period']}d",
-                                                showarrow=False, yref='paper', y=0.95 - ci*0.15,
+                                                showarrow=False,
                                                 font=dict(color=clrs[ci], size=9,
                                                           family='JetBrains Mono'),
                                                 bgcolor='rgba(0,0,0,0.5)',
