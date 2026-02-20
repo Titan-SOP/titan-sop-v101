@@ -1106,21 +1106,31 @@ def _s61():
             )
             st.plotly_chart(fig_sc, use_container_width=True)
 
+
     # ═══════════════════════════════════════════════════════════
-    # BLOCK C: FFT CYCLE EXTRACTION
+    # BLOCK C: FFT 量子週期引擎 (First Principles — Pro Edition)
     # ═══════════════════════════════════════════════════════════
     st.divider()
-    st.markdown("### 📡 快速傅立葉轉換 (FFT 週期頻譜萃取)")
-    st.caption("將股價走勢視為複合聲波，透過 numpy.fft 濾除市場雜訊，萃取出隱藏的「絕對漲跌週期」。")
+    st.markdown("### 📡 FFT 量子週期引擎 (Quantum Cycle Engine)")
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:rgba(160,176,208,0.45);letter-spacing:1px;line-height:1.8;margin-bottom:12px;">'
+        '第一性原理：市場價格 = 長期趨勢 + 多重週期疊加 + 隨機雜訊。<br>'
+        'FFT 將時域信號分解到頻域，萃取出隱藏的機構操作週期（月結/季結/半年結）。<br>'
+        '複合波前向預測告訴你「幾天後到達下一個波峰或波谷」——這才是實戰核心。'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     fft_col_in, fft_col_btn = st.columns([3, 1])
     fft_symbol_raw = fft_col_in.text_input(
-        "FFT 單一標的代號", value="NVDA",
+        "FFT 標的代號",
+        value="NVDA",
         key="fft_symbol_input",
-        placeholder="NVDA / 2330.TW / 5274 …"
+        placeholder="NVDA / 2330.TW / 5274 / 00631L …"
     )
     do_fft = fft_col_btn.button(
-        "🌊 頻譜掃描", type="primary",
+        "⚡ 啟動週期引擎", type="primary",
         key="fft_scan", use_container_width=True
     )
 
@@ -1128,245 +1138,528 @@ def _s61():
         if not fft_symbol_raw.strip():
             st.warning("請輸入標的代號。")
         else:
-            # ── 台股後綴解析（與 5.1/5.3 相同邏輯）─────────────────
             import re as _re
+            import traceback as _tb
+
+            # ── 台股後綴解析 ─────────────────────────────────────
             raw_sym  = fft_symbol_raw.strip().upper()
-            base_sym = raw_sym.replace(".TW", "").replace(".TWO", "")
+            base_sym = raw_sym.replace(".TW","").replace(".TWO","")
             is_tw    = bool(_re.fullmatch(r'\d{4,6}[A-Z0-9]*', base_sym))
 
             if is_tw and not (raw_sym.endswith(".TW") or raw_sym.endswith(".TWO")):
-                symbol = None
+                fft_sym = None
                 for sfx in [".TW", ".TWO"]:
                     try:
-                        _probe = yf.download(base_sym + sfx, period="1mo",
-                                             progress=False, auto_adjust=True)
-                        if isinstance(_probe.columns, pd.MultiIndex):
-                            _probe.columns = _probe.columns.get_level_values(0)
-                        if "Close" in _probe.columns and _probe["Close"].dropna().shape[0] >= 5:
-                            symbol = base_sym + sfx
+                        _p = yf.download(base_sym+sfx, period="1mo",
+                                         progress=False, auto_adjust=True)
+                        if isinstance(_p.columns, pd.MultiIndex):
+                            _p.columns = _p.columns.get_level_values(0)
+                        if "Close" in _p.columns and _p["Close"].dropna().shape[0] >= 5:
+                            fft_sym = base_sym + sfx
                             break
                     except Exception:
                         continue
-                if symbol is None:
-                    st.error(f"❌ 無法解析台股代號 {raw_sym}，請確認（如 2330.TW / 5274.TWO）。")
-                    symbol = None
+                if fft_sym is None:
+                    st.error(f"❌ 無法解析台股代號 {raw_sym}（嘗試 .TW/.TWO 均無資料）。")
+                    fft_sym = None
             else:
-                symbol = raw_sym
+                fft_sym = raw_sym
 
-            if symbol:
-                with st.spinner(f"🧠 正在對 {symbol} 進行傅立葉頻譜解碼..."):
+            if fft_sym:
+                with st.spinner(f"🧠 正在對 {fft_sym} 進行量子頻譜解碼..."):
                     try:
-                        # 1. Fetch 2-year data
-                        raw_dl = yf.download(symbol, period="2y",
+                        # ══════════════════════════════════════════════════════
+                        # STEP 1: 取 3 年日K（足夠捕捉長週期，又不失近期結構）
+                        # ══════════════════════════════════════════════════════
+                        raw_dl = yf.download(fft_sym, period="3y",
                                              progress=False, auto_adjust=True)
                         if raw_dl.empty:
-                            st.error(f"❌ 無法取得 {symbol} 的歷史數據。")
+                            st.error(f"❌ 無法取得 {fft_sym} 資料。")
                         else:
                             if isinstance(raw_dl.columns, pd.MultiIndex):
                                 raw_dl.columns = raw_dl.columns.get_level_values(0)
-
                             if "Close" not in raw_dl.columns:
-                                st.error(f"❌ {symbol} 資料缺少 Close 欄：{list(raw_dl.columns)}")
+                                st.error(f"❌ 缺少 Close 欄：{list(raw_dl.columns)}")
                             else:
-                                df_fft = raw_dl["Close"].dropna()
-                                if len(df_fft) < 100:
-                                    st.error(f"❌ {symbol} 有效資料不足 100 日 (現有 {len(df_fft)} 日)。")
+                                close = raw_dl["Close"].dropna()
+                                if len(close) < 150:
+                                    st.error(f"❌ 資料不足 150 日（現有 {len(close)} 日）。")
                                 else:
-                                    # 2. Detrend — subtract 50-day MA
-                                    ma50      = df_fft.rolling(window=50).mean()
-                                    detrended = (df_fft - ma50).dropna()
+                                    # ══════════════════════════════════════════
+                                    # STEP 2: 去趨勢 — 對數收益率（正確做法）
+                                    # 原因：log return 是定態序列，去除了價格水準
+                                    # 和指數成長趨勢，FFT 才能捕捉純週期成分。
+                                    # price-MA 法會保留趨勢殘差，污染頻譜。
+                                    # ══════════════════════════════════════════
+                                    log_r = np.log(close / close.shift(1)).dropna()
+                                    n     = len(log_r)
+                                    dates = close.index[1:]  # align with log_r
 
-                                    # 3. numpy FFT
-                                    n         = len(detrended)
-                                    fft_vals  = np.fft.fft(detrended.values)
-                                    fft_freqs = np.fft.fftfreq(n, d=1)
+                                    # ══════════════════════════════════════════
+                                    # STEP 3: Hanning 窗 — 消除頻譜洩漏
+                                    # 原因：有限長度信號的邊界不連續，會產生
+                                    # 假頻率峰值。Hanning 窗讓兩端漸變到 0。
+                                    # ══════════════════════════════════════════
+                                    window    = np.hanning(n)
+                                    windowed  = log_r.values * window
+                                    # 補償窗函數的能量衰減（乘以 2/mean(window)）
+                                    win_gain  = 2.0 / window.mean()
 
-                                    # Positive frequencies only
-                                    pos_mask  = fft_freqs > 0
-                                    pos_freqs = fft_freqs[pos_mask]
-                                    pos_mags  = np.abs(fft_vals)[pos_mask]
+                                    # ══════════════════════════════════════════
+                                    # STEP 4: FFT + 正頻率濾波 + 功率譜
+                                    # ══════════════════════════════════════════
+                                    fft_raw   = np.fft.rfft(windowed)
+                                    freqs     = np.fft.rfftfreq(n, d=1)
+                                    power     = (np.abs(fft_raw) * win_gain) ** 2
 
-                                    # Filter: 5–200 day cycles
-                                    valid_mask  = (1 / pos_freqs <= 200) & (1 / pos_freqs >= 5)
-                                    valid_freqs = pos_freqs[valid_mask]
-                                    valid_mags  = pos_mags[valid_mask]
+                                    # 濾窗：5-252 交易日（1週到1年）
+                                    with np.errstate(divide='ignore', invalid='ignore'):
+                                        cycle_len = np.where(freqs > 0, 1.0/freqs, 0)
+                                    valid = (cycle_len >= 5) & (cycle_len <= 252)
+                                    v_freqs = freqs[valid]
+                                    v_power = power[valid]
+                                    v_mags  = np.abs(fft_raw)[valid]
+                                    v_len   = cycle_len[valid]
 
-                                    if len(valid_mags) == 0:
-                                        st.warning("⚠️ 無法萃取出明顯的中短期週期，市場可能處於高度隨機狀態。")
+                                    if len(v_mags) < 3:
+                                        st.warning("⚠️ 頻譜解析失敗，資料不足或市場近期高度隨機。")
                                     else:
-                                        # 4. Top-3 dominant cycles
-                                        top3_idx     = np.argsort(valid_mags)[::-1][:3]
-                                        dom_idx      = top3_idx[0]
-                                        dom_freq     = valid_freqs[dom_idx]
-                                        dom_period   = int(round(1 / dom_freq))
-                                        dom_mag      = valid_mags[dom_idx]
+                                        # ══════════════════════════════════════
+                                        # STEP 5: 萃取 Top-5 週期（分頻段捕捉）
+                                        # 短週期 5-30d: 月效應/機構月結
+                                        # 中週期 30-90d: 季結/財報週期
+                                        # 長週期 90-252d: 半年/年度週期
+                                        # ══════════════════════════════════════
+                                        top5_idx = np.argsort(v_power)[::-1][:5]
+                                        cycles   = []
+                                        for idx in top5_idx:
+                                            freq_i   = v_freqs[idx]
+                                            period_i = int(round(v_len[idx]))
+                                            phase_i  = np.angle(fft_raw[valid][idx])
+                                            amp_i    = v_mags[idx] * win_gain * 2.0 / n
+                                            # 重建完整時間軸上的波形
+                                            t_full   = np.arange(n)
+                                            wave_i   = amp_i * np.cos(
+                                                2*np.pi*freq_i*t_full + phase_i)
+                                            # R²: 此單一週期解釋去趨勢序列的能力
+                                            resid    = log_r.values - wave_i
+                                            ss_res   = np.sum(resid**2)
+                                            ss_tot   = np.sum((log_r.values - log_r.mean())**2)
+                                            r2_i     = max(0, 1 - ss_res/ss_tot) if ss_tot>0 else 0
 
-                                        # Reconstruct dominant wave
-                                        phase     = np.angle(fft_vals[pos_mask][valid_mask][dom_idx])
-                                        amplitude = 2.0 * dom_mag / n
-                                        t_full    = np.arange(n)
-                                        dom_wave  = amplitude * np.cos(
-                                            2 * np.pi * dom_freq * t_full + phase)
+                                            # 分類
+                                            if period_i <= 30:
+                                                cat = "短週期"
+                                            elif period_i <= 90:
+                                                cat = "中週期"
+                                            else:
+                                                cat = "長週期"
 
-                                        lookback     = min(120, len(detrended))
-                                        recent_det   = detrended.iloc[-lookback:]
-                                        recent_wave  = dom_wave[-lookback:]
+                                            cycles.append({
+                                                'period': period_i,
+                                                'freq':   freq_i,
+                                                'amp':    amp_i,
+                                                'phase':  phase_i,
+                                                'wave':   wave_i,
+                                                'r2':     r2_i,
+                                                'cat':    cat,
+                                                'power':  float(v_power[idx]),
+                                            })
 
-                                        # Top-3 secondary cycles info
-                                        sec_periods = []
-                                        for si in top3_idx[1:]:
-                                            sp = int(round(1 / valid_freqs[si]))
-                                            sec_periods.append(sp)
+                                        # ══════════════════════════════════════
+                                        # STEP 6: 複合波 = Top-3 加權疊加
+                                        # 加權依據：功率佔比（能量最強的成分貢獻最大）
+                                        # ══════════════════════════════════════
+                                        top3       = cycles[:3]
+                                        total_pwr  = sum(c['power'] for c in top3)
+                                        weights    = [c['power']/total_pwr for c in top3]
+                                        composite  = sum(w*c['wave'] for w,c in zip(weights, top3))
 
-                                        # 5. Full frequency spectrum chart
-                                        cycle_days = np.where(pos_freqs > 0, 1 / pos_freqs, 0)
-                                        fig_spec = go.Figure()
-                                        fig_spec.add_trace(go.Scatter(
-                                            x=cycle_days, y=pos_mags,
-                                            mode='lines',
-                                            line=dict(color='rgba(0,245,255,0.5)', width=1),
-                                            fill='tozeroy',
-                                            fillcolor='rgba(0,245,255,0.06)',
-                                            name='頻譜強度',
-                                            hovertemplate='週期: %{x:.0f}天<br>強度: %{y:.2f}<extra></extra>'
-                                        ))
-                                        # Mark dominant cycle
-                                        fig_spec.add_vline(
-                                            x=dom_period,
-                                            line_color="#FFD700", line_width=2, line_dash="dash",
-                                            annotation_text=f"主週期 {dom_period}天",
-                                            annotation_font_color="#FFD700"
+                                        # 複合波整體 R²
+                                        ss_res_comp = np.sum((log_r.values - composite)**2)
+                                        r2_comp     = max(0, 1 - ss_res_comp/ss_tot) if ss_tot>0 else 0
+
+                                        # ══════════════════════════════════════
+                                        # STEP 7: 前向預測 30 交易日
+                                        # 每個週期是確定性正弦波，可直接外推相位
+                                        # ══════════════════════════════════════
+                                        fwd_days  = 30
+                                        t_fwd     = np.arange(n, n + fwd_days)
+                                        fwd_comp  = sum(
+                                            w * c['amp'] * np.cos(2*np.pi*c['freq']*t_fwd + c['phase'])
+                                            for w, c in zip(weights, top3)
                                         )
-                                        for sp in sec_periods:
+
+                                        # 預測日期軸
+                                        last_date  = dates[-1]
+                                        fwd_dates  = pd.bdate_range(
+                                            start=last_date + pd.Timedelta(days=1),
+                                            periods=fwd_days
+                                        )
+
+                                        # ══════════════════════════════════════
+                                        # STEP 8: 相位分析 — 距離下一波峰/波谷
+                                        # ══════════════════════════════════════
+                                        dom = cycles[0]
+                                        dom_period = dom['period']
+
+                                        # 在未來 2 個週期內找到最近的極值點
+                                        t_future2  = np.arange(n, n + dom_period * 2)
+                                        wave_fut2  = dom['amp'] * np.cos(
+                                            2*np.pi*dom['freq']*t_future2 + dom['phase'])
+
+                                        # 尋找第一個波峰 (local max) 和波谷 (local min)
+                                        days_to_peak   = None
+                                        days_to_trough = None
+                                        for ti in range(1, len(wave_fut2)-1):
+                                            if wave_fut2[ti] > wave_fut2[ti-1] and wave_fut2[ti] > wave_fut2[ti+1]:
+                                                if days_to_peak is None:
+                                                    days_to_peak = ti
+                                            if wave_fut2[ti] < wave_fut2[ti-1] and wave_fut2[ti] < wave_fut2[ti+1]:
+                                                if days_to_trough is None:
+                                                    days_to_trough = ti
+
+                                        # 當前相位（-1 到 +1）
+                                        cur_phase_val = float(composite[-1])
+                                        cur_amp       = float(max(abs(composite[-dom_period:]))) if dom_period <= len(composite) else float(dom['amp'])
+                                        phase_pct     = cur_phase_val / cur_amp if cur_amp > 0 else 0
+                                        phase_pct     = max(-1, min(1, phase_pct))
+                                        phase_deg     = phase_pct * 180  # -180°到+180°
+
+                                        # 週期共振判定（多週期同向）
+                                        slopes = [
+                                            float(c['wave'][-1] - c['wave'][-2])
+                                            for c in top3
+                                        ]
+                                        n_up   = sum(1 for s in slopes if s > 0)
+                                        n_dn   = sum(1 for s in slopes if s < 0)
+                                        if n_up == 3:
+                                            resonance = ("🔥 三週期共振向上", "#00FF7F", "HIGH")
+                                        elif n_up == 2:
+                                            resonance = ("⚡ 多數週期向上",   "#ADFF2F", "MED")
+                                        elif n_dn == 3:
+                                            resonance = ("💀 三週期共振向下", "#FF3131", "HIGH")
+                                        elif n_dn == 2:
+                                            resonance = ("🔴 多數週期向下",   "#FF9A3C", "MED")
+                                        else:
+                                            resonance = ("⚖️ 週期相互抵消",   "#888888", "LOW")
+
+                                        # ══════════════════════════════════════
+                                        # 圖表 1: 功率譜（頻率識別圖）
+                                        # ══════════════════════════════════════
+                                        fig_spec = go.Figure()
+                                        # 背景功率譜
+                                        fig_spec.add_trace(go.Scatter(
+                                            x=v_len, y=v_power,
+                                            mode='lines',
+                                            line=dict(color='rgba(0,245,255,0.3)', width=1),
+                                            fill='tozeroy',
+                                            fillcolor='rgba(0,245,255,0.04)',
+                                            name='功率譜',
+                                            hovertemplate='週期 %{x:.0f}天 | 功率 %{y:.4f}<extra></extra>'
+                                        ))
+                                        # Top-5 週期標記
+                                        clrs = ['#FFD700','#FF9A3C','#00FF7F','#B77DFF','#00F5FF']
+                                        for ci, c in enumerate(cycles):
                                             fig_spec.add_vline(
-                                                x=sp, line_color="rgba(255,154,60,0.6)",
-                                                line_width=1, line_dash="dot",
-                                                annotation_text=f"{sp}天",
-                                                annotation_font_color="rgba(255,154,60,0.8)",
-                                                annotation_font_size=9
+                                                x=c['period'],
+                                                line_color=clrs[ci],
+                                                line_width=2 if ci==0 else 1,
+                                                line_dash="solid" if ci==0 else "dot"
                                             )
+                                            fig_spec.add_annotation(
+                                                x=c['period'], y=0,
+                                                text=f"C{ci+1}<br>{c['period']}d",
+                                                showarrow=False, yref='paper', y=0.95 - ci*0.15,
+                                                font=dict(color=clrs[ci], size=9,
+                                                          family='JetBrains Mono'),
+                                                bgcolor='rgba(0,0,0,0.5)',
+                                                borderpad=2
+                                            )
+                                        # 頻段背景色
+                                        fig_spec.add_vrect(x0=5,  x1=30,
+                                            fillcolor='rgba(0,255,127,0.03)',
+                                            line_width=0, annotation_text='短',
+                                            annotation_font_color='rgba(0,255,127,0.3)',
+                                            annotation_font_size=9)
+                                        fig_spec.add_vrect(x0=30, x1=90,
+                                            fillcolor='rgba(255,215,0,0.03)',
+                                            line_width=0, annotation_text='中',
+                                            annotation_font_color='rgba(255,215,0,0.3)',
+                                            annotation_font_size=9)
+                                        fig_spec.add_vrect(x0=90, x1=252,
+                                            fillcolor='rgba(183,125,255,0.03)',
+                                            line_width=0, annotation_text='長',
+                                            annotation_font_color='rgba(183,125,255,0.3)',
+                                            annotation_font_size=9)
                                         fig_spec.update_layout(
-                                            template="plotly_dark", height=220,
+                                            template='plotly_dark', height=230,
                                             title=dict(
-                                                text=f"{symbol} 頻率功率譜 (5–200天週期)",
-                                                font=dict(size=13, color="#AAB", family="Rajdhani")
+                                                text=f'⚡ {fft_sym}  週期功率譜（Hanning 窗 · 3年日K）',
+                                                font=dict(size=13, color='#CDD', family='Rajdhani')
                                             ),
-                                            xaxis=dict(
-                                                title="週期長度 (交易日)",
-                                                range=[0, 200],
-                                                gridcolor="rgba(255,255,255,0.05)"
-                                            ),
-                                            yaxis=dict(
-                                                title="頻譜強度",
-                                                gridcolor="rgba(255,255,255,0.05)"
-                                            ),
-                                            plot_bgcolor="rgba(0,0,0,0)",
-                                            paper_bgcolor="rgba(0,0,0,0)",
-                                            margin=dict(t=40, b=40, l=60, r=20),
+                                            xaxis=dict(title='週期長度 (交易日)', range=[5,252],
+                                                       gridcolor='rgba(255,255,255,0.05)'),
+                                            yaxis=dict(title='功率', gridcolor='rgba(255,255,255,0.05)'),
+                                            plot_bgcolor='rgba(0,0,0,0)',
+                                            paper_bgcolor='rgba(0,0,0,0)',
                                             showlegend=False,
+                                            margin=dict(t=40, b=40, l=65, r=20),
                                         )
                                         st.plotly_chart(fig_spec, use_container_width=True)
 
-                                        # 6. Detrended vs dominant wave chart
+                                        # ══════════════════════════════════════
+                                        # 圖表 2: 複合波 + 前向預測（核心實戰圖）
+                                        # ══════════════════════════════════════
+                                        lookback    = min(120, len(composite))
+                                        hist_dates  = dates[-lookback:]
+                                        hist_comp   = composite[-lookback:]
+                                        hist_logr   = log_r.values[-lookback:]
+
                                         fig_wave = go.Figure()
-                                        fig_wave.add_trace(go.Scatter(
-                                            x=recent_det.index, y=recent_det.values,
-                                            mode='lines',
-                                            line=dict(color='rgba(255,255,255,0.35)', width=1.5),
-                                            name='去趨勢股價 (真實雜訊)',
-                                            hovertemplate='%{y:.2f}<extra>去趨勢股價</extra>'
+
+                                        # 真實對數收益率（雜訊信號）
+                                        fig_wave.add_trace(go.Bar(
+                                            x=hist_dates, y=hist_logr,
+                                            marker_color=[
+                                                'rgba(0,255,127,0.3)' if v>=0
+                                                else 'rgba(255,49,49,0.3)'
+                                                for v in hist_logr
+                                            ],
+                                            name='實際日收益率', yaxis='y1',
+                                            hovertemplate='%{x|%Y-%m-%d}<br>%{y:.4f}<extra>收益率</extra>'
                                         ))
+
+                                        # 歷史複合波
                                         fig_wave.add_trace(go.Scatter(
-                                            x=recent_det.index, y=recent_wave,
+                                            x=hist_dates, y=hist_comp,
                                             mode='lines',
                                             line=dict(color='#00F5FF', width=2.5),
-                                            name=f'FFT 主週期 ({dom_period} 天)',
-                                            hovertemplate='%{y:.2f}<extra>FFT 主週期</extra>'
+                                            name=f'複合波 (Top-3, R²={r2_comp:.3f})',
+                                            hovertemplate='%{x|%Y-%m-%d}<br>%{y:.4f}<extra>複合波</extra>'
                                         ))
-                                        # Zero line
-                                        fig_wave.add_hline(
-                                            y=0, line_color='rgba(255,255,255,0.1)',
-                                            line_dash='dot'
+
+                                        # 前向預測（30日）—— 最核心的實戰輸出
+                                        fig_wave.add_trace(go.Scatter(
+                                            x=fwd_dates, y=fwd_comp,
+                                            mode='lines',
+                                            line=dict(color='#FFD700', width=2.5, dash='dash'),
+                                            name='🎯 前向預測 (+30日)',
+                                            hovertemplate='%{x|%Y-%m-%d}<br>%{y:.4f}<extra>預測</extra>'
+                                        ))
+
+                                        # 預測區間填色
+                                        fig_wave.add_vrect(
+                                            x0=str(fwd_dates[0].date()),
+                                            x1=str(fwd_dates[-1].date()),
+                                            fillcolor='rgba(255,215,0,0.04)',
+                                            line_width=0,
+                                            annotation_text='📡 預測區間',
+                                            annotation_font_color='rgba(255,215,0,0.5)',
+                                            annotation_font_size=9,
                                         )
+
+                                        # 標記前向最高/最低點
+                                        fwd_peak_idx   = int(np.argmax(fwd_comp))
+                                        fwd_trough_idx = int(np.argmin(fwd_comp))
+                                        fig_wave.add_annotation(
+                                            x=fwd_dates[fwd_peak_idx],
+                                            y=float(fwd_comp[fwd_peak_idx]),
+                                            text=f"▲ +{fwd_peak_idx+1}天",
+                                            showarrow=True, arrowhead=2,
+                                            arrowcolor='#00FF7F',
+                                            font=dict(color='#00FF7F', size=10),
+                                            bgcolor='rgba(0,0,0,0.6)', borderpad=3
+                                        )
+                                        fig_wave.add_annotation(
+                                            x=fwd_dates[fwd_trough_idx],
+                                            y=float(fwd_comp[fwd_trough_idx]),
+                                            text=f"▼ +{fwd_trough_idx+1}天",
+                                            showarrow=True, arrowhead=2,
+                                            arrowcolor='#FF6B6B',
+                                            font=dict(color='#FF6B6B', size=10),
+                                            bgcolor='rgba(0,0,0,0.6)', borderpad=3
+                                        )
+
+                                        # 零軸
+                                        fig_wave.add_hline(
+                                            y=0,
+                                            line_color='rgba(255,255,255,0.15)',
+                                            line_dash='dot', line_width=1
+                                        )
+
                                         fig_wave.update_layout(
-                                            template="plotly_dark", height=380,
+                                            template='plotly_dark', height=420,
                                             title=dict(
-                                                text=f"🎯 {symbol} 週期共振分析（近 {lookback} 交易日）",
-                                                font=dict(size=14, color="#CDD", family="Rajdhani")
+                                                text=(
+                                                    f'🎯 {fft_sym}  複合週期波 + 30日前向預測'
+                                                    f'  |  複合R²={r2_comp:.3f}'
+                                                    f'  |  {resonance[0]}'
+                                                ),
+                                                font=dict(size=13, color='#CDD', family='Rajdhani')
                                             ),
-                                            xaxis=dict(
-                                                title="時間",
-                                                gridcolor="rgba(255,255,255,0.04)"
-                                            ),
+                                            xaxis=dict(gridcolor='rgba(255,255,255,0.04)'),
                                             yaxis=dict(
-                                                title="震盪振幅",
-                                                gridcolor="rgba(255,255,255,0.04)"
+                                                title='日對數收益率',
+                                                gridcolor='rgba(255,255,255,0.04)'
                                             ),
-                                            plot_bgcolor="rgba(0,0,0,0)",
-                                            paper_bgcolor="rgba(0,0,0,0)",
-                                            hovermode="x unified",
+                                            plot_bgcolor='rgba(0,0,0,0)',
+                                            paper_bgcolor='rgba(0,0,0,0)',
+                                            hovermode='x unified',
+                                            barmode='overlay',
                                             legend=dict(
-                                                orientation="h", y=1.02,
-                                                font=dict(color="#AAB", size=11)
+                                                orientation='h', y=1.02,
+                                                font=dict(color='#AAB', size=10)
                                             ),
-                                            margin=dict(t=50, b=40, l=60, r=20),
+                                            margin=dict(t=55, b=40, l=65, r=20),
                                         )
                                         st.plotly_chart(fig_wave, use_container_width=True)
 
-                                        # 7. Strategic metrics
-                                        current_wave_val = float(recent_wave[-1])
-                                        prev_wave_val    = float(recent_wave[-2])
-                                        cycle_position   = (current_wave_val / amplitude
-                                                            if amplitude > 0 else 0)
+                                        # ══════════════════════════════════════
+                                        # KPI 儀表板
+                                        # ══════════════════════════════════════
+                                        st.markdown("##### 📊 量子週期戰略儀表板")
 
-                                        st.markdown("##### 📊 頻譜共振戰略解析")
-                                        c1, c2, c3, c4 = st.columns(4)
-                                        c1.metric("主要循環週期", f"{dom_period} 交易日",
-                                                  f"≈ {dom_period/21:.1f} 個月")
-                                        c2.metric("次要週期 #2", f"{sec_periods[0]} 日" if sec_periods else "—")
-                                        c3.metric("次要週期 #3",
-                                                  f"{sec_periods[1]} 日" if len(sec_periods) > 1 else "—")
+                                        k1, k2, k3, k4, k5 = st.columns(5)
+                                        k1.metric(
+                                            "主週期 C1",
+                                            f"{cycles[0]['period']} 交易日",
+                                            f"≈ {cycles[0]['period']/21:.1f} 個月 · {cycles[0]['cat']}"
+                                        )
+                                        k2.metric(
+                                            "C1 可靠度 R²",
+                                            f"{cycles[0]['r2']:.3f}",
+                                            "≥0.03 有效" if cycles[0]['r2'] >= 0.03 else "< 0.03 弱訊號",
+                                            delta_color="normal" if cycles[0]['r2'] >= 0.03 else "inverse"
+                                        )
+                                        k3.metric(
+                                            "複合波 R²",
+                                            f"{r2_comp:.3f}",
+                                            "Top-3週期解釋力"
+                                        )
+                                        k4.metric(
+                                            "預測波峰",
+                                            f"+{fwd_peak_idx+1} 交易日",
+                                            f"複合波最高點"
+                                        )
+                                        k5.metric(
+                                            "預測波谷",
+                                            f"+{fwd_trough_idx+1} 交易日",
+                                            f"複合波最低點"
+                                        )
 
-                                        if current_wave_val > prev_wave_val:
-                                            wave_dir, wave_col = "📈 上升波段", "normal"
-                                        else:
-                                            wave_dir, wave_col = "📉 下降波段", "inverse"
-                                        c4.metric("目前相位", wave_dir,
-                                                  f"週期位置 {cycle_position:+.2f}",
-                                                  delta_color=wave_col)
+                                        # ══════════════════════════════════════
+                                        # Top-5 週期明細表
+                                        # ══════════════════════════════════════
+                                        st.markdown(
+                                            '<div style="font-family:\'JetBrains Mono\','
+                                            'monospace;font-size:9px;color:rgba(0,245,255,.35);'
+                                            'letter-spacing:3px;text-transform:uppercase;'
+                                            'margin:16px 0 6px;">🔬 Top-5 週期解析</div>',
+                                            unsafe_allow_html=True
+                                        )
+                                        total_top5_pwr = sum(c['power'] for c in cycles)
+                                        rows = []
+                                        for ci, c in enumerate(cycles):
+                                            cur_slope = float(c['wave'][-1] - c['wave'][-2])
+                                            direction = "⬆ 上升" if cur_slope > 0 else "⬇ 下降"
+                                            pwr_pct   = c['power'] / total_top5_pwr * 100 if total_top5_pwr > 0 else 0
+                                            rows.append({
+                                                '#':     f"C{ci+1}",
+                                                '週期':  f"{c['period']} 日",
+                                                '分類':  c['cat'],
+                                                '功率佔比': f"{pwr_pct:.1f}%",
+                                                '振幅':  f"{c['amp']*100:.4f}%",
+                                                'R²':    f"{c['r2']:.4f}",
+                                                '當前方向': direction,
+                                            })
+                                        cycle_df = pd.DataFrame(rows)
+                                        st.dataframe(
+                                            cycle_df,
+                                            use_container_width=True,
+                                            hide_index=True
+                                        )
 
-                                        # 8. Valkyrie AI Tactical
+                                        # ══════════════════════════════════════
+                                        # 週期共振 + Valkyrie 戰術判斷
+                                        # ══════════════════════════════════════
                                         st.divider()
-                                        is_trough = cycle_position < -0.7 and current_wave_val > prev_wave_val
-                                        is_peak   = cycle_position >  0.7 and current_wave_val < prev_wave_val
 
-                                        if is_trough:
+                                        # 共振橫幅
+                                        st.markdown(
+                                            f'<div style="padding:14px 20px;'
+                                            f'background:rgba(0,0,0,0.3);'
+                                            f'border:1px solid {resonance[1]}44;'
+                                            f'border-left:4px solid {resonance[1]};'
+                                            f'border-radius:0 10px 10px 0;margin-bottom:14px;">'
+                                            f'<span style="font-family:\'JetBrains Mono\','
+                                            f'monospace;font-size:11px;color:{resonance[1]};'
+                                            f'letter-spacing:2px;">週期共振強度 [{resonance[2]}]'
+                                            f'</span>'
+                                            f'<span style="font-family:\'Rajdhani\',sans-serif;'
+                                            f'font-size:18px;font-weight:700;color:#FFF;'
+                                            f'margin-left:16px;">{resonance[0]}</span>'
+                                            f'</div>',
+                                            unsafe_allow_html=True
+                                        )
+
+                                        # Valkyrie 戰術判斷（整合相位 + 前向預測 + 共振）
+                                        is_near_trough  = fwd_trough_idx < fwd_peak_idx and fwd_trough_idx <= 10
+                                        is_near_peak    = fwd_peak_idx  < fwd_trough_idx and fwd_peak_idx  <= 10
+                                        is_upward_comp  = float(fwd_comp[0]) < float(fwd_comp[min(5, len(fwd_comp)-1)])
+                                        is_downward_comp= not is_upward_comp
+
+                                        if resonance[2] in ("HIGH", "MED") and n_up >= 2 and is_upward_comp:
                                             st.success(
-                                                f"⚡ [Valkyrie AI 判定] 完美買點浮現！"
-                                                f"{symbol} 正處於 {dom_period} 天循環的【波谷反轉區】"
-                                                f"（相位 {cycle_position:.2f}，正開始回升）。"
-                                                f"若上帝軌道（6.2）未破底，結合此訊號勝率極高，可積極建倉。"
+                                                f"⚡ [Valkyrie AI · 週期引擎] 多週期共振向上，且複合波正處於上升段。\n\n"
+                                                f"📌 **主週期 C1 = {cycles[0]['period']} 交易日**（{cycles[0]['cat']}），"
+                                                f"前向預測顯示複合波峰在 **+{fwd_peak_idx+1} 個交易日後**到達。\n\n"
+                                                f"🎯 **操作建議**：{resonance[0]}，{3 - n_up} 個週期仍逆向，"
+                                                f"但多數力量支撐上行。建議在 +{fwd_trough_idx+1} 日附近的回落點積極佈局，"
+                                                f"目標 +{fwd_peak_idx+1} 日前出場。\n\n"
+                                                f"📐 複合波可靠度 R²={r2_comp:.3f}（"
+                                                f"{'高可信' if r2_comp >= 0.05 else '中等可信' if r2_comp >= 0.02 else '供參考'}）。"
                                             )
-                                        elif is_peak:
+                                        elif resonance[2] in ("HIGH", "MED") and n_dn >= 2 and is_downward_comp:
                                             st.error(
-                                                f"🔴 [Valkyrie AI 判定] 居高思危！"
-                                                f"{symbol} 處於 {dom_period} 天循環的【波峰衰退區】"
-                                                f"（相位 {cycle_position:.2f}，動能開始衰竭）。"
-                                                f"建議逢高減碼，{sec_periods[0] if sec_periods else '?'} 天次週期確認方向後再重新介入。"
+                                                f"🔴 [Valkyrie AI · 週期引擎] 多週期共振向下，複合波持續下行。\n\n"
+                                                f"📌 **主週期 C1 = {cycles[0]['period']} 交易日**（{cycles[0]['cat']}），"
+                                                f"前向預測顯示複合波谷在 **+{fwd_trough_idx+1} 個交易日後**到達。\n\n"
+                                                f"🎯 **操作建議**：{resonance[0]}，下行動能強勁，"
+                                                f"嚴禁逆勢做多。等待複合波谷後（約 +{fwd_trough_idx+1} 日）"
+                                                f"觀察底部訊號再考慮介入。\n\n"
+                                                f"⚠️ C1 可靠度 R²={cycles[0]['r2']:.3f}，"
+                                                f"複合 R²={r2_comp:.3f}。"
+                                            )
+                                        elif is_near_trough and not (n_dn >= 2):
+                                            st.warning(
+                                                f"⚖️ [Valkyrie AI · 週期引擎] 複合波即將在 "
+                                                f"**+{fwd_trough_idx+1} 個交易日**觸及局部波谷，隨後反轉向上。\n\n"
+                                                f"📌 **主週期 {cycles[0]['period']} 日**，週期共振訊號為：{resonance[0]}。\n\n"
+                                                f"🎯 **操作建議**：等待 {fwd_trough_idx+1} 天後的底部確認訊號（放量止跌 / RSI 超賣），"
+                                                f"屆時搭配 5.1 籌碼信號進場，預計 +{fwd_peak_idx+1} 日前達到峰值。"
                                             )
                                         else:
-                                            mid_dir = "上半段（偏多）" if cycle_position > 0 else "下半段（偏空）"
+                                            next_event = (
+                                                f"波峰 +{fwd_peak_idx+1}日" if fwd_peak_idx < fwd_trough_idx
+                                                else f"波谷 +{fwd_trough_idx+1}日"
+                                            )
                                             st.info(
-                                                f"⚖️ [Valkyrie AI 判定] {symbol} 運行於 {dom_period} 天循環"
-                                                f"的中段 {mid_dir}（相位 {cycle_position:+.2f}）。"
-                                                f"請順勢操作，耐心等待極端相位（波峰 >+0.7 或波谷 <-0.7）浮現再行動。"
+                                                f"⚖️ [Valkyrie AI · 週期引擎] 週期方向混沌，多空力量相互抵消。\n\n"
+                                                f"📌 **主週期 {cycles[0]['period']} 日**，"
+                                                f"前向最近極值：**{next_event}**。\n\n"
+                                                f"🎯 **操作建議**：當前不宜主動進場。等待週期共振訊號出現"
+                                                f"（三週期同向）後再動作。可在 6.2 上帝軌道確認長期趨勢位置。\n\n"
+                                                f"複合波 R²={r2_comp:.3f}（周期解釋力偏低，當前市場偏隨機）。"
                                             )
 
-                    except Exception as e:
-                        import traceback as _tb
-                        st.error(f"頻譜轉換失敗: {e}")
+                    except Exception as _e:
+                        st.error(f"週期引擎運算失敗: {_e}")
                         with st.expander("🔍 Debug Traceback"):
                             st.code(_tb.format_exc())
+
+
+
 
 
 
