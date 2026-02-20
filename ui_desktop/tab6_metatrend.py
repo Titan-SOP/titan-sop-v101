@@ -2032,17 +2032,47 @@ def _s64():
 # ═══════════════════════════════════════════════════════════════
 # SECTION 6.5 — 宏觀對沖 (ENHANCED — was placeholder)
 # ═══════════════════════════════════════════════════════════════
-def _s65():
-    st.markdown('<div class="t6-sec-head" style="--sa:#00FF7F"><div class="t6-sec-num">6.5</div><div><div class="t6-sec-title" style="color:#00FF7F;">宏觀對沖 (Macro Hedge)</div><div class="t6-sec-sub">Global Snapshot · Correlation Matrix · Beta Hedge + Rolling Beta</div></div></div>', unsafe_allow_html=True)
 
-    SNAPS = [("SPY", "S&P500"), ("QQQ", "NASDAQ100"), ("GLD", "黃金"), ("TLT", "美債20Y"),
-             ("BTC-USD", "比特幣"), ("^TWII", "台灣加權"), ("DX-Y.NYB", "美元指數"), ("^VIX", "VIX恐慌")]
+def _s65():
+    """6.5 宏觀對沖 + PCA 隱藏因子降維 (First Principles — Institutional Edition)"""
+    st.markdown(
+        '<div class="t6-sec-head" style="--sa:#00FF7F">'
+        '<div class="t6-sec-num">6.5</div>'
+        '<div><div class="t6-sec-title" style="color:#00FF7F;">'
+        '宏觀對沖 + 主成分因子輪動</div>'
+        '<div class="t6-sec-sub">'
+        'Global Snapshot · Correlation · Beta Hedge · PCA Eigen-Decomposition · Pairs Signal'
+        '</div></div></div>',
+        unsafe_allow_html=True
+    )
+
+    # ═══════════════════════════════════════════════════════════════
+    # BLOCK A: 全球宏觀快照 HUD (原版保留)
+    # ═══════════════════════════════════════════════════════════════
+    SNAPS = [
+        ("SPY",       "S&P500"),
+        ("QQQ",       "NASDAQ100"),
+        ("GLD",       "黃金"),
+        ("TLT",       "美債20Y"),
+        ("BTC-USD",   "比特幣"),
+        ("^TWII",     "台灣加權"),
+        ("DX-Y.NYB",  "美元指數"),
+        ("^VIX",      "VIX恐慌"),
+    ]
     with st.spinner("載入市場快照…"):
         try:
-            snap_raw = yf.download([s for s, _ in SNAPS], period="5d", progress=False, auto_adjust=True)
-            snap_px = (snap_raw["Close"] if isinstance(snap_raw.columns, pd.MultiIndex) else snap_raw).dropna(how="all")
-        except:
+            snap_raw = yf.download(
+                [s for s, _ in SNAPS], period="5d",
+                progress=False, auto_adjust=True
+            )
+            if isinstance(snap_raw.columns, pd.MultiIndex):
+                snap_px = snap_raw["Close"]
+            else:
+                snap_px = snap_raw
+            snap_px = snap_px.dropna(how="all")
+        except Exception:
             snap_px = pd.DataFrame()
+
     if not snap_px.empty and len(snap_px) >= 2:
         hud_cols = st.columns(len(SNAPS))
         for idx, (tk, lbl) in enumerate(SNAPS):
@@ -2051,19 +2081,28 @@ def _s65():
             s_col = snap_px[tk].dropna()
             if len(s_col) < 2:
                 continue
-            cur = float(s_col.iloc[-1])
+            cur  = float(s_col.iloc[-1])
             prev = float(s_col.iloc[-2])
-            chg = (cur - prev) / prev * 100
-            hud_cols[idx].metric(lbl, f"{cur:,.2f}", f"{chg:+.2f}%")
+            chg  = (cur - prev) / prev * 100
+            hud_cols[idx].metric(lbl, f"{cur:,.2f}", f"{chg:+.2f}%",
+                                 delta_color="normal" if chg >= 0 else "inverse")
     else:
         st.warning("市場快照無法取得。")
 
     st.divider()
-    st.markdown("#### 多資產相關性矩陣")
+
+    # ═══════════════════════════════════════════════════════════════
+    # BLOCK B: 多資產相關性矩陣 (原版保留)
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("#### 🔗 多資產相關性矩陣")
     DEF_A = ["SPY", "QQQ", "GLD", "TLT", "BTC-USD", "DX-Y.NYB"]
     ca, cb = st.columns([3, 1])
-    corr_tickers = ca.multiselect("選擇資產", options=DEF_A + ["IWM", "EEM", "HYG", "SOXX", "NVDA", "AAPL", "TSLA", "^VIX"], default=DEF_A, key="corr_v300")
-    corr_period = cb.selectbox("區間", ["1y", "2y", "3y", "5y"], key="corr_per_v300")
+    corr_tickers = ca.multiselect(
+        "選擇資產",
+        options=DEF_A + ["IWM","EEM","HYG","SOXX","NVDA","AAPL","TSLA","^VIX"],
+        default=DEF_A, key="corr_v300"
+    )
+    corr_period = cb.selectbox("區間", ["1y","2y","3y","5y"], key="corr_per_v300")
     if st.button("計算相關性矩陣", use_container_width=True, key="run_corr_v300"):
         if len(corr_tickers) >= 2:
             with st.spinner("計算…"):
@@ -2075,56 +2114,600 @@ def _s65():
         cm = st.session_state["corr_mat_v300"]
         fig_hm = go.Figure(go.Heatmap(
             z=cm.values, x=cm.columns.tolist(), y=cm.index.tolist(),
-            colorscale=[[0, "#FF3131"], [.5, "#1a1a2e"], [1, "#00FF7F"]],
+            colorscale=[[0,"#FF3131"],[.5,"#1a1a2e"],[1,"#00FF7F"]],
             zmin=-1, zmax=1, zmid=0,
             text=cm.values.round(2), texttemplate="%{text:.2f}",
             textfont=dict(size=11, family="JetBrains Mono")
         ))
-        fig_hm.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=420, margin=dict(t=10, b=40, l=80, r=20))
+        fig_hm.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=420, margin=dict(t=10, b=40, l=80, r=20)
+        )
         st.plotly_chart(fig_hm, use_container_width=True)
 
     st.divider()
-    st.markdown("#### Beta 對沖 + 滾動 60 日 Beta")
-    BENCH_MAP = {"SPY (S&P 500)": "SPY", "QQQ (NASDAQ 100)": "QQQ", "^TWII (台灣加權)": "^TWII", "GLD (黃金)": "GLD"}
+
+    # ═══════════════════════════════════════════════════════════════
+    # BLOCK C: Beta 對沖 + 滾動 Beta (原版保留)
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("#### ⚖️ Beta 對沖 + 滾動 60 日 Beta")
+    BENCH_MAP = {
+        "SPY (S&P 500)": "SPY",
+        "QQQ (NASDAQ 100)": "QQQ",
+        "^TWII (台灣加權)": "^TWII",
+        "GLD (黃金)": "GLD",
+    }
     ba, bb, bc = st.columns([2, 1, 1])
-    bench_name = ba.selectbox("基準指數", list(BENCH_MAP.keys()), key="bench_v300")
-    beta_period = bb.selectbox("區間", ["1y", "2y", "3y"], key="beta_per_v300")
+    bench_name  = ba.selectbox("基準指數", list(BENCH_MAP.keys()), key="bench_v300")
+    beta_period = bb.selectbox("區間", ["1y","2y","3y"], key="beta_per_v300")
     beta_ticker = bc.text_input("標的", "NVDA", key="beta_tk_v300")
-    bench_tk = BENCH_MAP[bench_name]
+    bench_tk    = BENCH_MAP[bench_name]
     if st.button("計算 Beta", use_container_width=True, key="run_beta_v300"):
         with st.spinner("計算…"):
             beta_px = _fetch_prices(tuple([beta_ticker, bench_tk]), beta_period)
-        if not beta_px.empty and beta_ticker in beta_px.columns and bench_tk in beta_px.columns:
+        if (not beta_px.empty
+                and beta_ticker in beta_px.columns
+                and bench_tk in beta_px.columns):
             br = beta_px.pct_change().dropna()
-            bv = round(br[beta_ticker].cov(br[bench_tk]) / br[bench_tk].var(), 3) if br[bench_tk].var() > 0 else 0
+            bv = (
+                round(br[beta_ticker].cov(br[bench_tk]) / br[bench_tk].var(), 3)
+                if br[bench_tk].var() > 0 else 0
+            )
             st.session_state["beta_v300"] = {
-                "beta": bv, "corr": round(br[beta_ticker].corr(br[bench_tk]), 3),
+                "beta": bv,
+                "corr": round(br[beta_ticker].corr(br[bench_tk]), 3),
                 "avol": round(br[beta_ticker].std() * np.sqrt(252) * 100, 2),
-                "ret": br, "tk": beta_ticker, "bk": bench_tk
+                "ret":  br, "tk": beta_ticker, "bk": bench_tk,
             }
     if "beta_v300" in st.session_state:
-        b = st.session_state["beta_v300"]
+        b  = st.session_state["beta_v300"]
         bv = b["beta"]
         bk1, bk2, bk3, bk4 = st.columns(4)
-        bk1.metric("Beta", f"{bv:.3f}")
+        bk1.metric("Beta",   f"{bv:.3f}")
         bk2.metric("相關性", f"{b['corr']:.3f}")
         bk3.metric("年化波動", f"{b['avol']:.2f}%")
         bk4.metric("對沖比例", f"{abs(bv):.3f}x")
-        rb_ret = b["ret"]
+
+        rb_ret  = b["ret"]
         tk_b, bk_b = b["tk"], b["bk"]
         W = 60
         if len(rb_ret) > W:
             roll_b = []
             for i in range(W, len(rb_ret)):
-                chunk = rb_ret.iloc[i - W:i]
-                rb_val = chunk[tk_b].cov(chunk[bk_b]) / chunk[bk_b].var() if chunk[bk_b].var() > 0 else 0
+                chunk  = rb_ret.iloc[i-W:i]
+                bk_var = chunk[bk_b].var()
+                rb_val = (chunk[tk_b].cov(chunk[bk_b]) / bk_var
+                          if bk_var > 0 else 0)
                 roll_b.append({"Date": rb_ret.index[i], "Rolling Beta": rb_val})
-            rb_df = pd.DataFrame(roll_b)
-            fig_rb = px.line(rb_df, x="Date", y="Rolling Beta", title=f"{tk_b} - 60日 Rolling Beta vs {bk_b}")
+            rb_df  = pd.DataFrame(roll_b)
+            fig_rb = px.line(
+                rb_df, x="Date", y="Rolling Beta",
+                title=f"{tk_b} — 60日 Rolling Beta vs {bk_b}"
+            )
             fig_rb.update_traces(line_color="#FF9A3C", line_width=1.8)
-            fig_rb.add_hline(y=1, line_dash="dash", line_color="rgba(255,255,255,.2)")
-            fig_rb.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=270, margin=dict(t=30, b=40, l=60, r=10))
+            fig_rb.add_hline(y=1, line_dash="dash",
+                             line_color="rgba(255,255,255,.2)")
+            fig_rb.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                height=270, margin=dict(t=30, b=40, l=60, r=10)
+            )
             st.plotly_chart(fig_rb, use_container_width=True)
+
+    st.divider()
+
+    # ═══════════════════════════════════════════════════════════════
+    # BLOCK D: PCA 主成分因子輪動 (First Principles — Institutional)
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("#### 🧊 PCA 隱藏因子降維 — 機構版")
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+        'color:rgba(160,176,208,0.45);letter-spacing:1px;line-height:1.9;margin-bottom:12px;">'
+        '第一性原理：股價波動 = <b style="color:rgba(0,245,255,.6)">系統性因子（PC1/PC2）</b>'
+        ' + <b style="color:rgba(255,154,60,.6)">特異性風險（殘差）</b>。<br>'
+        '特徵值分解將高維相關矩陣壓縮到2D，讓「隱藏的資金陣營」一覽無遺。<br>'
+        'PC 分數時間序列揭示「輪動什麼時候發生」；風險分解表告訴你哪些是 Beta 工具、哪些有 Alpha。'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    # 預設：台股跨產業 12 標的（半導體/金融/航運/鋼鐵/石化/電子代工）
+    PCA_DEFAULT = (
+        "2330.TW, 2317.TW, 2454.TW, 2382.TW, 2308.TW, "
+        "2881.TW, 2882.TW, 2891.TW, 2603.TW, 2002.TW, 1301.TW, 1101.TW"
+    )
+    pa, pb = st.columns([3, 1])
+    pca_input  = pa.text_input(
+        "觀測矩陣標的（建議跨產業，≥ 6 檔）",
+        value=PCA_DEFAULT, key="pca_tickers_v300"
+    )
+    pca_period = pb.selectbox(
+        "觀測區間", ["6mo","1y","2y"], index=1,
+        key="pca_period_v300"
+    )
+    if st.button(
+        "🌌 啟動特徵值分解 (Run Eigen-Decomposition)",
+        use_container_width=True, key="run_pca_v300"
+    ):
+        raw_tickers = [t.strip() for t in pca_input.split(",") if t.strip()]
+        if len(raw_tickers) < 3:
+            st.error("❌ 至少需要 3 檔標的。")
+        else:
+            with st.spinner("🧠 正在計算協方差矩陣與特徵向量…"):
+                try:
+                    import traceback as _tb
+
+                    # ─────────────────────────────────────────────
+                    # STEP 1: 取日K，對數收益率，Z-score 標準化
+                    # 原因：PCA 對量綱敏感；Z-score 讓不同價位的股票
+                    # 在同等地位上競爭，避免高波動股主導協方差。
+                    # ─────────────────────────────────────────────
+                    raw_dl = yf.download(
+                        raw_tickers, period=pca_period,
+                        progress=False, auto_adjust=True
+                    )
+                    if isinstance(raw_dl.columns, pd.MultiIndex):
+                        px_raw = raw_dl["Close"]
+                    else:
+                        px_raw = raw_dl
+
+                    # forward-fill 缺漏（最多 3 日）再去頭
+                    px_raw = px_raw.ffill(limit=3).dropna(axis=1, thresh=int(len(px_raw)*0.8))
+                    px_raw = px_raw.dropna()
+
+                    valid_tks = list(px_raw.columns)
+                    if len(valid_tks) < 3:
+                        st.error("❌ 有效標的不足 3 檔（資料缺漏過多）。")
+                    else:
+                        # Log returns
+                        log_ret = np.log(px_raw / px_raw.shift(1)).dropna()
+                        n_obs, n_assets = log_ret.shape
+                        dates = log_ret.index
+
+                        # Z-score 標準化
+                        ret_mean = log_ret.mean()
+                        ret_std  = log_ret.std().replace(0, 1e-8)
+                        ret_norm = (log_ret - ret_mean) / ret_std  # shape: (T, N)
+
+                        # ─────────────────────────────────────────
+                        # STEP 2: 純 numpy 協方差 → 特徵值分解
+                        # eigh 比 eig 更穩定（對稱矩陣專用）
+                        # ─────────────────────────────────────────
+                        cov_mat  = np.cov(ret_norm.values.T)  # (N, N)
+                        eig_vals, eig_vecs = np.linalg.eigh(cov_mat)
+
+                        # 降序排列
+                        order    = np.argsort(eig_vals)[::-1]
+                        eig_vals = eig_vals[order]
+                        eig_vecs = eig_vecs[:, order]
+
+                        total_var = np.sum(eig_vals)
+                        var_exp   = eig_vals / total_var * 100
+                        cum_var   = np.cumsum(var_exp)
+
+                        # Top-5 PC loadings
+                        n_pc      = min(5, n_assets)
+                        loadings  = eig_vecs[:, :n_pc]         # (N, 5)
+                        pc1_load  = loadings[:, 0]
+                        pc2_load  = loadings[:, 1]
+
+                        # ─────────────────────────────────────────
+                        # STEP 3: PC 分數時間序列（核心實戰工具）
+                        # scores = 標準化收益率矩陣 × 特徵向量
+                        # 告訴你每天「系統性因子強度」如何演變
+                        # ─────────────────────────────────────────
+                        scores = ret_norm.values @ loadings  # (T, n_pc)
+                        pc1_ts = pd.Series(scores[:, 0], index=dates, name="PC1")
+                        pc2_ts = pd.Series(scores[:, 1], index=dates, name="PC2")
+
+                        # 滾動 20 日 PC2 均值（偵測輪動轉折）
+                        pc2_roll = pc2_ts.rolling(20).mean()
+
+                        # ─────────────────────────────────────────
+                        # STEP 4: 風險分解
+                        # 系統性方差 = Σ_k λ_k * loading_ik²
+                        # 特異方差   = 總方差 - 系統性方差
+                        # R² = 系統性方差 / 總方差（越高 = 越是 Beta）
+                        # ─────────────────────────────────────────
+                        risk_rows = []
+                        for i, tk in enumerate(valid_tks):
+                            total_v_i   = float(np.var(ret_norm.values[:, i]))
+                            sys_v_i     = float(sum(
+                                eig_vals[k] * loadings[i, k]**2
+                                for k in range(n_pc)
+                            ))
+                            idio_v_i    = max(0, total_v_i - sys_v_i)
+                            r2_i        = sys_v_i / total_v_i if total_v_i > 0 else 0
+                            label       = tk.replace(".TW","").replace(".TWO","")
+                            nature      = (
+                                "🔵 純 Beta 工具" if r2_i >= 0.8
+                                else "🟡 Beta 為主" if r2_i >= 0.6
+                                else "🟠 混合型"    if r2_i >= 0.4
+                                else "🟢 Alpha 來源"
+                            )
+                            risk_rows.append({
+                                "代號":    label,
+                                "PC1 載荷": round(float(pc1_load[i]), 4),
+                                "PC2 載荷": round(float(pc2_load[i]), 4),
+                                "系統性R²": round(r2_i, 4),
+                                "性質":    nature,
+                            })
+                        risk_df = pd.DataFrame(risk_rows).sort_values(
+                            "系統性R²", ascending=False
+                        )
+
+                        # ─────────────────────────────────────────
+                        # STEP 5: 配對交易信號
+                        # 找 PC2 載荷最大差異的兩股 → 最強負相關對
+                        # 近 30 日 PC2 分數累積差 → 判斷誰被壓、誰被拉
+                        # ─────────────────────────────────────────
+                        max_pc2_i  = int(np.argmax(pc2_load))
+                        min_pc2_i  = int(np.argmin(pc2_load))
+                        pair_long  = valid_tks[max_pc2_i]
+                        pair_short = valid_tks[min_pc2_i]
+                        pc2_spread = pc2_ts.iloc[-30:].cumsum()
+                        pair_dir   = "做多" if float(pc2_ts.iloc[-1]) > 0 else "做空"
+
+                        # 近 30d PC2 方向偵測
+                        pc2_recent_slope = float(
+                            pc2_roll.iloc[-1] - pc2_roll.iloc[-20]
+                        ) if len(pc2_roll.dropna()) >= 20 else 0
+
+                        # 儲存結果
+                        st.session_state["pca_result_v300"] = {
+                            "valid_tks": valid_tks,
+                            "var_exp": var_exp, "cum_var": cum_var,
+                            "pc1_load": pc1_load, "pc2_load": pc2_load,
+                            "pc1_ts": pc1_ts, "pc2_ts": pc2_ts,
+                            "pc2_roll": pc2_roll,
+                            "risk_df": risk_df,
+                            "pair_long": pair_long, "pair_short": pair_short,
+                            "pc2_spread": pc2_spread, "pair_dir": pair_dir,
+                            "pc2_recent_slope": pc2_recent_slope,
+                            "n_pc": n_pc, "n_obs": n_obs,
+                        }
+
+                except Exception as _e:
+                    st.error(f"PCA 計算失敗：{_e}")
+                    with st.expander("🔍 Debug"):
+                        st.code(_tb.format_exc())
+
+    # ── 結果渲染（持久顯示）──────────────────────────────────────
+    if "pca_result_v300" in st.session_state:
+        R = st.session_state["pca_result_v300"]
+        valid_tks = R["valid_tks"]
+        var_exp   = R["var_exp"]
+        cum_var   = R["cum_var"]
+        pc1_load  = R["pc1_load"]
+        pc2_load  = R["pc2_load"]
+        labels    = [t.replace(".TW","").replace(".TWO","") for t in valid_tks]
+
+        # ── 圖1: 碎石圖 (Scree Plot) ─────────────────────────────
+        # 實戰意義：PC1 解釋力 > 50% 代表市場高度連動（難做 Alpha）
+        # PC1 < 35% 代表個股分化嚴重（精選個股機會浮現）
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+            'margin:16px 0 6px;">① 解釋方差碎石圖 — 市場集中度儀表板</div>',
+            unsafe_allow_html=True
+        )
+        n_show = min(R["n_pc"], len(var_exp))
+        fig_scree = go.Figure()
+        bar_colors = [
+            "#FFD700" if i == 0 else "#FF9A3C" if i == 1 else "#00F5FF"
+            for i in range(n_show)
+        ]
+        fig_scree.add_trace(go.Bar(
+            x=[f"PC{i+1}" for i in range(n_show)],
+            y=var_exp[:n_show],
+            marker_color=bar_colors,
+            name="個別解釋力 (%)",
+            text=[f"{v:.1f}%" for v in var_exp[:n_show]],
+            textposition="outside",
+            textfont=dict(color="#CDD", size=11, family="JetBrains Mono"),
+        ))
+        fig_scree.add_trace(go.Scatter(
+            x=[f"PC{i+1}" for i in range(n_show)],
+            y=cum_var[:n_show],
+            mode="lines+markers",
+            line=dict(color="#00FF7F", width=2, dash="dot"),
+            marker=dict(size=7, color="#00FF7F"),
+            name="累積解釋力 (%)",
+            yaxis="y2",
+        ))
+        # 50%/80% 警戒線
+        fig_scree.add_hline(
+            y=50, line_color="rgba(255,215,0,0.3)", line_dash="dot",
+            annotation_text="50%",
+            annotation_font_color="rgba(255,215,0,0.5)",
+            annotation_font_size=9
+        )
+        fig_scree.update_layout(
+            template="plotly_dark", height=280,
+            title=dict(
+                text=(
+                    f"市場系統性集中度  |  PC1={var_exp[0]:.1f}%  PC2={var_exp[1]:.1f}%  "
+                    f"前2PC累積={cum_var[1]:.1f}%"
+                ),
+                font=dict(size=12, color="#CDD", family="Rajdhani")
+            ),
+            yaxis=dict(title="解釋方差 (%)", gridcolor="rgba(255,255,255,0.05)"),
+            yaxis2=dict(
+                title="累積解釋力 (%)",
+                overlaying="y", side="right",
+                gridcolor="rgba(0,0,0,0)", showgrid=False
+            ),
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            barmode="overlay",
+            legend=dict(orientation="h", y=1.02,
+                        font=dict(color="#AAB", size=10)),
+            margin=dict(t=45, b=40, l=60, r=60),
+        )
+        st.plotly_chart(fig_scree, use_container_width=True)
+
+        # PC1 集中度解讀
+        pc1_conc = float(var_exp[0])
+        if pc1_conc >= 55:
+            st.error(
+                f"⚠️ PC1 解釋力高達 {pc1_conc:.1f}%，市場處於**高度系統性連動**狀態。"
+                "個股分化極低，此時做 Alpha 勝算差——以 Beta 策略為主，追隨大盤方向。"
+            )
+        elif pc1_conc >= 40:
+            st.warning(
+                f"⚖️ PC1={pc1_conc:.1f}%，市場中度連動。"
+                "部分板塊已開始分化，可開始關注 PC2 正負極端標的的相對強弱。"
+            )
+        else:
+            st.success(
+                f"✅ PC1={pc1_conc:.1f}%，市場個股分化顯著。"
+                "精選個股的 Alpha 機會豐富，適合主動操作。"
+            )
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+        # ── 圖2: Loading Biplot (資金陣營雷達圖) ─────────────────
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+            'margin:16px 0 6px;">② 資金陣營雷達圖 — PC1 vs PC2 因子載荷</div>',
+            unsafe_allow_html=True
+        )
+        # 顏色：PC2 正值 = 綠（多頭陣營）；負值 = 紅（空頭陣營）
+        dot_colors = [
+            "#00FF7F" if v > 0.05 else "#FF3131" if v < -0.05 else "#FFD700"
+            for v in pc2_load
+        ]
+        fig_bp = go.Figure()
+        # 圓形邊界參考
+        theta_circ = np.linspace(0, 2*np.pi, 100)
+        for r_circ in [0.1, 0.2, 0.3]:
+            fig_bp.add_trace(go.Scatter(
+                x=r_circ * np.cos(theta_circ),
+                y=r_circ * np.sin(theta_circ),
+                mode='lines',
+                line=dict(color='rgba(255,255,255,0.05)', width=1),
+                showlegend=False, hoverinfo='skip'
+            ))
+        # 箭頭（向量）
+        for i, lbl in enumerate(labels):
+            fig_bp.add_annotation(
+                x=float(pc1_load[i]),
+                y=float(pc2_load[i]),
+                ax=0, ay=0, xref='x', yref='y', axref='x', ayref='y',
+                arrowhead=3, arrowsize=1.2,
+                arrowcolor=dot_colors[i], arrowwidth=1.5,
+                showarrow=True
+            )
+        # 標籤點
+        fig_bp.add_trace(go.Scatter(
+            x=pc1_load.tolist(),
+            y=pc2_load.tolist(),
+            mode="markers+text",
+            text=labels,
+            textposition="top center",
+            marker=dict(
+                size=13, color=dot_colors,
+                line=dict(color='rgba(255,255,255,0.3)', width=1)
+            ),
+            textfont=dict(color="#DDE", size=10, family="JetBrains Mono"),
+            hovertemplate=[
+                f"<b>{lbl}</b><br>PC1:{float(pc1_load[i]):.3f}<br>"
+                f"PC2:{float(pc2_load[i]):.3f}<extra></extra>"
+                for i, lbl in enumerate(labels)
+            ]
+        ))
+        fig_bp.add_hline(y=0, line_color="rgba(255,255,255,0.1)", line_dash="dot")
+        fig_bp.add_vline(x=0, line_color="rgba(255,255,255,0.1)", line_dash="dot")
+        # 象限標籤
+        for qx, qy, ql, qc in [
+            ( 0.22,  0.22, "PC2↑ 避險/輪動受益",  "#00FF7F"),
+            (-0.22,  0.22, "大盤空/板塊多",        "#FFD700"),
+            ( 0.22, -0.22, "大盤多/板塊空",        "#FF9A3C"),
+            (-0.22, -0.22, "雙空（高風險）",        "#FF3131"),
+        ]:
+            fig_bp.add_annotation(
+                x=qx, y=qy, text=ql,
+                showarrow=False,
+                font=dict(color=qc, size=8, family="JetBrains Mono"),
+                bgcolor="rgba(0,0,0,0.55)", borderpad=3
+            )
+        fig_bp.update_layout(
+            template="plotly_dark", height=480,
+            title=dict(
+                text=(
+                    f"PC1（大盤系統因子 {var_exp[0]:.1f}%）vs "
+                    f"PC2（板塊輪動因子 {var_exp[1]:.1f}%）"
+                ),
+                font=dict(size=13, color="#CDD", family="Rajdhani")
+            ),
+            xaxis=dict(
+                title=f"PC1 載荷  →  越右 = 越跟著大盤漲跌",
+                gridcolor="rgba(255,255,255,0.04)", zeroline=False
+            ),
+            yaxis=dict(
+                title=f"PC2 載荷  ↑↓ = 蹺蹺板資金對立",
+                gridcolor="rgba(255,255,255,0.04)", zeroline=False,
+                scaleanchor="x", scaleratio=1
+            ),
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            margin=dict(t=50, b=50, l=70, r=20),
+        )
+        st.plotly_chart(fig_bp, use_container_width=True)
+
+        # ── 圖3: PC 分數時間序列（因子強度演變）────────────────────
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+            'margin:16px 0 6px;">③ 因子強度時間序列 — 板塊輪動時鐘</div>',
+            unsafe_allow_html=True
+        )
+        pc1_ts = R["pc1_ts"]
+        pc2_ts = R["pc2_ts"]
+        pc2_roll = R["pc2_roll"]
+
+        fig_ts = go.Figure()
+        # PC1（大盤）
+        fig_ts.add_trace(go.Scatter(
+            x=pc1_ts.index, y=pc1_ts.values,
+            mode='lines',
+            line=dict(color='rgba(255,215,0,0.5)', width=1),
+            fill='tozeroy',
+            fillcolor='rgba(255,215,0,0.03)',
+            name='PC1 大盤系統因子',
+        ))
+        # PC2（輪動）
+        fig_ts.add_trace(go.Scatter(
+            x=pc2_ts.index, y=pc2_ts.values,
+            mode='lines',
+            line=dict(color='rgba(0,245,255,0.45)', width=1),
+            name='PC2 板塊輪動因子',
+        ))
+        # PC2 滾動均線（輪動趨勢）
+        fig_ts.add_trace(go.Scatter(
+            x=pc2_roll.index, y=pc2_roll.values,
+            mode='lines',
+            line=dict(color='#00F5FF', width=2.5),
+            name='PC2 滾動20日均線（輪動趨勢）',
+        ))
+        fig_ts.add_hline(y=0, line_color="rgba(255,255,255,0.1)", line_dash="dot")
+        fig_ts.update_layout(
+            template="plotly_dark", height=320,
+            title=dict(
+                text="PC1（黃=大盤情緒）vs PC2（藍=板塊輪動）— 輪動轉折看20日均線穿越零軸",
+                font=dict(size=12, color="#CDD", family="Rajdhani")
+            ),
+            xaxis=dict(gridcolor="rgba(255,255,255,0.04)"),
+            yaxis=dict(
+                title="因子強度（標準差單位）",
+                gridcolor="rgba(255,255,255,0.04)"
+            ),
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            hovermode="x unified",
+            legend=dict(orientation="h", y=1.02,
+                        font=dict(color="#AAB", size=10)),
+            margin=dict(t=45, b=40, l=65, r=20),
+        )
+        st.plotly_chart(fig_ts, use_container_width=True)
+
+        # ── 圖4: 配對交易 PC2 累積擴散圖 ────────────────────────
+        pair_long  = R["pair_long"]
+        pair_short = R["pair_short"]
+        pc2_spread = R["pc2_spread"]
+
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+            'margin:16px 0 6px;">④ 配對交易信號 — PC2 最強對立資金對</div>',
+            unsafe_allow_html=True
+        )
+        fig_pair = go.Figure()
+        fig_pair.add_trace(go.Scatter(
+            x=pc2_spread.index, y=pc2_spread.values,
+            mode='lines',
+            line=dict(color='#B77DFF', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(183,125,255,0.06)',
+            name=f'PC2 累積擴散 ({pair_long.replace(".TW","")}'
+                 f' vs {pair_short.replace(".TW","")})',
+        ))
+        fig_pair.add_hline(y=0, line_color="rgba(255,255,255,0.15)", line_dash="dot")
+        fig_pair.update_layout(
+            template="plotly_dark", height=230,
+            title=dict(
+                text=(
+                    f"近30日 PC2 累積擴散：{pair_long.replace('.TW','')} ⬆  vs  "
+                    f"{pair_short.replace('.TW','')} ⬇  — 蹺蹺板資金對立"
+                ),
+                font=dict(size=12, color="#CDD", family="Rajdhani")
+            ),
+            xaxis=dict(gridcolor="rgba(255,255,255,0.04)"),
+            yaxis=dict(gridcolor="rgba(255,255,255,0.04)"),
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            margin=dict(t=45, b=40, l=65, r=20),
+        )
+        st.plotly_chart(fig_pair, use_container_width=True)
+
+        # ── 風險分解表 ────────────────────────────────────────────
+        st.markdown(
+            '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+            'margin:16px 0 6px;">⑤ 風險分解矩陣 — 系統性 vs 特異性</div>',
+            unsafe_allow_html=True
+        )
+        st.dataframe(R["risk_df"], use_container_width=True, hide_index=True)
+
+        # ── Valkyrie AI 整合判斷 ──────────────────────────────────
+        st.divider()
+        pc2_slope     = R["pc2_recent_slope"]
+        pair_dir      = R["pair_dir"]
+        pc2_cur_val   = float(pc2_ts.iloc[-1])
+        alpha_stocks  = R["risk_df"][R["risk_df"]["系統性R²"] < 0.4]["代號"].tolist()
+        beta_stocks   = R["risk_df"][R["risk_df"]["系統性R²"] >= 0.8]["代號"].tolist()
+
+        rotation_signal = (
+            "🔄 板塊加速輪動（PC2 均線向上穿越）"  if pc2_slope > 0.05
+            else "🔄 板塊反向輪動（PC2 均線向下穿越）" if pc2_slope < -0.05
+            else "⚖️ 輪動趨勢平緩，方向不明"
+        )
+
+        st.markdown(
+            f'<div style="padding:16px 20px;background:rgba(0,0,0,0.35);'
+            f'border:1px solid rgba(0,245,255,0.15);border-left:4px solid #00F5FF;'
+            f'border-radius:0 12px 12px 0;margin-bottom:14px;">'
+            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+            f'color:rgba(0,245,255,.4);letter-spacing:3px;text-transform:uppercase;'
+            f'margin-bottom:8px;">⚡ Valkyrie AI · PCA 戰略解析</div>'
+            f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:16px;'
+            f'font-weight:600;color:#FFF;">{rotation_signal}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            st.markdown(
+                f"**📐 市場結構（碎石圖）**\n\n"
+                f"PC1 解釋力 **{float(var_exp[0]):.1f}%**，"
+                f"前 2 PC 累積 **{float(cum_var[1]):.1f}%**。\n\n"
+                f"{'高度系統連動，個股 Alpha 空間壓縮，建議 Beta 策略為主。' if pc1_conc >= 50 else '市場分化明顯，主動選股機會浮現。'}"
+            )
+            st.markdown(
+                f"**🧲 Beta 工具股**（系統R²≥0.8）：{', '.join(beta_stocks) if beta_stocks else '本次觀測無純Beta股'}\n\n"
+                f"**🎯 Alpha 來源股**（系統R²<0.4）：{', '.join(alpha_stocks) if alpha_stocks else '本次觀測無高Alpha股'}"
+            )
+        with col_v2:
+            st.markdown(
+                f"**🔀 配對交易訊號**\n\n"
+                f"PC2 最強資金對立：做多 **{pair_long.replace('.TW','')}** / "
+                f"做空 **{pair_short.replace('.TW','')}**\n\n"
+                f"近 30 日 PC2 擴散方向：**{pair_dir} {pair_long.replace('.TW','')}**\n\n"
+                f"PC2 滾動趨勢斜率：**{pc2_slope:+.4f}**（正值=輪動向{pair_long.replace('.TW','')}，負值=反向）"
+            )
+
+
 
 
 # ═══════════════════════════════════════════════════════════════
