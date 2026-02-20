@@ -1592,12 +1592,31 @@ def _s44():
     )
 
     # ── 雙引擎選擇器 ──────────────────────────────────────────────
-    strategy = st.radio(
-        "選擇演算引擎 (Select Engine):",
-        options=["⚔️ 攻擊型：Markowitz 最優化 (追求最高夏普值)", "🛡️ 防禦型：Risk Parity 全天候 (追求風險平價)"],
-        horizontal=True,
-        key="s44_strategy",
-    )
+    st.markdown("**選擇演算引擎 (Select Engine):**")
+    if 's44_strategy' not in st.session_state:
+        st.session_state['s44_strategy'] = 'Markowitz'
+
+    eng_col1, eng_col2 = st.columns(2)
+    with eng_col1:
+        if st.button("⚔️ 攻擊型：Markowitz 最優化\n(追求最高夏普值)",
+                     use_container_width=True, key="s44_btn_markowitz",
+                     type="primary" if st.session_state['s44_strategy'] == 'Markowitz' else "secondary"):
+            st.session_state['s44_strategy'] = 'Markowitz'
+            st.rerun()
+    with eng_col2:
+        if st.button("🛡️ 防禦型：Risk Parity 全天候\n(追求風險平價)",
+                     use_container_width=True, key="s44_btn_rp",
+                     type="primary" if st.session_state['s44_strategy'] == 'RiskParity' else "secondary"):
+            st.session_state['s44_strategy'] = 'RiskParity'
+            st.rerun()
+
+    strategy = st.session_state['s44_strategy']
+
+    # 顯示當前選擇狀態
+    if strategy == 'Markowitz':
+        st.success("⚔️ 當前引擎：**Markowitz 最優化** — 蒙地卡羅 5000 次模擬，鎖定最高夏普值配置")
+    else:
+        st.info("🛡️ 當前引擎：**Risk Parity 全天候** — 反向波動率平價，高波動資產強制降權")
 
     rf_col, sim_col = st.columns(2)
     with rf_col:
@@ -1684,7 +1703,7 @@ def _s44():
             mvp_std = results[0, min_vol_idx]
             mvp_shp = results[2, min_vol_idx]
 
-            if "Markowitz" in strategy:
+            if strategy == 'Markowitz':
                 # ── 攻擊型：Max Sharpe ────────────────────────────
                 optimal_weights = weights_record[max_sharpe_idx]
                 opt_ret   = results[1, max_sharpe_idx]
@@ -1702,7 +1721,7 @@ def _s44():
                 opt_std  = float(np.sqrt(optimal_weights.T @ cov_matrix.values @ optimal_weights))
                 opt_shp  = (opt_ret - risk_free) / opt_std if opt_std > 0 else 0.0
                 marker_color  = '#00FF9D'
-                marker_symbol = 'shield'
+                marker_symbol = 'pentagon'          # ← plotly 合法 symbol（無 'shield'）
                 label_text    = '🛡️ Risk Parity 絕對防禦'
                 engine_label  = 'Risk Parity (All-Weather)'
 
@@ -1826,7 +1845,7 @@ def _s44():
             top_ticker = weight_df.iloc[0]['資產代號 (Ticker)']
             top_w      = weight_df.iloc[0]['建議資金佔比 (Weight)']
 
-            if "Markowitz" in strategy:
+            if strategy == 'Markowitz':
                 commentary = (
                     f"根據 {n_sim:,} 次蒙地卡羅模擬與共變異數矩陣分析，"
                     f"在無風險利率 {risk_free:.1%} 的假設下，"
