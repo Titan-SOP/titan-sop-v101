@@ -35,3 +35,4 @@ rich
 typer
 questionary
 matplotlib
+seaborn
