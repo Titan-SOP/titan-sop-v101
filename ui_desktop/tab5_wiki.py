@@ -596,10 +596,39 @@ def render_5_1_chips_daytrade(ticker: str, df: pd.DataFrame, info: dict):
                  key=f"vp_scan_{ticker}", use_container_width=True):
         with st.spinner("🧠 正在進行量價矩陣解碼..."):
             try:
-                # 1. Fetch 3-month daily data
-                df_vp = yf.download(ticker, period="3mo", progress=False, auto_adjust=True)
+                # 1. 解析正確 yfinance 代號（台股必須加 .TW / .TWO 後綴）
+                raw_sym = ticker.upper()
+                base_sym = raw_sym.replace(".TW", "").replace(".TWO", "")
+                if _is_tw_ticker(base_sym):
+                    if raw_sym.endswith(".TW") or raw_sym.endswith(".TWO"):
+                        yf_sym = raw_sym          # 已有後綴，直接用
+                    else:
+                        yf_sym = None
+                        for sfx in [".TW", ".TWO"]:
+                            try:
+                                # probe 用 1mo 確保拿到足夠資料，
+                                # 並要求 >= 5 筆才算真正有效（防止殭屍 ticker 誤判）
+                                _probe = yf.download(base_sym + sfx, period="1mo",
+                                                     progress=False, auto_adjust=True)
+                                if isinstance(_probe.columns, pd.MultiIndex):
+                                    _probe.columns = _probe.columns.get_level_values(0)
+                                valid_rows = _probe["Close"].dropna().shape[0] if "Close" in _probe.columns else 0
+                                if valid_rows >= 5:
+                                    yf_sym = base_sym + sfx
+                                    break
+                            except Exception:
+                                continue
+                        if yf_sym is None:
+                            st.error(f"❌ 無法解析台股代號 {ticker}，"
+                                     "請確認代號（如 2330 → 2330.TW）。")
+                            return
+                else:
+                    yf_sym = raw_sym              # 美股 / ETF 直接使用
+
+                # 2. Fetch 3-month daily data（使用解析後的正確代號）
+                df_vp = yf.download(yf_sym, period="3mo", progress=False, auto_adjust=True)
                 if df_vp.empty:
-                    st.error("❌ 無法取得足夠歷史數據。")
+                    st.error(f"❌ 無法取得 {yf_sym} 的歷史數據，請確認代號或稍後再試。")
                     return
 
                 # 2. Flatten MultiIndex columns if present (yfinance multi-ticker quirk)
