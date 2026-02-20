@@ -1556,19 +1556,19 @@ def _s43():
 
 
 # ══════════════════════════════════════════════════════════════════
-#  SECTION 4.4 — 機構級資金配置 (Markowitz Efficient Frontier)
+#  SECTION 4.4 — 機構級資金配置雙引擎 (Markowitz + Risk Parity)
 # ══════════════════════════════════════════════════════════════════
 def _s44():
-    """4.4 機構級資金配置 (Markowitz Efficient Frontier)"""
+    """4.4 機構級資金配置雙引擎 (Markowitz Max Sharpe + Risk Parity)"""
     st.markdown(
         '<div class="t4-sec-head" style="--sa:#00FF7F">'
         '<div class="t4-sec-num">4.4</div>'
         '<div><div class="t4-sec-title" style="color:#00FF7F;">機構級資金配置</div>'
-        '<div class="t4-sec-sub">Markowitz Efficient Frontier · Nobel Prize Algorithm · Monte Carlo 5000</div>'
+        '<div class="t4-sec-sub">Dual-Engine: Markowitz Efficient Frontier · Risk Parity All-Weather · Monte Carlo 5000</div>'
         '</div></div>',
         unsafe_allow_html=True,
     )
-    st.caption("透過諾貝爾經濟學獎演算法，在給定風險下計算出「預期報酬最大化」的完美資金權重。")
+    st.caption("透過諾貝爾經濟學獎演算法與橋水基金全天候模型，計算最完美的資金權重。")
 
     # ── 1. User Input ─────────────────────────────────────────────
     st.markdown("##### 🎯 1. 輸入您的投資組合標的")
@@ -1589,6 +1589,14 @@ def _s44():
         value=default_tickers,
         help="自動從 4.1 持倉帶入，可手動修改。台股範例：2330.TW  美股範例：AAPL, NVDA",
         key="s44_tickers_input",
+    )
+
+    # ── 雙引擎選擇器 ──────────────────────────────────────────────
+    strategy = st.radio(
+        "選擇演算引擎 (Select Engine):",
+        options=["⚔️ 攻擊型：Markowitz 最優化 (追求最高夏普值)", "🛡️ 防禦型：Risk Parity 全天候 (追求風險平價)"],
+        horizontal=True,
+        key="s44_strategy",
     )
 
     rf_col, sim_col = st.columns(2)
@@ -1648,6 +1656,7 @@ def _s44():
             returns      = data.pct_change().dropna()
             mean_returns = returns.mean() * 252        # 年化預期報酬
             cov_matrix   = returns.cov() * 252         # 年化共變異數矩陣
+            vols         = returns.std() * np.sqrt(252) # 年化波動率
             n_assets     = len(valid_tickers)
 
             # ── 4. Monte Carlo Simulation ─────────────────────────
@@ -1668,25 +1677,42 @@ def _s44():
                 results[1, i] = p_ret    # 預期年化報酬
                 results[2, i] = p_shrp   # 夏普值
 
-            # ── 5. Optimal Portfolio (Max Sharpe) ─────────────────
-            max_sharpe_idx  = int(np.argmax(results[2]))
-            min_vol_idx     = int(np.argmin(results[0]))
-            optimal_weights = weights_record[max_sharpe_idx]
-            opt_ret  = results[1, max_sharpe_idx]
-            opt_std  = results[0, max_sharpe_idx]
-            opt_shp  = results[2, max_sharpe_idx]
-            mvp_ret  = results[1, min_vol_idx]
-            mvp_std  = results[0, min_vol_idx]
-            mvp_shp  = results[2, min_vol_idx]
+            # ── 5. Engine Logic ───────────────────────────────────
+            max_sharpe_idx = int(np.argmax(results[2]))
+            min_vol_idx    = int(np.argmin(results[0]))
+            mvp_ret = results[1, min_vol_idx]
+            mvp_std = results[0, min_vol_idx]
+            mvp_shp = results[2, min_vol_idx]
+
+            if "Markowitz" in strategy:
+                # ── 攻擊型：Max Sharpe ────────────────────────────
+                optimal_weights = weights_record[max_sharpe_idx]
+                opt_ret   = results[1, max_sharpe_idx]
+                opt_std   = results[0, max_sharpe_idx]
+                opt_shp   = results[2, max_sharpe_idx]
+                marker_color  = '#00F5FF'
+                marker_symbol = 'star'
+                label_text    = '🏆 Markowitz 極致夏普'
+                engine_label  = 'Max Sharpe Ratio'
+            else:
+                # ── 防禦型：Risk Parity (Inverse Volatility) ──────
+                inv_vols = 1.0 / vols
+                optimal_weights = (inv_vols / np.sum(inv_vols)).values
+                opt_ret  = float(np.dot(optimal_weights, mean_returns))
+                opt_std  = float(np.sqrt(optimal_weights.T @ cov_matrix.values @ optimal_weights))
+                opt_shp  = (opt_ret - risk_free) / opt_std if opt_std > 0 else 0.0
+                marker_color  = '#00FF9D'
+                marker_symbol = 'shield'
+                label_text    = '🛡️ Risk Parity 絕對防禦'
+                engine_label  = 'Risk Parity (All-Weather)'
 
             # ── 6. Efficient Frontier Chart ───────────────────────
-            st.markdown("##### 🌌 2. 效率前緣微笑曲線 (The Frontier)")
+            st.markdown("##### 🌌 2. 效率前緣宇宙 (The Frontier)")
             st.caption(
                 "每個點代表一種資產配置組合。**越右**=風險越高，**越上**=報酬越高。"
-                "顏色越綠=夏普值越高（風報比越佳）。⭐ 即最佳配置。"
+                "顏色越綠=夏普值越高（風報比越佳）。標記點即所選引擎的最佳配置。"
             )
 
-            # [FIX] 高 Sharpe = 綠色，用 RdYlGn（非 _r 反色）
             fig = px.scatter(
                 x=results[0, :],
                 y=results[1, :],
@@ -1700,19 +1726,19 @@ def _s44():
                 opacity=0.55,
             )
 
-            # 最大夏普 ⭐
+            # 所選引擎最佳點
             fig.add_trace(go.Scatter(
                 x=[opt_std], y=[opt_ret],
                 mode='markers+text',
-                marker=dict(color='#00F5FF', size=18, symbol='star',
+                marker=dict(color=marker_color, size=18, symbol=marker_symbol,
                             line=dict(width=2, color='white')),
-                name='⭐ 最大夏普組合',
-                text=[f'🏆 Sharpe {opt_shp:.2f}'],
+                name=label_text,
+                text=[f'{label_text.split(" ")[1]} Sharpe {opt_shp:.2f}'],
                 textposition='top left',
-                textfont=dict(color='#00F5FF', size=13),
+                textfont=dict(color=marker_color, size=13, weight='bold'),
             ))
 
-            # 最小波動 ◆
+            # 最小波動 ◆（永遠顯示作為參考基準）
             fig.add_trace(go.Scatter(
                 x=[mvp_std], y=[mvp_ret],
                 mode='markers+text',
@@ -1741,7 +1767,7 @@ def _s44():
             st.plotly_chart(fig, use_container_width=True)
 
             # ── 7. Metrics Row ─────────────────────────────────────
-            st.markdown("##### 🏆 3. 最佳化資金權重建議 (Max Sharpe Ratio)")
+            st.markdown(f"##### 📊 3. 最佳化資金權重建議 ({engine_label})")
             c1, c2, c3, c4 = st.columns(4)
             with c1:
                 st.metric("預期年化報酬",        f"{opt_ret:.2%}")
@@ -1791,7 +1817,7 @@ def _s44():
                 annotations=[dict(
                     text=f"Sharpe<br>{opt_shp:.2f}",
                     x=0.5, y=0.5, font_size=18, showarrow=False,
-                    font=dict(color='#00F5FF', family='JetBrains Mono'),
+                    font=dict(color=marker_color, family='JetBrains Mono'),
                 )],
             )
             st.plotly_chart(fig_pie, use_container_width=True)
@@ -1799,18 +1825,30 @@ def _s44():
             # ── 10. Valkyrie AI Commentary ────────────────────────
             top_ticker = weight_df.iloc[0]['資產代號 (Ticker)']
             top_w      = weight_df.iloc[0]['建議資金佔比 (Weight)']
-            commentary = (
-                f"根據 {n_sim:,} 次蒙地卡羅模擬與共變異數矩陣分析，"
-                f"在無風險利率 {risk_free:.1%} 的假設下，"
-                f"最佳夏普組合建議將最大比重 {top_w:.1%} 分配給 {top_ticker}。"
-                f"該組合預期年化報酬為 {opt_ret:.2%}，"
-                f"波動率為 {opt_std:.2%}，夏普值 {opt_shp:.2f}。"
-                f"效率前緣上每一個點代表一種帕雷托最優配置，"
-                f"在當前組合中無法在不增加風險的前提下進一步提升報酬。"
-                f"請注意：此結果基於過去一年歷史數據，未來報酬不保證重現，"
-                f"實際操作前請搭配基本面與總經背景進行人工判斷。"
-            )
-            st.success(f"⚡ [Valkyrie 系統分析] {commentary}")
+
+            if "Markowitz" in strategy:
+                commentary = (
+                    f"根據 {n_sim:,} 次蒙地卡羅模擬與共變異數矩陣分析，"
+                    f"在無風險利率 {risk_free:.1%} 的假設下，"
+                    f"最佳夏普組合建議將最大比重 {top_w:.1%} 分配給 {top_ticker}。"
+                    f"該組合預期年化報酬為 {opt_ret:.2%}，"
+                    f"波動率為 {opt_std:.2%}，夏普值 {opt_shp:.2f}。"
+                    f"效率前緣上每一個點代表一種帕雷托最優配置，"
+                    f"在當前組合中無法在不增加風險的前提下進一步提升報酬。"
+                    f"請注意：此結果基於過去一年歷史數據，未來報酬不保證重現，"
+                    f"實際操作前請搭配基本面與總經背景進行人工判斷。"
+                )
+                st.success(f"⚡ [Valkyrie AI] 攻擊模式啟動：此配置將資金集中於近期動能與風險報酬比最高之標的，適合牛市擴張。{commentary}")
+            else:
+                commentary = (
+                    f"Risk Parity 反向波動率模型已完成計算。"
+                    f"最高配置比重 {top_w:.1%} 分配給波動率最低的 {top_ticker}。"
+                    f"組合預期年化報酬 {opt_ret:.2%}，波動率 {opt_std:.2%}，夏普值 {opt_shp:.2f}。"
+                    f"高波動資產被系統性降權，各資產的風險貢獻趨於均等，"
+                    f"此模型源自橋水基金全天候策略，適合震盪或熊市環境防禦。"
+                    f"請注意：此結果基於過去一年歷史數據，未來報酬不保證重現。"
+                )
+                st.info(f"🛡️ [Valkyrie AI] 防禦模式啟動：{commentary}")
 
         except Exception as e:
             st.error(f"演算失敗 (Execution Error): {e}")
