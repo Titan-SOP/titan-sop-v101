@@ -3,7 +3,8 @@
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║  V800: Niche Market Fusion Edition                                       ║
 # ║  5.1 籌碼+CMF+當沖雷達  5.2 Squeeze+營收噴射  5.3 ATR詳解 (Preserved)  ║
-# ║  5.4 艾蜜莉+PE河流圖+掃雷  5.5 ETF戰情室 (Replaces 13F)  5.6 Codex     ║
+# ║  5.4 艾蜜莉+PE河流圖+掃雷  5.5 ETF戰情室 (Replaces 13F)               ║
+# ║  5.6 Monte Carlo量子預測 (NEW)  5.7 Codex戰略百科 (Shifted)            ║
 # ║  Architecture: First Principles · Dual Engine · Mine Sweeper            ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
@@ -38,13 +39,14 @@ def show_guide_modal():
     st.markdown("""
 ### 指揮官，歡迎進入 Titan 市場情報戰區 V800
 
-**6大分析模組（Niche Market Fusion）**：
+**7大分析模組（Niche Market Fusion）**：
 - 🕵️ **5.1 籌碼K線** — VWAP / OBV / CMF / 當沖雷達 · 主力能量匿藏偵測
 - 🚀 **5.2 起漲偵測** — Squeeze Momentum + 營收噴射引擎 · 雙引擎點火
 - ⚡ **5.3 權證小哥** — ATR波幅 + 凱利公式 · 最大化風報比（原版保留）
 - 🚦 **5.4 艾蜜莉** — PE河流圖 + 掃雷大隊 · 內在價值+財務健康雙保險
 - 🛡️ **5.5 ETF戰情室** — 殖利率/費用比/Beta/X光透視 · 取代不穩定13F
-- 📜 **5.6 戰略百科** — CB四大套利窗口 · 進出場SOP · CBAS引擎
+- 🌌 **5.6 量子預測** — Monte Carlo GBM · 1,000條平行宇宙 · 30天機率分佈
+- 📜 **5.7 戰略百科** — CB四大套利窗口 · 進出場SOP · CBAS引擎
 
 **操作方式**：點擊上方 6 個板塊切換模組。每個模組均有**第一性原理解析**。
 
@@ -276,7 +278,7 @@ def _search() -> str:
 
 
 # ════════════════════════════════════════════════════════════════════
-# NAV RAIL — V800: 5.5 = ETF Command (replaces 13F)
+# NAV RAIL — V800: 5.6 = Monte Carlo (NEW) · 5.7 = Codex (shifted)
 # ════════════════════════════════════════════════════════════════════
 _NAV = [
     ("5.1", "🕵️", "籌碼K線",  "Chip+DayTrade",  "#00F5FF"),
@@ -284,7 +286,8 @@ _NAV = [
     ("5.3", "⚡", "權證小哥", "Tick Master",    "#FFD700"),
     ("5.4", "🚦", "艾蜜莉",  "Value+River",    "#FF9A3C"),
     ("5.5", "🛡️", "ETF戰情室","ETF Command",   "#B77DFF"),
-    ("5.6", "📜", "戰略百科", "The Codex",     "#FF3131"),
+    ("5.6", "🌌", "量子預測", "Monte Carlo",    "#00F5FF"),
+    ("5.7", "📜", "戰略百科", "The Codex",     "#FF3131"),
 ]
 
 
@@ -293,7 +296,7 @@ def _nav():
         st.session_state.t5_active = "5.1"
     active = st.session_state.t5_active
     st.markdown('<div class="t5-nav-rail"><div class="t5-nav-lbl">⬡ ANALYSIS MODULES — CLICK TO SELECT</div>', unsafe_allow_html=True)
-    cols = st.columns(6)
+    cols = st.columns(7)
     for col, (sid, icon, title, sub, accent) in zip(cols, _NAV):
         is_a = (active == sid)
         brd  = f"2px solid {accent}" if is_a else "1px solid rgba(255,255,255,.06)"
@@ -1398,10 +1401,174 @@ def _s55(holders, info, symbol, mf_holders=None):
 
 
 # ════════════════════════════════════════════════════════════════════
-# 5.6  戰略百科  THE CODEX  (Preserved verbatim)
+# 5.6  蒙地卡羅量子預測 (NEW)
 # ════════════════════════════════════════════════════════════════════
-def _s56():
-    _hd("5.6", "📜 戰略百科 — The Codex",
+def render_5_6_monte_carlo(symbol: str):
+    """5.6 蒙地卡羅量子預測 (Monte Carlo Simulation)"""
+    _hd("5.6", "🌌 蒙地卡羅量子預測 (Monte Carlo Parallel Universe)",
+        "GBM · 1,000 條平行宇宙 · 30 天價格機率分佈 · Valkyrie AI 判定", "#00F5FF")
+
+    st.caption("基於幾何布朗運動 (GBM) 與歷史波動率，模擬未來 30 天的 1,000 種價格平行宇宙。")
+
+    if not symbol:
+        st.warning("請先在上方輸入股票代號並點擊「🔍 鎖定」")
+        return
+
+    if st.button("🎲 啟動未來 30 天軌跡模擬 (Run Simulation)",
+                 key=f"mc_sim_{symbol}", use_container_width=True, type="primary"):
+        with st.spinner("🧠 正在啟動量子演算，展開平行宇宙..."):
+            try:
+                # 1. Fetch 1-year daily data for accurate volatility
+                _dl = yf.download(symbol, period="1y", progress=False, auto_adjust=True)
+                if _dl.empty:
+                    st.error("❌ 無法取得足夠歷史數據進行模擬。")
+                    return
+
+                # 壓平 MultiIndex
+                if isinstance(_dl.columns, pd.MultiIndex):
+                    _dl.columns = _dl.columns.get_level_values(0)
+
+                hist = _dl["Close"].dropna() if "Close" in _dl.columns else _dl.iloc[:, 0].dropna()
+                if isinstance(hist, pd.DataFrame):
+                    hist = hist.iloc[:, 0]
+                hist = hist.dropna()
+
+                if len(hist) < 30:
+                    st.error("❌ 歷史數據不足 30 筆，無法建立有效波動率模型。")
+                    return
+
+                # 2. Calculate Parameters
+                returns = hist.pct_change().dropna()
+                mu  = float(returns.mean())   # 日漂移率
+                vol = float(returns.std())    # 日波動率
+                S0  = float(hist.iloc[-1])    # 當前股價
+
+                days        = 30
+                simulations = 1000
+
+                # 3. Geometric Brownian Motion (GBM)
+                # S_t = S_{t-1} * exp((μ - 0.5σ²) + σ·Z)，dt=1 日
+                np.random.seed(None)
+                simulated_paths       = np.zeros((days, simulations))
+                simulated_paths[0]    = S0
+
+                for t in range(1, days):
+                    rand_shocks = np.random.normal(0, 1, simulations)
+                    simulated_paths[t] = (
+                        simulated_paths[t - 1]
+                        * np.exp((mu - 0.5 * vol ** 2) + vol * rand_shocks)
+                    )
+
+                # 4. Visualization
+                fig = go.Figure()
+                time_array = np.arange(days)
+
+                # 100 條半透明背景路徑
+                for i in range(100):
+                    fig.add_trace(go.Scatter(
+                        x=time_array, y=simulated_paths[:, i],
+                        mode="lines",
+                        line=dict(color="rgba(0,245,255,0.05)", width=1),
+                        showlegend=False, hoverinfo="skip"
+                    ))
+
+                # 百分位數
+                p5  = np.percentile(simulated_paths,  5, axis=1)
+                p50 = np.percentile(simulated_paths, 50, axis=1)
+                p95 = np.percentile(simulated_paths, 95, axis=1)
+
+                # P5–P95 填色區間
+                fig.add_trace(go.Scatter(
+                    x=np.concatenate([time_array, time_array[::-1]]),
+                    y=np.concatenate([p95, p5[::-1]]),
+                    fill="toself", fillcolor="rgba(0,245,255,0.04)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    name="90% 信賴區間", hoverinfo="skip"
+                ))
+
+                fig.add_trace(go.Scatter(
+                    x=time_array, y=p95, mode="lines",
+                    line=dict(color="#00FF9D", width=2, dash="dash"),
+                    name="95% 樂觀預期 (P95)"
+                ))
+                fig.add_trace(go.Scatter(
+                    x=time_array, y=p50, mode="lines",
+                    line=dict(color="#FFB800", width=3),
+                    name="50% 機率中位數 (P50)"
+                ))
+                fig.add_trace(go.Scatter(
+                    x=time_array, y=p5, mode="lines",
+                    line=dict(color="#FF4B4B", width=2, dash="dash"),
+                    name="5% 悲觀預期 (P5)"
+                ))
+
+                # 現價基準線
+                fig.add_hline(
+                    y=S0, line_dash="dot",
+                    line_color="rgba(255,255,255,0.25)",
+                    annotation_text=f"現價 {S0:.2f}",
+                    annotation_font=dict(color="rgba(255,255,255,0.5)", size=11)
+                )
+
+                fig.update_layout(
+                    template="plotly_dark",
+                    height=550,
+                    title=f"🎯 {symbol} 未來 30 天價格機率分佈（GBM · {simulations:,} 次模擬）",
+                    xaxis_title="未來天數 (Days)",
+                    yaxis_title="模擬價格 (Simulated Price)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    hovermode="x unified",
+                    legend=dict(font=dict(color="#B0C0D0", size=11)),
+                    margin=dict(t=50, b=40, l=60, r=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # 5. Strategic Conclusion
+                final_prices = simulated_paths[-1, :]
+                prob_up  = float(np.sum(final_prices > S0)) / simulations
+                max_loss = (float(p5[-1])  - S0) / S0
+                max_gain = (float(p95[-1]) - S0) / S0
+
+                st.markdown("##### 📊 模擬結果戰略解析 (Simulation Metrics)")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("30天後上漲機率",         f"{prob_up:.1%}")
+                c2.metric("極端悲觀預期 (P5 跌幅)",  f"{max_loss:.1%}",
+                          delta="向下支撐", delta_color="inverse")
+                c3.metric("極端樂觀預期 (P95 漲幅)", f"{max_gain:.1%}",
+                          delta="向上爆發")
+                c4.metric("日波動率 (σ)",            f"{vol:.2%}",
+                          delta=f"年化 {vol * (252**0.5):.2%}")
+
+                st.divider()
+                if prob_up > 0.6:
+                    st.success(
+                        "⚡ [Valkyrie AI 判定] 歷史波動率與漂移項顯示，"
+                        "該標的具備強烈的向上期望值。"
+                        "建議結合基本面 (5.4 艾蜜莉) 尋找最佳買點。"
+                    )
+                elif prob_up < 0.4:
+                    st.warning(
+                        "⚠️ [Valkyrie AI 判定] 模擬勝率偏低，"
+                        "向下修正風險大於向上期望值，建議嚴格控管資金或觀望。"
+                    )
+                else:
+                    st.info(
+                        "⚖️ [Valkyrie AI 判定] 多空機率僵局，"
+                        "股價將陷入震盪，請嚴防雙巴並設定絕對停損。"
+                    )
+
+            except Exception as e:
+                st.error(f"蒙地卡羅運算失敗: {e}")
+                with st.expander("🔍 Debug"):
+                    st.code(traceback.format_exc())
+
+
+# ════════════════════════════════════════════════════════════════════
+# 5.7  戰略百科  THE CODEX  (Shifted from 5.6 — Preserved verbatim)
+# ════════════════════════════════════════════════════════════════════
+def _s57():
+    _hd("5.7", "📜 戰略百科 — The Codex",
         "SOP · Entry/Exit · Sector Map · Mindset · CBAS Engine · OTC MA", "#FF3131")
     tabs = st.tabs(["⏰ 四大時間套利", "📋 進出場紀律", "🏭 產業族群庫", "🧠 特殊心法", "⚡ CBAS試算", "📈 OTC神奇均線"])
 
@@ -1620,7 +1787,9 @@ def render():
 
         _nav()
         if st.session_state.get("t5_active") == "5.6":
-            _s56()
+            render_5_6_monte_carlo(symbol)
+        elif st.session_state.get("t5_active") == "5.7":
+            _s57()
         return
 
     # Cache h1 for _s55 alias
@@ -1662,7 +1831,8 @@ def render():
         elif active == "5.3": _s53(h1, symbol)
         elif active == "5.4": render_5_4_value_river(symbol, info, h3)
         elif active == "5.5": render_5_5_etf_command(symbol, info, h1)
-        elif active == "5.6": _s56()
+        elif active == "5.6": render_5_6_monte_carlo(symbol)   # NEW
+        elif active == "5.7": _s57()                           # SHIFTED CODEX
         else:                  render_5_1_chips_daytrade(symbol, h1, info)
     except Exception as exc:
         st.toast(f"❌ Module {active} Error: {exc}", icon="💀")
@@ -1672,7 +1842,7 @@ def render():
 
     st.markdown(
         f'<div class="t5-foot">Titan Universal Market Analyzer V800 · Niche Market Fusion · '
-        f'DayTrade+CMF · RevSurge+Squeeze · PE River · Mine Sweeper · ETF Command · '
+        f'DayTrade+CMF · RevSurge+Squeeze · PE River · Mine Sweeper · ETF Command · Monte Carlo · '
         f'{symbol} · {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>',
         unsafe_allow_html=True
     )
