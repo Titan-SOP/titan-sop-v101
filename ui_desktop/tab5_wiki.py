@@ -1176,14 +1176,12 @@ def _s53(hist: pd.DataFrame, symbol: str):
                     xaxis=dict(title="時間", showgrid=False,
                                gridcolor="rgba(255,255,255,0.04)"),
                     yaxis=dict(
-                        title="收盤價 (Price)",
-                        titlefont=dict(color="#00D9FF"),
+                        title=dict(text="收盤價 (Price)", font=dict(color="#00D9FF")),
                         tickfont=dict(color="#00D9FF"),
                         gridcolor="rgba(255,255,255,0.04)"
                     ),
                     yaxis2=dict(
-                        title="年化波動率 (%)",
-                        titlefont=dict(color="#FF4B4B"),
+                        title=dict(text="年化波動率 (%)", font=dict(color="#FF4B4B")),
                         tickfont=dict(color="#FF4B4B"),
                         overlaying="y", side="right", showgrid=False
                     ),
