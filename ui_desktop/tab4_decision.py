@@ -1824,18 +1824,27 @@ def _s44():
                 hole=0.52,
                 marker=dict(
                     colors=pal[:len(weight_df)],
-                    line=dict(color='rgba(0,0,0,.4)', width=2),
+                    line=dict(color='rgba(0,0,0,0.6)', width=3),
                 ),
-                textfont=dict(color='#DDE', size=12, family='Rajdhani'),
+                textfont=dict(color='#FFFFFF', size=16, family='Rajdhani'),
                 textinfo='label+percent',
+                insidetextfont=dict(color='#FFFFFF', size=15, family='Rajdhani'),
+                outsidetextfont=dict(color='#FFFFFF', size=16, family='Rajdhani'),
+                textposition='auto',
+                pull=[0.03] * len(weight_df),   # 微微拉開每片，增加辨識度
             ))
             fig_pie.update_layout(
                 template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)',
-                height=360, margin=dict(t=20, b=0, l=0, r=0),
-                legend=dict(font=dict(color='#B0C0D0', size=11, family='Rajdhani')),
+                height=420, margin=dict(t=20, b=0, l=0, r=0),
+                legend=dict(
+                    font=dict(color='#FFFFFF', size=14, family='Rajdhani'),
+                    bgcolor='rgba(0,0,0,0.4)',
+                    bordercolor='rgba(255,255,255,0.15)',
+                    borderwidth=1,
+                ),
                 annotations=[dict(
-                    text=f"Sharpe<br>{opt_shp:.2f}",
-                    x=0.5, y=0.5, font_size=18, showarrow=False,
+                    text=f"Sharpe<br><b>{opt_shp:.2f}</b>",
+                    x=0.5, y=0.5, font_size=22, showarrow=False,
                     font=dict(color=marker_color, family='JetBrains Mono'),
                 )],
             )
