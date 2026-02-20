@@ -1403,165 +1403,640 @@ def _s55(holders, info, symbol, mf_holders=None):
 # ════════════════════════════════════════════════════════════════════
 # 5.6  蒙地卡羅量子預測 (NEW)
 # ════════════════════════════════════════════════════════════════════
-def render_5_6_monte_carlo(symbol: str):
-    """5.6 蒙地卡羅量子預測 (Monte Carlo Simulation)"""
-    _hd("5.6", "🌌 蒙地卡羅量子預測 (Monte Carlo Parallel Universe)",
-        "GBM · 1,000 條平行宇宙 · 30 天價格機率分佈 · Valkyrie AI 判定", "#00F5FF")
+def render_5_6_monte_carlo(symbol: str, h3: pd.DataFrame):
+    """
+    5.6 蒙地卡羅量子預測 — 專業量化風險引擎 V2
+    ═══════════════════════════════════════════════
+    ✅ 根本修復：直接使用 _fetch 已解析後綴的 h3，零額外 API 呼叫
+       → 徹底解決台股 2330 / 5274 / 0050 / 00631L 無法取得數據問題
+    ✅ 升級為 4 分頁專業量化工具（非玩具）：
+       Tab1 GBM軌跡 → 建倉區間 / 統計停損 / R/R比
+       Tab2 VaR風險矩陣 → 95%/99% VaR、CVaR、偏態峰態
+       Tab3 波動率政體 → 滾動波動率、Sharpe/Sortino
+       Tab4 情境壓力測試 → 牛市/基準/熊市/崩盤四情境
+    """
+    _hd("5.6", "🌌 蒙地卡羅量子預測 (Quantum Risk Engine)",
+        "GBM平行宇宙 · VaR/CVaR風險矩陣 · 波動率政體 · 情境壓力測試", "#00F5FF")
 
-    st.caption("基於幾何布朗運動 (GBM) 與歷史波動率，模擬未來 30 天的 1,000 種價格平行宇宙。")
-
-    if not symbol:
-        st.warning("請先在上方輸入股票代號並點擊「🔍 鎖定」")
+    # ══════════════════════════════════════════════════════════════
+    # ① 根本修復：從 h3 提取 Close，完全不打 API
+    #    _fetch 已處理台股後綴 .TW/.TWO，h3 保證有乾淨的 Close 序列
+    # ══════════════════════════════════════════════════════════════
+    if h3 is None or h3.empty:
+        st.error("❌ 無歷史數據。請先輸入代號並點擊「🔍 鎖定」。")
         return
 
-    if st.button("🎲 啟動未來 30 天軌跡模擬 (Run Simulation)",
-                 key=f"mc_sim_{symbol}", use_container_width=True, type="primary"):
-        with st.spinner("🧠 正在啟動量子演算，展開平行宇宙..."):
-            try:
-                # 1. Fetch 1-year daily data for accurate volatility
-                _dl = yf.download(symbol, period="1y", progress=False, auto_adjust=True)
-                if _dl.empty:
-                    st.error("❌ 無法取得足夠歷史數據進行模擬。")
-                    return
+    _df = h3.copy()
+    if isinstance(_df.columns, pd.MultiIndex):
+        _df.columns = _df.columns.get_level_values(0)
+    if hasattr(_df.index, "tz") and _df.index.tz is not None:
+        _df.index = _df.index.tz_localize(None)
 
-                # 壓平 MultiIndex
-                if isinstance(_dl.columns, pd.MultiIndex):
-                    _dl.columns = _dl.columns.get_level_values(0)
+    close_col  = "Close" if "Close" in _df.columns else _df.columns[0]
+    full_close = _df[close_col].dropna()
+    if isinstance(full_close, pd.DataFrame):
+        full_close = full_close.iloc[:, 0]
+    full_close = full_close.dropna()
 
-                hist = _dl["Close"].dropna() if "Close" in _dl.columns else _dl.iloc[:, 0].dropna()
-                if isinstance(hist, pd.DataFrame):
-                    hist = hist.iloc[:, 0]
-                hist = hist.dropna()
+    if len(full_close) < 30:
+        st.error(f"❌ 歷史數據僅 {len(full_close)} 筆，需 ≥30 才能建立統計模型。")
+        return
 
-                if len(hist) < 30:
-                    st.error("❌ 歷史數據不足 30 筆，無法建立有效波動率模型。")
-                    return
+    S0 = float(full_close.iloc[-1])
 
-                # 2. Calculate Parameters
-                returns = hist.pct_change().dropna()
-                mu  = float(returns.mean())   # 日漂移率
-                vol = float(returns.std())    # 日波動率
-                S0  = float(hist.iloc[-1])    # 當前股價
+    # ══════════════════════════════════════════════════════════════
+    # 控制面板
+    # ══════════════════════════════════════════════════════════════
+    with st.expander("⚙️ 模擬參數設定", expanded=True):
+        cp1, cp2, cp3 = st.columns(3)
+        sim_days = cp1.selectbox("預測天數", [10, 20, 30, 60, 90], index=2, key="mc_days")
+        vol_win  = cp2.selectbox("波動率窗口 (交易日)",
+                                  [30, 60, 120, 252], index=1, key="mc_volwin",
+                                  help="計算歷史波動率所用的交易日數。60d=近期，252d=全年")
+        n_sim    = cp3.selectbox("模擬路徑數", [500, 1000, 2000, 5000], index=1, key="mc_nsim")
 
-                days        = 30
-                simulations = 1000
+    if not st.button(f"🎲 啟動 {sim_days}天 × {n_sim:,}路徑 量子模擬",
+                     key=f"mc_run_{symbol}_{sim_days}_{vol_win}_{n_sim}",
+                     use_container_width=True, type="primary"):
+        st.markdown(
+            '<div style="padding:32px;background:rgba(0,245,255,.03);border:1px solid '
+            'rgba(0,245,255,.08);border-radius:14px;text-align:center;margin-top:16px;">'
+            '<div style="font-family:\'Orbitron\',sans-serif;font-size:11px;'
+            'color:rgba(0,245,255,.3);letter-spacing:5px;margin-bottom:12px;">⬡ QUANTUM ENGINE STANDBY</div>'
+            '<div style="font-family:\'Rajdhani\',sans-serif;font-size:17px;'
+            'color:rgba(180,195,220,.4);">設定參數後點擊啟動 — 引擎將展開 GBM 平行宇宙路徑分析<br>'
+            f'當前標的 <span style="color:rgba(0,245,255,.7);">{symbol}</span> · '
+            f'最新收盤 <span style="color:#FFD700;">{S0:.2f}</span> · '
+            f'可用歷史 <span style="color:rgba(0,255,127,.7);">{len(full_close)} 交易日</span></div>'
+            '</div>', unsafe_allow_html=True)
+        return
 
-                # 3. Geometric Brownian Motion (GBM)
-                # S_t = S_{t-1} * exp((μ - 0.5σ²) + σ·Z)，dt=1 日
-                np.random.seed(None)
-                simulated_paths       = np.zeros((days, simulations))
-                simulated_paths[0]    = S0
+    with st.spinner(f"🧠 正在展開 {n_sim:,} 條平行宇宙…"):
+        try:
+            # ═══════════════════════════════════════════════
+            # 核心量化計算
+            # ═══════════════════════════════════════════════
+            # 使用近期 vol_win 日計算波動率（捕捉當前市況）
+            # 使用最多252日計算漂移率（避免過擬合短期）
+            hist_for_vol   = full_close.tail(vol_win)
+            hist_for_drift = full_close.tail(252)
 
-                for t in range(1, days):
-                    rand_shocks = np.random.normal(0, 1, simulations)
-                    simulated_paths[t] = (
-                        simulated_paths[t - 1]
-                        * np.exp((mu - 0.5 * vol ** 2) + vol * rand_shocks)
-                    )
+            rets_vol   = hist_for_vol.pct_change().dropna()
+            rets_drift = hist_for_drift.pct_change().dropna()
+            all_rets_ts = full_close.pct_change().dropna()   # 全序列，供波動率政體用
 
-                # 4. Visualization
-                fig = go.Figure()
-                time_array = np.arange(days)
+            mu_d  = float(rets_drift.mean())           # 日漂移率
+            vol_d = float(rets_vol.std())               # 日波動率（近期窗口）
+            ann_vol = vol_d * np.sqrt(252)
+            ann_ret = mu_d  * 252
 
-                # 100 條半透明背景路徑
-                for i in range(100):
-                    fig.add_trace(go.Scatter(
-                        x=time_array, y=simulated_paths[:, i],
-                        mode="lines",
-                        line=dict(color="rgba(0,245,255,0.05)", width=1),
-                        showlegend=False, hoverinfo="skip"
-                    ))
+            if vol_d <= 0:
+                st.error("❌ 波動率計算異常（= 0），請嘗試更換波動率窗口。")
+                return
 
-                # 百分位數
-                p5  = np.percentile(simulated_paths,  5, axis=1)
-                p50 = np.percentile(simulated_paths, 50, axis=1)
-                p95 = np.percentile(simulated_paths, 95, axis=1)
+            # GBM 向量化（比逐步迴圈快 ~30x）
+            np.random.seed(None)
+            Z            = np.random.normal(0, 1, (sim_days - 1, n_sim))
+            log_rets     = (mu_d - 0.5 * vol_d**2) + vol_d * Z
+            cum_log_rets = np.vstack([np.zeros((1, n_sim)), np.cumsum(log_rets, axis=0)])
+            price_paths  = S0 * np.exp(cum_log_rets)     # shape: (sim_days, n_sim)
 
-                # P5–P95 填色區間
-                fig.add_trace(go.Scatter(
-                    x=np.concatenate([time_array, time_array[::-1]]),
-                    y=np.concatenate([p95, p5[::-1]]),
+            final_prices = price_paths[-1]
+            pnl_pct      = (final_prices - S0) / S0      # 終值報酬率分佈
+
+            # 百分位：路徑維度（每個時間點）
+            def _path_pct(p):
+                return np.percentile(price_paths, p, axis=1)
+
+            p5_path  = _path_pct(5)
+            p25_path = _path_pct(25)
+            p50_path = _path_pct(50)
+            p75_path = _path_pct(75)
+            p95_path = _path_pct(95)
+
+            # 終值百分位（決策用）
+            pcts_list = [1, 5, 10, 25, 50, 75, 90, 95, 99]
+            p_final   = {p: float(np.percentile(final_prices, p)) for p in pcts_list}
+
+            # 核心指標
+            prob_up  = float(np.mean(final_prices > S0))
+            var_95   = float(np.percentile(pnl_pct, 5))    # 95% VaR (負=虧損)
+            var_99   = float(np.percentile(pnl_pct, 1))
+            tail_95  = pnl_pct[pnl_pct <= var_95]
+            tail_99  = pnl_pct[pnl_pct <= var_99]
+            cvar_95  = float(tail_95.mean()) if len(tail_95) else var_95
+            cvar_99  = float(tail_99.mean()) if len(tail_99) else var_99
+
+            # 最大回撤期望值
+            run_max   = np.maximum.accumulate(price_paths, axis=0)
+            drawdowns = (price_paths - run_max) / run_max
+            avg_mdd   = float(np.mean(np.min(drawdowns, axis=0)))
+
+            # 偏態/峰態
+            from scipy.stats import skew as _skew, kurtosis as _kurt
+            skewness = float(_skew(pnl_pct))
+            kurtosis = float(_kurt(pnl_pct))    # excess kurtosis (normal=0)
+
+            # 交易決策錨點
+            stop_loss   = p_final[5]   # P5 統計停損
+            target_1    = p_final[75]  # 第一目標
+            target_2    = p_final[90]  # 第二目標
+            entry_zone  = (p_final[25], p_final[50])
+            reward      = target_1 - S0
+            risk        = max(S0 - stop_loss, 0.0001)
+            rr_ratio    = reward / risk
+
+            time_arr = np.arange(sim_days)
+
+            # ═══════════════════════════════════════════════
+            # 4 分頁專業輸出
+            # ═══════════════════════════════════════════════
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "🌌 GBM 軌跡模擬", "💀 VaR 風險矩陣", "📈 波動率政體", "🔥 情境壓力測試"
+            ])
+
+            # ══════════════════════ TAB 1 ══════════════════════
+            with tab1:
+                # KPI 列
+                k1, k2, k3, k4, k5 = st.columns(5)
+                _kpi(k1, "上漲機率",
+                     f"{prob_up:.1%}",
+                     "強勢" if prob_up > 0.62 else ("弱勢" if prob_up < 0.38 else "膠著"),
+                     "#00FF7F" if prob_up > 0.62 else ("#FF3131" if prob_up < 0.38 else "#FFD700"))
+                _kpi(k2, f"P50 中位 ({sim_days}天)",
+                     f"{p_final[50]:.2f}", f"{(p_final[50]-S0)/S0:+.1%}", "#FFD700")
+                _kpi(k3, "P95 樂觀目標",
+                     f"{p_final[95]:.2f}", f"{(p_final[95]-S0)/S0:+.1%}", "#00FF9D")
+                _kpi(k4, "P5 統計停損",
+                     f"{p_final[5]:.2f}",  f"{(p_final[5]-S0)/S0:+.1%}",  "#FF4B4B")
+                _kpi(k5, "年化波動率",
+                     f"{ann_vol:.1%}", f"日σ={vol_d:.2%}", "#B77DFF")
+
+                st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+                # GBM 主圖
+                fig_gbm = go.Figure()
+
+                # 多空著色路徑（各取部分，避免渲染過慢）
+                up_idx   = np.where(final_prices >= S0)[0][:80]
+                down_idx = np.where(final_prices <  S0)[0][:40]
+                for i in up_idx:
+                    fig_gbm.add_trace(go.Scatter(
+                        x=time_arr, y=price_paths[:, i], mode="lines",
+                        line=dict(color="rgba(0,255,127,0.035)", width=1),
+                        showlegend=False, hoverinfo="skip"))
+                for i in down_idx:
+                    fig_gbm.add_trace(go.Scatter(
+                        x=time_arr, y=price_paths[:, i], mode="lines",
+                        line=dict(color="rgba(255,49,49,0.04)", width=1),
+                        showlegend=False, hoverinfo="skip"))
+
+                # 信賴帶
+                fig_gbm.add_trace(go.Scatter(
+                    x=np.concatenate([time_arr, time_arr[::-1]]),
+                    y=np.concatenate([p95_path, p5_path[::-1]]),
                     fill="toself", fillcolor="rgba(0,245,255,0.04)",
                     line=dict(color="rgba(0,0,0,0)"),
-                    name="90% 信賴區間", hoverinfo="skip"
-                ))
+                    name="P5–P95 帶", hoverinfo="skip"))
+                fig_gbm.add_trace(go.Scatter(
+                    x=np.concatenate([time_arr, time_arr[::-1]]),
+                    y=np.concatenate([p75_path, p25_path[::-1]]),
+                    fill="toself", fillcolor="rgba(255,215,0,0.05)",
+                    line=dict(color="rgba(0,0,0,0)"),
+                    name="P25–P75 核心帶", hoverinfo="skip"))
 
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p95, mode="lines",
-                    line=dict(color="#00FF9D", width=2, dash="dash"),
-                    name="95% 樂觀預期 (P95)"
-                ))
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p50, mode="lines",
-                    line=dict(color="#FFB800", width=3),
-                    name="50% 機率中位數 (P50)"
-                ))
-                fig.add_trace(go.Scatter(
-                    x=time_array, y=p5, mode="lines",
-                    line=dict(color="#FF4B4B", width=2, dash="dash"),
-                    name="5% 悲觀預期 (P5)"
-                ))
+                # 百分位線
+                for yv, clr, w, dash, nm in [
+                    (p95_path, "#00FF9D", 2,   "dash",  "P95 樂觀"),
+                    (p75_path, "#FFD700", 1.5, "dot",   "P75 偏樂"),
+                    (p50_path, "#FFB800", 3,   "solid", "P50 中位"),
+                    (p25_path, "#FF9A3C", 1.5, "dot",   "P25 偏悲"),
+                    (p5_path,  "#FF4B4B", 2,   "dash",  "P5 悲觀"),
+                ]:
+                    fig_gbm.add_trace(go.Scatter(
+                        x=time_arr, y=yv, mode="lines",
+                        line=dict(color=clr, width=w, dash=dash), name=nm))
 
-                # 現價基準線
-                fig.add_hline(
-                    y=S0, line_dash="dot",
-                    line_color="rgba(255,255,255,0.25)",
-                    annotation_text=f"現價 {S0:.2f}",
-                    annotation_font=dict(color="rgba(255,255,255,0.5)", size=11)
-                )
+                # 決策水平線
+                for yv, clr, lbl in [
+                    (S0,       "rgba(255,255,255,.35)", f"現價 {S0:.2f}"),
+                    (stop_loss,"rgba(255,49,49,.55)",   f"統計停損 P5 {stop_loss:.2f}"),
+                    (target_1, "rgba(0,255,127,.55)",   f"目標一 P75 {target_1:.2f}"),
+                    (target_2, "rgba(0,255,157,.35)",   f"目標二 P90 {target_2:.2f}"),
+                ]:
+                    fig_gbm.add_hline(y=yv, line_dash="dot", line_color=clr,
+                                      annotation_text=lbl,
+                                      annotation_font=dict(color=clr, size=10))
 
-                fig.update_layout(
-                    template="plotly_dark",
-                    height=550,
-                    title=f"🎯 {symbol} 未來 30 天價格機率分佈（GBM · {simulations:,} 次模擬）",
-                    xaxis_title="未來天數 (Days)",
-                    yaxis_title="模擬價格 (Simulated Price)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
+                fig_gbm.update_layout(
+                    template="plotly_dark", height=500,
+                    title=dict(text=(f"🎯 {symbol} — {sim_days}天 GBM模擬 × {n_sim:,}路徑 "
+                                     f"（漂移μ={mu_d*252:+.1%}/年，波動σ={ann_vol:.1%}/年）"),
+                               font=dict(size=13, color="#B0C0D0")),
+                    xaxis=dict(title="未來交易日", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    yaxis=dict(title="模擬價格", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                     hovermode="x unified",
-                    legend=dict(font=dict(color="#B0C0D0", size=11)),
-                    margin=dict(t=50, b=40, l=60, r=20)
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                    legend=dict(font=dict(color="#B0C0D0", size=11),
+                                orientation="h", y=-0.14),
+                    margin=dict(t=55, b=65, l=65, r=20))
+                st.plotly_chart(fig_gbm, use_container_width=True)
 
-                # 5. Strategic Conclusion
-                final_prices = simulated_paths[-1, :]
-                prob_up  = float(np.sum(final_prices > S0)) / simulations
-                max_loss = (float(p5[-1])  - S0) / S0
-                max_gain = (float(p95[-1]) - S0) / S0
+                # 交易決策卡
+                rr_c = "#00FF7F" if rr_ratio >= 2 else ("#FFD700" if rr_ratio >= 1 else "#FF3131")
+                st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 14px;">
+  <div style="background:rgba(0,255,127,.05);border:1px solid rgba(0,255,127,.18);
+    border-left:4px solid #00FF7F;border-radius:0 10px 10px 0;padding:14px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(0,255,127,.5);letter-spacing:2px;text-transform:uppercase;">建倉目標區</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;
+      color:#00FF7F;line-height:1.1;margin-top:4px;">{entry_zone[0]:.2f}–{entry_zone[1]:.2f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:12px;
+      color:rgba(0,255,127,.5);">P25–P50 機率優勢進場帶</div></div>
+  <div style="background:rgba(255,184,0,.04);border:1px solid rgba(255,184,0,.18);
+    border-left:4px solid #FFB800;border-radius:0 10px 10px 0;padding:14px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(255,184,0,.5);letter-spacing:2px;text-transform:uppercase;">第一停利目標</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;
+      color:#FFB800;line-height:1.1;margin-top:4px;">{target_1:.2f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:12px;
+      color:rgba(255,184,0,.5);">P75 · {(target_1-S0)/S0:+.1%}</div></div>
+  <div style="background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.14);
+    border-left:4px solid #00FF9D;border-radius:0 10px 10px 0;padding:14px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(0,255,157,.5);letter-spacing:2px;text-transform:uppercase;">第二停利目標</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;
+      color:#00FF9D;line-height:1.1;margin-top:4px;">{target_2:.2f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:12px;
+      color:rgba(0,255,157,.5);">P90 · {(target_2-S0)/S0:+.1%}</div></div>
+  <div style="background:rgba(255,49,49,.05);border:1px solid rgba(255,49,49,.22);
+    border-left:4px solid #FF3131;border-radius:0 10px 10px 0;padding:14px 16px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(255,49,49,.5);letter-spacing:2px;text-transform:uppercase;">統計停損位</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;
+      color:#FF4B4B;line-height:1.1;margin-top:4px;">{stop_loss:.2f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:12px;
+      color:rgba(255,49,49,.5);">P5 · {(stop_loss-S0)/S0:+.1%}</div></div>
+</div>
+<div style="display:flex;align-items:center;gap:18px;padding:14px 20px;
+  background:rgba(255,255,255,.018);border:1px solid rgba(255,255,255,.05);border-radius:10px;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:10px;
+    color:rgba(160,176,208,.38);letter-spacing:3px;min-width:90px;">REWARD/RISK</div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;
+    color:{rr_c};line-height:1;">{rr_ratio:.2f}×</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:15px;
+    color:rgba(160,176,208,.5);line-height:1.7;">
+    {'✅ 優質機會 R/R ≥ 2' if rr_ratio>=2 else ('⚠️ 尚可 R/R ≥ 1' if rr_ratio>=1 else '❌ 風報比不足，謹慎介入')}<br>
+    獲利目標 <b style="color:{rr_c};">{target_1:.2f}</b> ／
+    停損 <b style="color:#FF4B4B;">{stop_loss:.2f}</b> ／
+    現價 <b style="color:#FFF;">{S0:.2f}</b></div>
+</div>""", unsafe_allow_html=True)
 
-                st.markdown("##### 📊 模擬結果戰略解析 (Simulation Metrics)")
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("30天後上漲機率",         f"{prob_up:.1%}")
-                c2.metric("極端悲觀預期 (P5 跌幅)",  f"{max_loss:.1%}",
-                          delta="向下支撐", delta_color="inverse")
-                c3.metric("極端樂觀預期 (P95 漲幅)", f"{max_gain:.1%}",
-                          delta="向上爆發")
-                c4.metric("日波動率 (σ)",            f"{vol:.2%}",
-                          delta=f"年化 {vol * (252**0.5):.2%}")
-
-                st.divider()
-                if prob_up > 0.6:
+                # Valkyrie 判定
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                if prob_up > 0.62:
                     st.success(
-                        "⚡ [Valkyrie AI 判定] 歷史波動率與漂移項顯示，"
-                        "該標的具備強烈的向上期望值。"
-                        "建議結合基本面 (5.4 艾蜜莉) 尋找最佳買點。"
+                        f"⚡ **[Valkyrie 判定] 多方佔優 ({prob_up:.1%})**　"
+                        f"歷史漂移正偏，{sim_days}天上漲機率 > 62%。"
+                        f"R/R = {rr_ratio:.1f}x — 建議以 {entry_zone[0]:.2f}–{entry_zone[1]:.2f} "
+                        f"區間分批建倉，停損設 {stop_loss:.2f}（P5 統計低點）。"
                     )
-                elif prob_up < 0.4:
+                elif prob_up < 0.38:
+                    st.error(
+                        f"🔴 **[Valkyrie 判定] 空方主導 ({prob_up:.1%})**　"
+                        f"漂移率負偏，動能持續向下壓力。若已持倉，"
+                        f"建議在 {target_1:.2f} 附近輕倉，不建議新增多倉。"
+                    )
+                else:
                     st.warning(
-                        "⚠️ [Valkyrie AI 判定] 模擬勝率偏低，"
-                        "向下修正風險大於向上期望值，建議嚴格控管資金或觀望。"
+                        f"⚖️ **[Valkyrie 判定] 多空膠著 ({prob_up:.1%})**　"
+                        f"漂移率接近零，方向不明，震盪機率高。"
+                        f"建議等待突破 {target_1:.2f} 確認後再介入，提前入場風險較大。"
+                    )
+
+            # ══════════════════════ TAB 2 ══════════════════════
+            with tab2:
+                st.markdown("#### 💀 風險價值矩陣 (VaR / CVaR)")
+                st.caption(
+                    "**VaR (Value at Risk)**：在指定信心水準下的最大預期虧損比例。"
+                    "**CVaR (Conditional VaR)**：超出 VaR 邊界後的平均損失 — 衡量「最壞情境下有多壞」。"
+                )
+
+                v1, v2, v3, v4 = st.columns(4)
+                _kpi(v1, "VaR 95%",   f"{var_95:.2%}",
+                     f"損失 {S0*abs(var_95):.2f} 元", "#FF9A3C")
+                _kpi(v2, "VaR 99%",   f"{var_99:.2%}",
+                     f"損失 {S0*abs(var_99):.2f} 元", "#FF3131")
+                _kpi(v3, "CVaR 95%",  f"{cvar_95:.2%}",
+                     "超VaR後均損 (尾部均值)", "#B77DFF")
+                _kpi(v4, "期望最大回撤", f"{avg_mdd:.2%}",
+                     "各路徑峰谷跌幅均值", "#FF3131")
+
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+                # 終值分佈直方圖
+                fig_hist = go.Figure()
+                n_bins = 80
+                h_counts, h_edges = np.histogram(final_prices, bins=n_bins)
+                mid_prices = (h_edges[:-1] + h_edges[1:]) / 2
+                bar_colors = ["#FF4B4B" if m < S0 else "#00FF7F" for m in mid_prices]
+
+                fig_hist.add_trace(go.Bar(
+                    x=mid_prices, y=h_counts,
+                    marker_color=bar_colors, marker_line_width=0,
+                    opacity=0.82, name="終值分佈"))
+
+                for xv, xclr, xlbl in [
+                    (S0*(1+var_99), "#FF3131", f"VaR99% {var_99:.1%}"),
+                    (S0*(1+var_95), "#FF9A3C", f"VaR95% {var_95:.1%}"),
+                    (S0,            "rgba(255,255,255,.6)", f"現價 {S0:.2f}"),
+                    (target_1,      "#00FF7F", f"P75目標 {target_1:.2f}"),
+                ]:
+                    fig_hist.add_vline(
+                        x=xv, line_dash="dash", line_color=xclr,
+                        annotation_text=xlbl,
+                        annotation_font=dict(color=xclr, size=10))
+
+                fig_hist.update_layout(
+                    template="plotly_dark", height=360,
+                    title=dict(text=f"{symbol} 模擬終值分佈（紅=虧損帶  綠=獲利帶）",
+                               font=dict(size=13, color="#B0C0D0")),
+                    xaxis=dict(title="模擬終值價格", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    yaxis=dict(title="頻次", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    showlegend=False, margin=dict(t=40, b=40, l=60, r=20))
+                st.plotly_chart(fig_hist, use_container_width=True)
+
+                # 百分位完整表
+                st.markdown("##### 📋 完整百分位價格表")
+                pct_interpret = {
+                    1: "極端悲觀 / 黑天鵝", 5: "統計停損建議",
+                    10: "悲觀底部區", 25: "建倉低點",
+                    50: "基準中位數", 75: "第一停利目標",
+                    90: "強勢爆發目標", 95: "極樂觀 / 強勢",
+                    99: "黑天鵝上漲",
+                }
+                rows = []
+                for p in pcts_list:
+                    fv = p_final[p]
+                    rows.append({
+                        "百分位": f"P{p}",
+                        f"{sim_days}天後價格": f"{fv:.2f}",
+                        "漲跌幅": f"{(fv-S0)/S0:+.2%}",
+                        "解讀": pct_interpret.get(p, "")
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+                # 偏態/峰態解讀
+                sk_c = "#FF9A3C" if skewness < -0.5 else ("#00FF7F" if skewness > 0.5 else "#FFD700")
+                kt_c = "#FF3131" if kurtosis > 3 else ("#00FF7F" if kurtosis < 0 else "#FFD700")
+                st.markdown(f"""
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;">
+  <div style="flex:1;min-width:200px;padding:14px 18px;background:rgba(255,255,255,.02);
+    border:1px solid rgba(255,255,255,.05);border-radius:10px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(160,176,208,.38);letter-spacing:2px;">SKEWNESS 偏態</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:{sk_c};">{skewness:+.3f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(160,176,208,.5);">
+      {"左偏 — 下跌尾部較重，小心左側黑天鵝" if skewness<-0.3
+       else ("右偏 — 上漲尾部較重，正向不對稱報酬" if skewness>0.3
+             else "接近對稱分佈")}</div></div>
+  <div style="flex:1;min-width:200px;padding:14px 18px;background:rgba(255,255,255,.02);
+    border:1px solid rgba(255,255,255,.05);border-radius:10px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:8px;
+      color:rgba(160,176,208,.38);letter-spacing:2px;">KURTOSIS 超額峰態</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:{kt_c};">{kurtosis:+.3f}</div>
+    <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(160,176,208,.5);">
+      {"尖峰厚尾 — 極端事件比常態更頻繁，VaR低估風險" if kurtosis>3
+       else ("低峰 — 波動較分散，極端事件少" if kurtosis<0
+             else "接近常態分佈，VaR統計較可靠")}</div></div>
+</div>""", unsafe_allow_html=True)
+
+            # ══════════════════════ TAB 3 ══════════════════════
+            with tab3:
+                st.markdown("#### 📈 波動率政體分析 (Volatility Regime)")
+                st.caption("波動率是風險本質。識別當前市場政體→決定倉位大小。高波動=縮倉；低波動=可適度擴倉。")
+
+                # 滾動年化波動率
+                roll20  = all_rets_ts.rolling(20).std()  * np.sqrt(252)
+                roll60  = all_rets_ts.rolling(60).std()  * np.sqrt(252)
+                roll120 = all_rets_ts.rolling(120).std() * np.sqrt(252)
+
+                vol_20d  = float(all_rets_ts.tail(20).std()  * np.sqrt(252))
+                vol_60d  = float(all_rets_ts.tail(60).std()  * np.sqrt(252))
+                vol_252d = float(all_rets_ts.tail(252).std() * np.sqrt(252))
+                hist_med = float(roll60.median())
+
+                # 當前波動率在歷史中的百分位
+                roll60_clean = roll60.dropna()
+                vol_pct = int(float((vol_20d > roll60_clean).mean()) * 100)
+
+                regime_lbl = (
+                    "🔴 高波動政體" if vol_20d > vol_252d * 1.3
+                    else ("🟢 低波動政體" if vol_20d < vol_252d * 0.7
+                          else "🟡 正常波動政體")
+                )
+                vr1, vr2, vr3, vr4 = st.columns(4)
+                _kpi(vr1, "近20日 年化波動",  f"{vol_20d:.1%}",  regime_lbl,
+                     "#FF3131" if vol_20d>vol_252d*1.3 else ("#00FF7F" if vol_20d<vol_252d*0.7 else "#FFD700"))
+                _kpi(vr2, "近60日 年化波動",  f"{vol_60d:.1%}",  "中期參考", "#B77DFF")
+                _kpi(vr3, "近1年 年化波動",   f"{vol_252d:.1%}", "長期基準", "#00F5FF")
+                _kpi(vr4, "波動率歷史百分位",  f"{vol_pct}%",
+                     "數字越高=當前越波動", "#FFD700")
+
+                st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+                # 滾動波動率圖
+                vol_df = pd.DataFrame({
+                    "Date":   roll60.index,
+                    "20日":   roll20.values,
+                    "60日":   roll60.values,
+                    "120日":  roll120.values,
+                }).dropna()
+
+                fig_vol = go.Figure()
+                for cn, clr, lw in [
+                    ("120日", "rgba(0,245,255,.28)", 1.2),
+                    ("60日",  "#B77DFF",            2.0),
+                    ("20日",  "#FF9A3C",            2.5),
+                ]:
+                    fig_vol.add_trace(go.Scatter(
+                        x=vol_df["Date"], y=vol_df[cn], mode="lines",
+                        name=f"{cn}滾動波動率",
+                        line=dict(color=clr, width=lw)))
+
+                fig_vol.add_hline(y=vol_20d, line_dash="dot",
+                                  line_color="rgba(255,154,60,.5)",
+                                  annotation_text=f"當前20日 {vol_20d:.1%}",
+                                  annotation_font=dict(color="#FF9A3C", size=10))
+
+                if not vol_df.empty:
+                    max_y = vol_df[["20日","60日","120日"]].max().max() * 1.15
+                    fig_vol.add_hrect(
+                        y0=hist_med * 1.4, y1=max_y,
+                        fillcolor="rgba(255,49,49,.05)", line_width=0,
+                        annotation_text="高波動區 >140% median",
+                        annotation_position="top left",
+                        annotation_font=dict(color="rgba(255,49,49,.38)", size=9))
+                    fig_vol.add_hrect(
+                        y0=0, y1=hist_med * 0.6,
+                        fillcolor="rgba(0,255,127,.05)", line_width=0,
+                        annotation_text="低波動區 <60% median",
+                        annotation_position="bottom left",
+                        annotation_font=dict(color="rgba(0,255,127,.38)", size=9))
+
+                fig_vol.update_layout(
+                    template="plotly_dark", height=340,
+                    title=dict(text=f"{symbol} 滾動波動率 (年化)",
+                               font=dict(size=13, color="#B0C0D0")),
+                    xaxis=dict(gridcolor="rgba(255,255,255,.04)", tickfont=dict(color="#778")),
+                    yaxis=dict(title="年化波動率", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778"), tickformat=".0%"),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    legend=dict(font=dict(color="#B0C0D0", size=11)),
+                    margin=dict(t=40, b=40, l=70, r=20))
+                st.plotly_chart(fig_vol, use_container_width=True)
+
+                # 波動率政體建議
+                if vol_20d > vol_252d * 1.3:
+                    st.error(
+                        "🔴 **高波動政體**：近期波動顯著高於年均，模擬不確定帶寬擴大，預測可信度下降。"
+                        f"**建議**：縮倉 40–50%；停損比 P5（{stop_loss:.2f}）再緊 5%；等波動率回歸後擴倉。"
+                    )
+                elif vol_20d < vol_252d * 0.7:
+                    st.success(
+                        "🟢 **低波動政體**：波動率顯著壓縮，通常是大行情前的蓄力期（布林通道收縮）。"
+                        f"**建議**：持倉可適度偏大；若突破 {target_1:.2f} 可加碼；停損設稍寬。"
                     )
                 else:
                     st.info(
-                        "⚖️ [Valkyrie AI 判定] 多空機率僵局，"
-                        "股價將陷入震盪，請嚴防雙巴並設定絕對停損。"
+                        "🟡 **正常波動政體**：波動率在歷史正常範圍，GBM 參數具統計意義。"
+                        f"**建議**：按標準倉位操作；P25 ({entry_zone[0]:.2f}) 建倉，"
+                        f"P75 ({target_1:.2f}) 第一停利。"
                     )
 
-            except Exception as e:
-                st.error(f"蒙地卡羅運算失敗: {e}")
-                with st.expander("🔍 Debug"):
-                    st.code(traceback.format_exc())
+                # Sharpe / Sortino
+                st.markdown("##### 📐 風險調整後報酬")
+                rf_rate = 0.025   # 無風險利率假設 2.5%
+                down_rets = all_rets_ts[all_rets_ts < 0].tail(252)
+                sortino_denom = float(down_rets.std() * np.sqrt(252)) if len(down_rets) > 5 else vol_252d
+                sharpe  = (ann_ret - rf_rate) / vol_252d  if vol_252d > 0 else 0
+                sortino = (ann_ret - rf_rate) / sortino_denom if sortino_denom > 0 else 0
+
+                ss1, ss2, ss3 = st.columns(3)
+                _kpi(ss1, "年化報酬率 (μ)", f"{ann_ret:.2%}", "基於可用歷史均值",
+                     "#00FF7F" if ann_ret > 0.1 else ("#FFD700" if ann_ret > 0 else "#FF3131"))
+                _kpi(ss2, "Sharpe Ratio", f"{sharpe:.2f}",
+                     "優秀>1.5 ／ 良好>1.0 ／ 可接受>0.5",
+                     "#00FF7F" if sharpe > 1.5 else ("#FFD700" if sharpe > 0.5 else "#FF3131"))
+                _kpi(ss3, "Sortino Ratio", f"{sortino:.2f}",
+                     "僅懲罰下行波動（比 Sharpe 更嚴格）",
+                     "#00FF7F" if sortino > 1.5 else ("#FFD700" if sortino > 0.5 else "#FF3131"))
+
+            # ══════════════════════ TAB 4 ══════════════════════
+            with tab4:
+                st.markdown("#### 🔥 情境壓力測試 (Scenario Stress Test)")
+                st.caption(
+                    "以 GBM 為基礎，模擬 **4 種市場情境**（牛市激進 / 基準正常 / 熊市溫和 / 崩盤壓力），"
+                    "量化極端情境下的持倉損益。用於評估你的倉位在黑天鵝事件中的存活能力。"
+                )
+
+                scenarios = [
+                    ("🚀 牛市激進",   mu_d * 3,     vol_d * 0.8,  "#00FF7F"),
+                    ("⚖️ 基準情境",   mu_d,          vol_d,        "#FFD700"),
+                    ("🐻 熊市溫和",   mu_d * -1,    vol_d * 1.3,  "#FF9A3C"),
+                    ("💀 崩盤壓力",   mu_d * -4,    vol_d * 2.2,  "#FF3131"),
+                ]
+
+                fig_stress = go.Figure()
+                stress_rows = []
+
+                for sc_name, sc_mu, sc_vol, sc_clr in scenarios:
+                    sc_Z = np.random.normal(0, 1, (sim_days - 1, 600))
+                    sc_log = (sc_mu - 0.5 * sc_vol**2) + sc_vol * sc_Z
+                    sc_cum = np.vstack([np.zeros((1, 600)), np.cumsum(sc_log, axis=0)])
+                    sc_paths = S0 * np.exp(sc_cum)
+
+                    sc_p5   = np.percentile(sc_paths,  5, axis=1)
+                    sc_p50  = np.percentile(sc_paths, 50, axis=1)
+                    sc_p95  = np.percentile(sc_paths, 95, axis=1)
+                    sc_med  = float(sc_p50[-1])
+                    sc_prob = float(np.mean(sc_paths[-1] > S0))
+
+                    # 填色信賴帶
+                    rgba_fill = (sc_clr[1:3], sc_clr[3:5], sc_clr[5:7])
+                    r, g, b  = (int(sc_clr[1:3],16), int(sc_clr[3:5],16), int(sc_clr[5:7],16))
+                    fill_c   = f"rgba({r},{g},{b},0.06)"
+                    fig_stress.add_trace(go.Scatter(
+                        x=np.concatenate([time_arr, time_arr[::-1]]),
+                        y=np.concatenate([sc_p95, sc_p5[::-1]]),
+                        fill="toself", fillcolor=fill_c,
+                        line=dict(color="rgba(0,0,0,0)"),
+                        showlegend=False, hoverinfo="skip"))
+
+                    fig_stress.add_trace(go.Scatter(
+                        x=time_arr, y=sc_p50, mode="lines",
+                        name=f"{sc_name} (P50)",
+                        line=dict(color=sc_clr, width=2.5)))
+
+                    stress_rows.append({
+                        "情境":      sc_name,
+                        "中位終值":  f"{sc_med:.2f}",
+                        "漲跌幅":   f"{(sc_med-S0)/S0:+.2%}",
+                        "上漲機率":  f"{sc_prob:.1%}",
+                        "P5 低點":   f"{float(sc_p5[-1]):.2f}",
+                        "P95 高點":  f"{float(sc_p95[-1]):.2f}",
+                    })
+
+                fig_stress.add_hline(y=S0, line_dash="dot",
+                                     line_color="rgba(255,255,255,.3)",
+                                     annotation_text=f"現價 {S0:.2f}",
+                                     annotation_font=dict(color="rgba(255,255,255,.5)", size=10))
+                fig_stress.update_layout(
+                    template="plotly_dark", height=420,
+                    title=dict(text=(f"{symbol} — {sim_days}天 情境壓力測試"
+                                     f"（各情境 600 路徑 P50 中位線）"),
+                               font=dict(size=13, color="#B0C0D0")),
+                    xaxis=dict(title="未來天數", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    yaxis=dict(title="模擬價格", gridcolor="rgba(255,255,255,.04)",
+                               tickfont=dict(color="#778")),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    hovermode="x unified",
+                    legend=dict(font=dict(color="#B0C0D0", size=11),
+                                orientation="h", y=-0.14),
+                    margin=dict(t=45, b=65, l=65, r=20))
+                st.plotly_chart(fig_stress, use_container_width=True)
+
+                st.dataframe(pd.DataFrame(stress_rows),
+                             use_container_width=True, hide_index=True)
+
+                # 崩盤情境結論
+                crash = stress_rows[3]
+                crash_dd = float(crash["漲跌幅"].replace("%", "")) / 100
+                st.markdown(
+                    f'<div style="margin-top:14px;padding:16px 22px;background:rgba(255,49,49,.06);'
+                    f'border:1px solid rgba(255,49,49,.2);border-left:4px solid #FF3131;'
+                    f'border-radius:0 10px 10px 0;">'
+                    f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:20px;font-weight:700;'
+                    f'color:#FF4B4B;margin-bottom:6px;">💀 崩盤情境中位損失：{crash_dd:+.1%} → {crash["中位終值"]}</div>'
+                    f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:15px;'
+                    f'color:rgba(255,120,120,.6);line-height:1.7;">'
+                    f'崩盤情境（波動率×2.2，漂移×-4）下，{sim_days}天後中位終值跌至 {crash["中位終值"]}。<br>'
+                    f'<strong>停損天條</strong>：跌破 <b>{stop_loss:.2f}</b>（P5統計停損）必須無條件離場，'
+                    f'否則暴露在崩盤左尾風險中，期望損失將達 VaR 99% = {var_99:.1%}。</div>'
+                    f'</div>',
+                    unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"量子引擎運算失敗: {e}")
+            with st.expander("🔍 Debug Traceback"):
+                st.code(traceback.format_exc())
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1787,7 +2262,7 @@ def render():
 
         _nav()
         if st.session_state.get("t5_active") == "5.6":
-            render_5_6_monte_carlo(symbol)
+            render_5_6_monte_carlo(symbol, pd.DataFrame())  # 空DataFrame→函數顯示友好錯誤
         elif st.session_state.get("t5_active") == "5.7":
             _s57()
         return
@@ -1831,7 +2306,7 @@ def render():
         elif active == "5.3": _s53(h1, symbol)
         elif active == "5.4": render_5_4_value_river(symbol, info, h3)
         elif active == "5.5": render_5_5_etf_command(symbol, info, h1)
-        elif active == "5.6": render_5_6_monte_carlo(symbol)   # NEW
+        elif active == "5.6": render_5_6_monte_carlo(symbol, h3)  # h3已含正確後綴
         elif active == "5.7": _s57()                           # SHIFTED CODEX
         else:                  render_5_1_chips_daytrade(symbol, h1, info)
     except Exception as exc:
