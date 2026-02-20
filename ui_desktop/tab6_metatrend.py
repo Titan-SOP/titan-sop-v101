@@ -883,7 +883,7 @@ def _s61():
                 k = tpl_keys[idx]
                 with col:
                     if st.button(k, key=f"t6_tpl_{idx}", use_container_width=True):
-                        st.session_state['globe_tickers_val'] = SCAN_TEMPLATES[k]
+                        st.session_state['globe_tickers'] = SCAN_TEMPLATES[k]
                         st.rerun()
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -891,11 +891,12 @@ def _s61():
     # ═══════════════════════════════════════════════════════════
     # BLOCK B: INPUT + SCAN CONTROLS
     # ═══════════════════════════════════════════════════════════
-    default_val = st.session_state.get('globe_tickers_val', "NVDA,TSLA,2330.TW,2454.TW")
+    # 確保 session_state 有預設值（首次載入）
+    if 'globe_tickers' not in st.session_state:
+        st.session_state['globe_tickers'] = "NVDA,TSLA,2330.TW,2454.TW"
     col_in, col_sort, col_btn = st.columns([3, 1, 1])
     tickers_raw = col_in.text_input(
         "標的代號 (逗號分隔，台股自動補 .TW/.TWO)",
-        value=default_val,
         key="globe_tickers"
     )
     sort_by = col_sort.selectbox(
@@ -906,7 +907,6 @@ def _s61():
                               key="globe_scan", use_container_width=True)
 
     # Persist input
-    st.session_state['globe_tickers_val'] = tickers_raw
 
     if do_scan and tickers_raw:
         tickers = [t.strip() for t in tickers_raw.split(",") if t.strip()]
