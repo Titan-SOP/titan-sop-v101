@@ -1077,19 +1077,18 @@ def _s61():
             # Quadrant lines
             fig_sc.add_hline(y=0,  line_color='rgba(255,255,255,0.12)', line_dash='dot')
             fig_sc.add_vline(x=20, line_color='rgba(255,255,255,0.12)', line_dash='dot')
-            # Quadrant labels
-            for qx, qy, ql, qc in [
-                (35, 25,  "🚀 加速多頭",  "rgba(0,255,127,.25)"),
-                (-20, 25, "⚡ 反轉嘗試",  "rgba(255,215,0,.2)"),
-                (35, -25, "⚠️ 高位減速",  "rgba(255,165,0,.2)"),
-                (-20,-25, "💀 加速下跌",  "rgba(255,49,49,.2)"),
+            # Quadrant labels — font color uses safe hex, bgcolor uses rgba for transparency
+            for qx, qy, ql, qfont, qbg in [
+                (35,  25,  "🚀 加速多頭", "#00FF7F", "rgba(0,255,127,0.18)"),
+                (-20, 25,  "⚡ 反轉嘗試", "#FFD700", "rgba(255,215,0,0.15)"),
+                (35,  -25, "⚠️ 高位減速", "#FF9A3C", "rgba(255,165,0,0.15)"),
+                (-20, -25, "💀 加速下跌", "#FF6B6B", "rgba(255,49,49,0.15)"),
             ]:
                 fig_sc.add_annotation(
                     x=qx, y=qy, text=ql,
                     showarrow=False,
-                    font=dict(color=qc.replace("rgba","rgb").split(",")[0]+")", size=10,
-                              family="JetBrains Mono"),
-                    bgcolor=qc, borderpad=4
+                    font=dict(color=qfont, size=10, family="JetBrains Mono"),
+                    bgcolor=qbg, borderpad=4
                 )
 
             fig_sc.update_layout(
