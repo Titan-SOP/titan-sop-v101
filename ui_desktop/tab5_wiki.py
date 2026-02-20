@@ -1068,6 +1068,186 @@ def _s53(hist: pd.DataFrame, symbol: str):
         )
 
 
+    # =================================================================
+    # FEATURE: GARCH/EWMA VOLATILITY CLUSTERING (Appended to 5.3)
+    # =================================================================
+    st.divider()
+    st.markdown("### 🌪️ 機構級波動率預測 (GARCH/EWMA RiskMetrics)")
+    st.caption("透過指數加權移動平均 (EWMA) 捕捉「波動率群聚效應」，預測即將到來的趨勢爆發或收斂。")
+
+    if st.button("📡 掃描隱含波動群聚 (Scan Volatility Clustering)",
+                 key=f"garch_scan_{symbol}", use_container_width=True):
+        with st.spinner("🧠 正在計算條件變異數矩陣..."):
+            try:
+                # ── 1. 解析正確 yfinance 代號（台股加 .TW / .TWO 後綴）──────────
+                raw_sym  = symbol.upper()
+                base_sym = raw_sym.replace(".TW", "").replace(".TWO", "")
+                if _is_tw_ticker(base_sym):
+                    if raw_sym.endswith(".TW") or raw_sym.endswith(".TWO"):
+                        yf_sym = raw_sym          # 已有後綴直接用
+                    else:
+                        yf_sym = None
+                        for sfx in [".TW", ".TWO"]:
+                            try:
+                                _probe = yf.download(base_sym + sfx, period="1mo",
+                                                     progress=False, auto_adjust=True)
+                                if isinstance(_probe.columns, pd.MultiIndex):
+                                    _probe.columns = _probe.columns.get_level_values(0)
+                                if "Close" in _probe.columns and _probe["Close"].dropna().shape[0] >= 5:
+                                    yf_sym = base_sym + sfx
+                                    break
+                            except Exception:
+                                continue
+                        if yf_sym is None:
+                            st.error(f"❌ 無法解析台股代號 {symbol}，"
+                                     "請確認代號（如 2330 → 2330.TW / 5274 → 5274.TWO）。")
+                            return
+                else:
+                    yf_sym = raw_sym              # 美股 / ETF 直接使用
+
+                # ── 2. Fetch 1-year data for volatility modeling ────────────────
+                raw_dl = yf.download(yf_sym, period="1y", progress=False, auto_adjust=True)
+                if raw_dl.empty:
+                    st.error(f"❌ 無法取得 {yf_sym} 的歷史數據，請稍後再試。")
+                    return
+
+                # Flatten MultiIndex（單 ticker 有時仍產生）
+                if isinstance(raw_dl.columns, pd.MultiIndex):
+                    raw_dl.columns = raw_dl.columns.get_level_values(0)
+
+                # 取 Close 欄
+                if "Close" not in raw_dl.columns:
+                    st.error(f"❌ {yf_sym} 資料缺少 Close 欄位：{list(raw_dl.columns)}")
+                    return
+
+                df_vol = raw_dl["Close"].dropna()
+                if len(df_vol) < 30:
+                    st.error("❌ 有效資料不足 30 日，無法計算 EWMA 波動率。")
+                    return
+
+                # ── 3. Log Returns ──────────────────────────────────────────────
+                log_returns = np.log(df_vol / df_vol.shift(1)).dropna()
+
+                # ── 4. EWMA Volatility — J.P. Morgan RiskMetrics λ=0.94 ─────────
+                # σ²_t = λ·σ²_{t-1} + (1-λ)·r²_{t-1}  ≡ GARCH(1,1) 特殊情境
+                lambda_param = 0.94
+                variance     = log_returns.pow(2).ewm(alpha=(1 - lambda_param),
+                                                       adjust=False).mean()
+                ewma_vol = np.sqrt(variance) * np.sqrt(252) * 100  # 年化 %
+
+                # 20日歷史波動率（作為對照基準）
+                hist_vol = log_returns.rolling(window=20).std() * np.sqrt(252) * 100
+
+                # ── 5. Dual-Axis Chart（收盤價 + 波動率）────────────────────────
+                fig = go.Figure()
+
+                # 收盤價（主 Y 軸）
+                fig.add_trace(go.Scatter(
+                    x=df_vol.index, y=df_vol,
+                    mode="lines", line=dict(color="#00D9FF", width=2),
+                    name="收盤價", yaxis="y1",
+                    hovertemplate="%{y:.2f}<extra>收盤價</extra>"
+                ))
+
+                # EWMA 波動率面積（次 Y 軸）
+                fig.add_trace(go.Scatter(
+                    x=ewma_vol.index, y=ewma_vol,
+                    mode="lines", line=dict(color="rgba(255,75,75,0.85)", width=2),
+                    fill="tozeroy", fillcolor="rgba(255,75,75,0.15)",
+                    name="EWMA 動態波動率 (%)", yaxis="y2",
+                    hovertemplate="%{y:.2f}%<extra>EWMA 波動率</extra>"
+                ))
+
+                # 20日歷史波動率（虛線對照）
+                fig.add_trace(go.Scatter(
+                    x=hist_vol.index, y=hist_vol,
+                    mode="lines", line=dict(color="rgba(255,184,0,0.6)", width=1.5, dash="dot"),
+                    name="20日歷史波動率 (%)", yaxis="y2",
+                    hovertemplate="%{y:.2f}%<extra>20日 HV</extra>"
+                ))
+
+                fig.update_layout(
+                    template="plotly_dark",
+                    height=500,
+                    title=dict(
+                        text=f"🎯 {yf_sym} 價格走勢 vs EWMA 波動率群聚",
+                        font=dict(family="Rajdhani", size=16, color="#CDD")
+                    ),
+                    xaxis=dict(title="時間", showgrid=False,
+                               gridcolor="rgba(255,255,255,0.04)"),
+                    yaxis=dict(
+                        title="收盤價 (Price)",
+                        titlefont=dict(color="#00D9FF"),
+                        tickfont=dict(color="#00D9FF"),
+                        gridcolor="rgba(255,255,255,0.04)"
+                    ),
+                    yaxis2=dict(
+                        title="年化波動率 (%)",
+                        titlefont=dict(color="#FF4B4B"),
+                        tickfont=dict(color="#FF4B4B"),
+                        overlaying="y", side="right", showgrid=False
+                    ),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    hovermode="x unified",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                                xanchor="right", x=1,
+                                font=dict(color="#AAB", size=11)),
+                    margin=dict(t=50, b=40, l=60, r=70),
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                # ── 6. Strategic Metrics ─────────────────────────────────────────
+                current_vol = float(ewma_vol.iloc[-1])
+                avg_vol     = float(ewma_vol.mean())
+                vol_ratio   = current_vol / avg_vol if avg_vol > 0 else 1.0
+
+                st.markdown("##### 📊 波動率結構戰略解析")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("目前動態波動率 (EWMA)", f"{current_vol:.2f}%")
+                c2.metric("年度平均波動率",         f"{avg_vol:.2f}%")
+
+                if vol_ratio < 0.7:
+                    state_text, state_delta_color = "極度壓縮 (Squeeze)",     "normal"
+                elif vol_ratio > 1.5:
+                    state_text, state_delta_color = "極度狂暴 (Clustering)",  "inverse"
+                else:
+                    state_text, state_delta_color = "常態震盪 (Normal)",      "off"
+
+                c3.metric("波動率狀態", state_text,
+                          f"{(vol_ratio - 1) * 100:+.1f}% vs 均值",
+                          delta_color=state_delta_color)
+
+                # ── 7. Valkyrie AI 戰術判斷 ─────────────────────────────────────
+                st.divider()
+                if vol_ratio < 0.7:
+                    st.success(
+                        f"⚡ [Valkyrie AI 判定] 暴風雨前的寧靜。{yf_sym} 波動率已壓縮至年均的 "
+                        f"{vol_ratio:.0%}（{current_vol:.2f}% vs 均值 {avg_vol:.2f}%）。"
+                        "根據波動群聚理論，即將發生方向性大爆發！"
+                        "建議前往 5.2 觀察突破訊號，並提前佈局選擇權或 CBAS 買方。"
+                    )
+                elif vol_ratio > 1.5:
+                    st.warning(
+                        f"🔴 [Valkyrie AI 判定] {yf_sym} 處於波動率群聚高壓區。"
+                        f"當前波動率 {current_vol:.2f}% = 年均的 {vol_ratio:.1f} 倍。"
+                        "洗盤劇烈，趨勢隨時可能反轉或進入劇烈震盪，"
+                        "嚴格控制部位大小，不建議追高殺低。"
+                    )
+                else:
+                    st.info(
+                        f"⚖️ [Valkyrie AI 判定] {yf_sym} 波動率處於歷史均值附近"
+                        f"（{current_vol:.2f}% ≈ 均值 {avg_vol:.2f}%），"
+                        "盤勢沿原有趨勢穩健前進，可維持原有交易節奏。"
+                    )
+
+            except Exception as e:
+                st.error(f"變異數矩陣運算失敗: {e}")
+                with st.expander("🔍 Debug Traceback"):
+                    st.code(traceback.format_exc())
+
+
 # ════════════════════════════════════════════════════════════════════
 # 5.4  艾蜜莉定存 + PE River Chart + Mine Sweeper
 # First Principle: Price reverts to mean. Avoid bankruptcy risks.
