@@ -841,41 +841,535 @@ def _render_spectrum(geo, ticker):
 # SECTION 6.1 — 全球視野
 # ═══════════════════════════════════════════════════════════════
 def _s61():
-    st.markdown('<div class="t6-sec-head" style="--sa:#00F5FF"><div class="t6-sec-num">6.1</div><div><div class="t6-sec-title">全球視野 — 多標的比較掃描</div><div class="t6-sec-sub">Multi-Asset 7D Geometry Comparison</div></div></div>', unsafe_allow_html=True)
-    col_in, col_btn = st.columns([3, 1])
-    tickers_raw = col_in.text_input("標的代號 (逗號分隔)", "NVDA,TSLA,2330.TW,2454.TW", key="globe_tickers")
-    do_scan = col_btn.button("🔍 掃描", type="primary", key="globe_scan")
+    st.markdown(
+        '<div class="t6-sec-head" style="--sa:#00F5FF">'
+        '<div class="t6-sec-num">6.1</div>'
+        '<div><div class="t6-sec-title">全球視野 — 機構級多標的掃描</div>'
+        '<div class="t6-sec-sub">Multi-Asset 7D Geometry · Rating · Acceleration · FFT Cycle · 10 Watchlist Templates</div>'
+        '</div></div>',
+        unsafe_allow_html=True
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # BLOCK A: 10 WATCHLIST TEMPLATES (from 4.1 Portfolio Bank)
+    # ═══════════════════════════════════════════════════════════
+    st.markdown(
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+        'color:rgba(0,245,255,.35);letter-spacing:4px;text-transform:uppercase;'
+        'margin-bottom:12px;">⚡ 快速戰區範本 — 點擊即載入</div>',
+        unsafe_allow_html=True
+    )
+
+    SCAN_TEMPLATES = {
+        "🦅 Mag7 七巨頭":        "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA",
+        "💻 Tech10 科技十傑":     "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,AVGO,ORCL,AMD",
+        "🤖 AI 革命主題":         "NVDA,AMD,AVGO,PLTR,MSFT,GOOGL,META,ORCL,ARM,SMCI",
+        "🇹🇼 台股半導體":        "2330.TW,2454.TW,2303.TW,3711.TW,6531.TW,2308.TW,3034.TW,2379.TW",
+        "🇹🇼 台股核心組合":      "2330.TW,006208.TW,2454.TW,2317.TW,00675L.TW,2882.TW,2412.TW",
+        "💎 量子科技":            "IONQ,RGTI,QBTS,NVDA,MSFT,GOOGL,IBM",
+        "🛡️ 防禦型配置":         "VYM,SCHD,BND,JNJ,PG,KO,XLU,LMT",
+        "🌏 全球分散":            "VTI,VEA,VWO,GLD,BND,EEM,FXI,EWJ",
+        "🚀 高成長動能":          "NVDA,TSLA,META,PLTR,CRWD,MSTR,COIN,RKLB",
+        "⚡ 美股+台股混合":       "NVDA,MSFT,2330.TW,2454.TW,00631L.TW,TSLA,GOOGL,2317.TW",
+    }
+
+    # 2 rows × 5 buttons
+    tpl_keys = list(SCAN_TEMPLATES.keys())
+    for row in range(2):
+        cols = st.columns(5)
+        for col_i, col in enumerate(cols):
+            idx = row * 5 + col_i
+            if idx < len(tpl_keys):
+                k = tpl_keys[idx]
+                with col:
+                    if st.button(k, key=f"t6_tpl_{idx}", use_container_width=True):
+                        st.session_state['globe_tickers_val'] = SCAN_TEMPLATES[k]
+                        st.rerun()
+
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════
+    # BLOCK B: INPUT + SCAN CONTROLS
+    # ═══════════════════════════════════════════════════════════
+    default_val = st.session_state.get('globe_tickers_val', "NVDA,TSLA,2330.TW,2454.TW")
+    col_in, col_sort, col_btn = st.columns([3, 1, 1])
+    tickers_raw = col_in.text_input(
+        "標的代號 (逗號分隔，台股自動補 .TW/.TWO)",
+        value=default_val,
+        key="globe_tickers"
+    )
+    sort_by = col_sort.selectbox(
+        "排序依據", ["1Y角度", "3M角度", "加速度", "信評"],
+        key="globe_sort"
+    )
+    do_scan = col_btn.button("🔍 掃描", type="primary",
+                              key="globe_scan", use_container_width=True)
+
+    # Persist input
+    st.session_state['globe_tickers_val'] = tickers_raw
+
     if do_scan and tickers_raw:
         tickers = [t.strip() for t in tickers_raw.split(",") if t.strip()]
         results = []
-        prog = st.progress(0)
+        prog   = st.progress(0)
         status = st.empty()
+
         for i, t in enumerate(tickers):
-            status.text(f"分析 {t}… ({i + 1}/{len(tickers)})")
+            status.text(f"⬡ 解碼 {t}… ({i+1}/{len(tickers)})")
             geo = compute_7d_geometry(t)
             if geo:
                 rating = titan_rating_system(geo)
-                price = 0.0
+                price  = 0.0
                 dp = st.session_state.get('daily_price_data', {}).get(t)
                 if dp is not None and not dp.empty:
                     price = float(dp['Close'].iloc[-1])
+
+                # Signal composite badge
+                acc   = geo['acceleration']
+                a1    = geo['1Y']['angle']
+                a3    = geo['3M']['angle']
+                phx   = geo['phoenix_signal']
+
+                if phx:
+                    signal = "🔥 Phoenix"
+                elif acc > 20 and a3 > 30:
+                    signal = "🚀 爆發加速"
+                elif acc > 10 and a1 > 20:
+                    signal = "⚡ 動能增強"
+                elif acc < -20 and a3 < -20:
+                    signal = "💀 崩潰加速"
+                elif acc < -10 and a1 < 0:
+                    signal = "🔴 動能衰竭"
+                elif -5 < acc < 5 and -5 < a3 < 15:
+                    signal = "⚖️ 橫盤整理"
+                else:
+                    signal = "📊 正常運行"
+
                 results.append({
-                    '代號': t, '現價': price, '信評': f"{rating[0]} {rating[1]}",
-                    '35Y角度': geo['35Y']['angle'], '10Y角度': geo['10Y']['angle'],
-                    '1Y角度': geo['1Y']['angle'], '3M角度': geo['3M']['angle'],
-                    '加速度': geo['acceleration'],
-                    'Phoenix': '✅' if geo['phoenix_signal'] else '—'
+                    '代號':     t,
+                    '現價':     price,
+                    '信評':     f"{rating[0]} {rating[1]}",
+                    '訊號':     signal,
+                    '35Y°':    geo['35Y']['angle'],
+                    '10Y°':    geo['10Y']['angle'],
+                    '1Y角度':  geo['1Y']['angle'],
+                    '6M°':     geo['6M']['angle'],
+                    '3M角度':  geo['3M']['angle'],
+                    '加速度':   geo['acceleration'],
+                    '1Y R²':   geo['1Y']['r2'],
+                    'Phoenix':  '🔥' if phx else '—',
+                })
+            else:
+                results.append({
+                    '代號': t, '現價': 0, '信評': 'N/A —', '訊號': '❓ 無資料',
+                    '35Y°': 0, '10Y°': 0, '1Y角度': 0, '6M°': 0,
+                    '3M角度': 0, '加速度': 0, '1Y R²': 0, 'Phoenix': '—',
                 })
             prog.progress((i + 1) / len(tickers))
+
         status.text("✅ 掃描完成")
         prog.empty()
+
         if results:
-            res_df = pd.DataFrame(results).sort_values('1Y角度', ascending=False)
-            st.dataframe(res_df.style.format({
-                '現價': '{:.2f}', '35Y角度': '{:.1f}°', '10Y角度': '{:.1f}°',
-                '1Y角度': '{:.1f}°', '3M角度': '{:.1f}°', '加速度': '{:+.1f}°'
-            }), use_container_width=True)
+            res_df = pd.DataFrame(results)
+            # Sort
+            sort_map = {"1Y角度": "1Y角度", "3M角度": "3M角度",
+                        "加速度": "加速度", "信評": "信評"}
+            sort_col = sort_map.get(sort_by, "1Y角度")
+            if sort_col in res_df.columns:
+                res_df = res_df.sort_values(sort_col, ascending=(sort_col == "信評"))
+
             st.session_state['globe_scan_results'] = res_df
+
+            # ── KPI summary row ───────────────────────────────
+            n_bull   = (res_df['1Y角度'] > 20).sum()
+            n_bear   = (res_df['1Y角度'] < -10).sum()
+            n_phx    = (res_df['Phoenix'] == '🔥').sum()
+            avg_acc  = res_df['加速度'].mean()
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("多頭標的", f"{n_bull} / {len(res_df)}",  "1Y角度 > 20°")
+            k2.metric("空頭警示", f"{n_bear}",                   "1Y角度 < -10°")
+            k3.metric("Phoenix 訊號", f"{n_phx}",               "長空短多逆轉")
+            k4.metric("平均加速度", f"{avg_acc:+.1f}°",
+                       "↑動能增強" if avg_acc > 0 else "↓動能衰竭",
+                       delta_color="normal" if avg_acc > 0 else "inverse")
+
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+            # ── Styled dataframe ──────────────────────────────
+            def _color_angle(val):
+                try:
+                    v = float(val)
+                    if v > 35:   return 'color:#00FF7F;font-weight:700'
+                    if v > 15:   return 'color:#ADFF2F'
+                    if v > 0:    return 'color:#FFD700'
+                    if v > -15:  return 'color:#FF9A3C'
+                    return 'color:#FF3131;font-weight:700'
+                except:
+                    return ''
+
+            def _color_acc(val):
+                try:
+                    v = float(val)
+                    if v > 15:  return 'color:#00FF7F;font-weight:700'
+                    if v > 0:   return 'color:#ADFF2F'
+                    if v > -15: return 'color:#FF9A3C'
+                    return 'color:#FF3131;font-weight:700'
+                except:
+                    return ''
+
+            styled = res_df.style\
+                .applymap(_color_angle, subset=['35Y°','10Y°','1Y角度','6M°','3M角度'])\
+                .applymap(_color_acc,   subset=['加速度'])\
+                .format({
+                    '現價':  '{:.2f}',
+                    '35Y°': '{:.1f}°',
+                    '10Y°': '{:.1f}°',
+                    '1Y角度':'{:.1f}°',
+                    '6M°':  '{:.1f}°',
+                    '3M角度':'{:.1f}°',
+                    '加速度':'{:+.1f}°',
+                    '1Y R²': '{:.3f}',
+                })
+
+            st.dataframe(styled, use_container_width=True, hide_index=True)
+
+            # ── Download button ───────────────────────────────
+            csv_data = res_df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                "📥 下載掃描報表 (CSV)", csv_data,
+                f"titan_scan_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                key="dl_scan_csv"
+            )
+
+            # ── Scatter: 1Y角度 vs 加速度 (bubble = R²) ──────
+            st.markdown(
+                '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                'color:rgba(0,245,255,.35);letter-spacing:3px;text-transform:uppercase;'
+                'margin:16px 0 4px;">🎯 動能矩陣 — 1Y趨勢 vs 近期加速度</div>',
+                unsafe_allow_html=True
+            )
+            fig_sc = go.Figure()
+            for _, row in res_df.iterrows():
+                col_dot = (
+                    "#FF3131" if row['1Y角度'] < 0
+                    else "#FFD700" if row['1Y角度'] < 20
+                    else "#00FF7F"
+                )
+                fig_sc.add_trace(go.Scatter(
+                    x=[row['1Y角度']], y=[row['加速度']],
+                    mode='markers+text',
+                    marker=dict(
+                        size=max(8, min(28, row['1Y R²'] * 30)),
+                        color=col_dot, opacity=0.85,
+                        line=dict(color='rgba(0,0,0,0.4)', width=1)
+                    ),
+                    text=[row['代號']], textposition='top center',
+                    textfont=dict(color='#DDD', size=10, family='JetBrains Mono'),
+                    name=row['代號'],
+                    hovertemplate=(
+                        f"<b>{row['代號']}</b><br>"
+                        f"1Y: {row['1Y角度']:.1f}° | Acc: {row['加速度']:+.1f}°<br>"
+                        f"R²: {row['1Y R²']:.3f} | {row['信評']}<extra></extra>"
+                    )
+                ))
+
+            # Quadrant lines
+            fig_sc.add_hline(y=0,  line_color='rgba(255,255,255,0.12)', line_dash='dot')
+            fig_sc.add_vline(x=20, line_color='rgba(255,255,255,0.12)', line_dash='dot')
+            # Quadrant labels
+            for qx, qy, ql, qc in [
+                (35, 25,  "🚀 加速多頭",  "rgba(0,255,127,.25)"),
+                (-20, 25, "⚡ 反轉嘗試",  "rgba(255,215,0,.2)"),
+                (35, -25, "⚠️ 高位減速",  "rgba(255,165,0,.2)"),
+                (-20,-25, "💀 加速下跌",  "rgba(255,49,49,.2)"),
+            ]:
+                fig_sc.add_annotation(
+                    x=qx, y=qy, text=ql,
+                    showarrow=False,
+                    font=dict(color=qc.replace("rgba","rgb").split(",")[0]+")", size=10,
+                              family="JetBrains Mono"),
+                    bgcolor=qc, borderpad=4
+                )
+
+            fig_sc.update_layout(
+                template="plotly_dark",
+                height=380,
+                showlegend=False,
+                xaxis=dict(title="1Y 趨勢角度 (°)", gridcolor="rgba(255,255,255,0.05)",
+                           zeroline=False),
+                yaxis=dict(title="近期加速度 (3M-1Y, °)", gridcolor="rgba(255,255,255,0.05)",
+                           zeroline=False),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                margin=dict(t=20, b=50, l=60, r=20),
+                hovermode="closest",
+            )
+            st.plotly_chart(fig_sc, use_container_width=True)
+
+    # ═══════════════════════════════════════════════════════════
+    # BLOCK C: FFT CYCLE EXTRACTION
+    # ═══════════════════════════════════════════════════════════
+    st.divider()
+    st.markdown("### 📡 快速傅立葉轉換 (FFT 週期頻譜萃取)")
+    st.caption("將股價走勢視為複合聲波，透過 numpy.fft 濾除市場雜訊，萃取出隱藏的「絕對漲跌週期」。")
+
+    fft_col_in, fft_col_btn = st.columns([3, 1])
+    fft_symbol_raw = fft_col_in.text_input(
+        "FFT 單一標的代號", value="NVDA",
+        key="fft_symbol_input",
+        placeholder="NVDA / 2330.TW / 5274 …"
+    )
+    do_fft = fft_col_btn.button(
+        "🌊 頻譜掃描", type="primary",
+        key="fft_scan", use_container_width=True
+    )
+
+    if do_fft:
+        if not fft_symbol_raw.strip():
+            st.warning("請輸入標的代號。")
+        else:
+            # ── 台股後綴解析（與 5.1/5.3 相同邏輯）─────────────────
+            import re as _re
+            raw_sym  = fft_symbol_raw.strip().upper()
+            base_sym = raw_sym.replace(".TW", "").replace(".TWO", "")
+            is_tw    = bool(_re.fullmatch(r'\d{4,6}[A-Z0-9]*', base_sym))
+
+            if is_tw and not (raw_sym.endswith(".TW") or raw_sym.endswith(".TWO")):
+                symbol = None
+                for sfx in [".TW", ".TWO"]:
+                    try:
+                        _probe = yf.download(base_sym + sfx, period="1mo",
+                                             progress=False, auto_adjust=True)
+                        if isinstance(_probe.columns, pd.MultiIndex):
+                            _probe.columns = _probe.columns.get_level_values(0)
+                        if "Close" in _probe.columns and _probe["Close"].dropna().shape[0] >= 5:
+                            symbol = base_sym + sfx
+                            break
+                    except Exception:
+                        continue
+                if symbol is None:
+                    st.error(f"❌ 無法解析台股代號 {raw_sym}，請確認（如 2330.TW / 5274.TWO）。")
+                    symbol = None
+            else:
+                symbol = raw_sym
+
+            if symbol:
+                with st.spinner(f"🧠 正在對 {symbol} 進行傅立葉頻譜解碼..."):
+                    try:
+                        # 1. Fetch 2-year data
+                        raw_dl = yf.download(symbol, period="2y",
+                                             progress=False, auto_adjust=True)
+                        if raw_dl.empty:
+                            st.error(f"❌ 無法取得 {symbol} 的歷史數據。")
+                        else:
+                            if isinstance(raw_dl.columns, pd.MultiIndex):
+                                raw_dl.columns = raw_dl.columns.get_level_values(0)
+
+                            if "Close" not in raw_dl.columns:
+                                st.error(f"❌ {symbol} 資料缺少 Close 欄：{list(raw_dl.columns)}")
+                            else:
+                                df_fft = raw_dl["Close"].dropna()
+                                if len(df_fft) < 100:
+                                    st.error(f"❌ {symbol} 有效資料不足 100 日 (現有 {len(df_fft)} 日)。")
+                                else:
+                                    # 2. Detrend — subtract 50-day MA
+                                    ma50      = df_fft.rolling(window=50).mean()
+                                    detrended = (df_fft - ma50).dropna()
+
+                                    # 3. numpy FFT
+                                    n         = len(detrended)
+                                    fft_vals  = np.fft.fft(detrended.values)
+                                    fft_freqs = np.fft.fftfreq(n, d=1)
+
+                                    # Positive frequencies only
+                                    pos_mask  = fft_freqs > 0
+                                    pos_freqs = fft_freqs[pos_mask]
+                                    pos_mags  = np.abs(fft_vals)[pos_mask]
+
+                                    # Filter: 5–200 day cycles
+                                    valid_mask  = (1 / pos_freqs <= 200) & (1 / pos_freqs >= 5)
+                                    valid_freqs = pos_freqs[valid_mask]
+                                    valid_mags  = pos_mags[valid_mask]
+
+                                    if len(valid_mags) == 0:
+                                        st.warning("⚠️ 無法萃取出明顯的中短期週期，市場可能處於高度隨機狀態。")
+                                    else:
+                                        # 4. Top-3 dominant cycles
+                                        top3_idx     = np.argsort(valid_mags)[::-1][:3]
+                                        dom_idx      = top3_idx[0]
+                                        dom_freq     = valid_freqs[dom_idx]
+                                        dom_period   = int(round(1 / dom_freq))
+                                        dom_mag      = valid_mags[dom_idx]
+
+                                        # Reconstruct dominant wave
+                                        phase     = np.angle(fft_vals[pos_mask][valid_mask][dom_idx])
+                                        amplitude = 2.0 * dom_mag / n
+                                        t_full    = np.arange(n)
+                                        dom_wave  = amplitude * np.cos(
+                                            2 * np.pi * dom_freq * t_full + phase)
+
+                                        lookback     = min(120, len(detrended))
+                                        recent_det   = detrended.iloc[-lookback:]
+                                        recent_wave  = dom_wave[-lookback:]
+
+                                        # Top-3 secondary cycles info
+                                        sec_periods = []
+                                        for si in top3_idx[1:]:
+                                            sp = int(round(1 / valid_freqs[si]))
+                                            sec_periods.append(sp)
+
+                                        # 5. Full frequency spectrum chart
+                                        cycle_days = np.where(pos_freqs > 0, 1 / pos_freqs, 0)
+                                        fig_spec = go.Figure()
+                                        fig_spec.add_trace(go.Scatter(
+                                            x=cycle_days, y=pos_mags,
+                                            mode='lines',
+                                            line=dict(color='rgba(0,245,255,0.5)', width=1),
+                                            fill='tozeroy',
+                                            fillcolor='rgba(0,245,255,0.06)',
+                                            name='頻譜強度',
+                                            hovertemplate='週期: %{x:.0f}天<br>強度: %{y:.2f}<extra></extra>'
+                                        ))
+                                        # Mark dominant cycle
+                                        fig_spec.add_vline(
+                                            x=dom_period,
+                                            line_color="#FFD700", line_width=2, line_dash="dash",
+                                            annotation_text=f"主週期 {dom_period}天",
+                                            annotation_font_color="#FFD700"
+                                        )
+                                        for sp in sec_periods:
+                                            fig_spec.add_vline(
+                                                x=sp, line_color="rgba(255,154,60,0.6)",
+                                                line_width=1, line_dash="dot",
+                                                annotation_text=f"{sp}天",
+                                                annotation_font_color="rgba(255,154,60,0.8)",
+                                                annotation_font_size=9
+                                            )
+                                        fig_spec.update_layout(
+                                            template="plotly_dark", height=220,
+                                            title=dict(
+                                                text=f"{symbol} 頻率功率譜 (5–200天週期)",
+                                                font=dict(size=13, color="#AAB", family="Rajdhani")
+                                            ),
+                                            xaxis=dict(
+                                                title="週期長度 (交易日)",
+                                                range=[0, 200],
+                                                gridcolor="rgba(255,255,255,0.05)"
+                                            ),
+                                            yaxis=dict(
+                                                title="頻譜強度",
+                                                gridcolor="rgba(255,255,255,0.05)"
+                                            ),
+                                            plot_bgcolor="rgba(0,0,0,0)",
+                                            paper_bgcolor="rgba(0,0,0,0)",
+                                            margin=dict(t=40, b=40, l=60, r=20),
+                                            showlegend=False,
+                                        )
+                                        st.plotly_chart(fig_spec, use_container_width=True)
+
+                                        # 6. Detrended vs dominant wave chart
+                                        fig_wave = go.Figure()
+                                        fig_wave.add_trace(go.Scatter(
+                                            x=recent_det.index, y=recent_det.values,
+                                            mode='lines',
+                                            line=dict(color='rgba(255,255,255,0.35)', width=1.5),
+                                            name='去趨勢股價 (真實雜訊)',
+                                            hovertemplate='%{y:.2f}<extra>去趨勢股價</extra>'
+                                        ))
+                                        fig_wave.add_trace(go.Scatter(
+                                            x=recent_det.index, y=recent_wave,
+                                            mode='lines',
+                                            line=dict(color='#00F5FF', width=2.5),
+                                            name=f'FFT 主週期 ({dom_period} 天)',
+                                            hovertemplate='%{y:.2f}<extra>FFT 主週期</extra>'
+                                        ))
+                                        # Zero line
+                                        fig_wave.add_hline(
+                                            y=0, line_color='rgba(255,255,255,0.1)',
+                                            line_dash='dot'
+                                        )
+                                        fig_wave.update_layout(
+                                            template="plotly_dark", height=380,
+                                            title=dict(
+                                                text=f"🎯 {symbol} 週期共振分析（近 {lookback} 交易日）",
+                                                font=dict(size=14, color="#CDD", family="Rajdhani")
+                                            ),
+                                            xaxis=dict(
+                                                title="時間",
+                                                gridcolor="rgba(255,255,255,0.04)"
+                                            ),
+                                            yaxis=dict(
+                                                title="震盪振幅",
+                                                gridcolor="rgba(255,255,255,0.04)"
+                                            ),
+                                            plot_bgcolor="rgba(0,0,0,0)",
+                                            paper_bgcolor="rgba(0,0,0,0)",
+                                            hovermode="x unified",
+                                            legend=dict(
+                                                orientation="h", y=1.02,
+                                                font=dict(color="#AAB", size=11)
+                                            ),
+                                            margin=dict(t=50, b=40, l=60, r=20),
+                                        )
+                                        st.plotly_chart(fig_wave, use_container_width=True)
+
+                                        # 7. Strategic metrics
+                                        current_wave_val = float(recent_wave[-1])
+                                        prev_wave_val    = float(recent_wave[-2])
+                                        cycle_position   = (current_wave_val / amplitude
+                                                            if amplitude > 0 else 0)
+
+                                        st.markdown("##### 📊 頻譜共振戰略解析")
+                                        c1, c2, c3, c4 = st.columns(4)
+                                        c1.metric("主要循環週期", f"{dom_period} 交易日",
+                                                  f"≈ {dom_period/21:.1f} 個月")
+                                        c2.metric("次要週期 #2", f"{sec_periods[0]} 日" if sec_periods else "—")
+                                        c3.metric("次要週期 #3",
+                                                  f"{sec_periods[1]} 日" if len(sec_periods) > 1 else "—")
+
+                                        if current_wave_val > prev_wave_val:
+                                            wave_dir, wave_col = "📈 上升波段", "normal"
+                                        else:
+                                            wave_dir, wave_col = "📉 下降波段", "inverse"
+                                        c4.metric("目前相位", wave_dir,
+                                                  f"週期位置 {cycle_position:+.2f}",
+                                                  delta_color=wave_col)
+
+                                        # 8. Valkyrie AI Tactical
+                                        st.divider()
+                                        is_trough = cycle_position < -0.7 and current_wave_val > prev_wave_val
+                                        is_peak   = cycle_position >  0.7 and current_wave_val < prev_wave_val
+
+                                        if is_trough:
+                                            st.success(
+                                                f"⚡ [Valkyrie AI 判定] 完美買點浮現！"
+                                                f"{symbol} 正處於 {dom_period} 天循環的【波谷反轉區】"
+                                                f"（相位 {cycle_position:.2f}，正開始回升）。"
+                                                f"若上帝軌道（6.2）未破底，結合此訊號勝率極高，可積極建倉。"
+                                            )
+                                        elif is_peak:
+                                            st.error(
+                                                f"🔴 [Valkyrie AI 判定] 居高思危！"
+                                                f"{symbol} 處於 {dom_period} 天循環的【波峰衰退區】"
+                                                f"（相位 {cycle_position:.2f}，動能開始衰竭）。"
+                                                f"建議逢高減碼，{sec_periods[0] if sec_periods else '?'} 天次週期確認方向後再重新介入。"
+                                            )
+                                        else:
+                                            mid_dir = "上半段（偏多）" if cycle_position > 0 else "下半段（偏空）"
+                                            st.info(
+                                                f"⚖️ [Valkyrie AI 判定] {symbol} 運行於 {dom_period} 天循環"
+                                                f"的中段 {mid_dir}（相位 {cycle_position:+.2f}）。"
+                                                f"請順勢操作，耐心等待極端相位（波峰 >+0.7 或波谷 <-0.7）浮現再行動。"
+                                            )
+
+                    except Exception as e:
+                        import traceback as _tb
+                        st.error(f"頻譜轉換失敗: {e}")
+                        with st.expander("🔍 Debug Traceback"):
+                            st.code(_tb.format_exc())
+
+
 
 
 # ═══════════════════════════════════════════════════════════════
