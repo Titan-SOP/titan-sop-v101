@@ -2605,6 +2605,31 @@ def _s63():
              "而是「誰把 AI 能力最深度嵌入一個每天被數十億人使用的物理場景」。"
              "Tesla 當年的邏輯正是如此——不是最快的電動車，而是把軟體定義汽車物理化。"
              "第一性原則：模型的價值由部署規模決定，物理世界才是 AI 最終的戰場。"),
+            ("⚛️ 量子應用（Quantum Applications）", "#00FFFF",
+             "【統帥核心觀點——尚待市場驗證，但第一性原則支持】"
+             "量子的百倍股邏輯不是「最快的量子電腦」，而是兩個尚未被市場定價的應用場景：\n\n"
+             "❶ 月球量子計算平台：月球永久陰影區溫度接近 -233°C（接近絕對零度），"
+             "是地球最貴的量子冷卻系統的免費替代品。量子計算最大的工程瓶頸是維持量子態需要極低溫環境，"
+             "地球上每台量子電腦都需要昂貴的稀釋冷凍機。月球提供天然超低溫基礎設施，"
+             "可讓超導量子比特穩定運行時間從微秒級延長至秒級以上。"
+             "這不只是技術突破——這是讓量子計算從「實驗室里的玩具」變成「商業化現實」的基礎設施革命。"
+             "NASA 阿提米斯計劃 + 私人月球任務（ispace、Intuitive Machines、Astrobotic）正在建立月球基礎設施，"
+             "量子計算部署時間表可能比市場預期提前 10 年。"
+             "第一性原則：量子計算的物理極限是量子退相干時間，而溫度是退相干最大的敵人——月球解決了這個物理問題。\n\n"
+             "❷ 全自動駕駛的量子中樞神經系統：當市場上大部分車輛都實現全自動駕駛（L5）時，"
+             "一個根本性的問題出現了——每台自動駕駛車都搭載自己品牌的 AI 模型"
+             "（特斯拉 FSD、Waymo、小鵬 XNGP、Mobileye、百度 Apollo），"
+             "它們說不同的「語言」，無法即時協同。"
+             "想象十字路口同時有 100 台來自 10 個品牌的自動駕駛車，誰決定誰先走？"
+             "經典計算面臨的挑戰：跨品牌 AI 模型的即時通訊需要接近零延遲的訊號同步，"
+             "5G 的最低延遲約 1ms，但量子通訊理論上可實現更快的狀態同步（量子纏繞）。"
+             "量子金鑰分發（QKD）已可商業部署，可作為安全通訊層的基礎。"
+             "量子隨機數生成器可解決多 AI 決策衝突的公平仲裁問題。"
+             "這個賽道的百倍股邏輯：誰建立起跨品牌自動駕駛協調的量子通訊層，"
+             "就相當於擁有了整個自動駕駛時代的「電信基礎設施」——這是一個贏者通吃的壟斷市場。"
+             "目前能做這件事的公司極少，且市值仍在億美元級別，百倍空間物理上成立。"
+             "第一性原則：每一次交通革命都誕生了基礎設施壟斷者（鐵路時代→電報網路，汽車時代→高速公路），"
+             "自動駕駛時代的基礎設施壟斷者尚未誕生，這就是百倍股的空白地帶。"),
         ]
         for title, color, desc in tracks:
             st.markdown(f"""<div style="background:rgba(255,255,255,.02);border-left:4px solid {color};
@@ -2713,6 +2738,7 @@ def _s63():
         ("☢️ 核能 / SMR",  "黎明早期 🌅",  "#FFD700", "多數機構仍迴避，政策拐點已現，最佳佈局窗口"),
         ("🤖 機器人 / 具身AI","黎明期 🌅",  "#FFD700", "技術突破剛發生，商業化仍早期，高風險高潛力"),
         ("🌐 AI 物理化實踐","黎明加速 🌅🚀","#E040FB", "AI 嵌入物理場景剛開始，Tesla/PLTR 模式複製中，PE 擴張最強烈"),
+        ("⚛️ 量子應用",    "黎明前夜 🌑🌅","#00FFFF", "【統帥看好】月球量子計算 + 自駕中樞神經，市場幾乎未定價，極高風險極高潛力"),
         ("🛡️ 國防 / 無人機", "成長早期 📈", "#ADFF2F", "地緣驅動持續，但部分標的估值已反映預期"),
         ("🧬 AI 生物科技",   "萌芽期 🌱",   "#00BFFF", "技術驗證仍早，需 3–5 年，極高風險極高潛力"),
         ("🏭 工業自動化",    "成長期 📈",   "#ADFF2F", "政策補貼驅動，但週期性風險存在"),
@@ -2731,6 +2757,82 @@ def _s63():
             </div>""", unsafe_allow_html=True)
 
     # ════════════════════════════════════════════════════
+    # 量子百倍股深度研究專區 (統帥特別指令)
+    # ════════════════════════════════════════════════════
+    st.divider()
+    st.markdown('<div class="bg28" style="color:#00FFFF;">⚛️ 量子百倍股深度研究——統帥看好的兩條路徑</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="background:rgba(0,255,255,0.04);border:1px solid rgba(0,255,255,0.2);'
+        'border-left:4px solid #00FFFF;border-radius:0 10px 10px 0;padding:16px 20px;margin-bottom:14px;">'
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(0,255,255,.5);'
+        'letter-spacing:3px;text-transform:uppercase;">⚠️ 統帥聲明</span>'
+        '<div style="font-size:14px;color:rgba(200,220,235,.85);margin-top:6px;line-height:1.8;">'
+        '以下分析代表統帥個人判斷框架，<b style="color:#FFD700;">是否帶來破壞式創新有待市場驗證</b>。'
+        '量子股波動極大，需配合第 6.2 節法庭級 AI 分析提示詞深度研究後再做決策。'
+        '放入此處的原因：市場幾乎未定價的空白地帶，才是百倍股誕生的土壤。'
+        '</div></div>',
+        unsafe_allow_html=True
+    )
+
+    qcol1, qcol2 = st.columns(2)
+
+    with qcol1:
+        st.markdown("""<div class="bgcard" style="border-color:rgba(0,255,255,.3);min-height:420px;">
+        <div class="bg26c" style="color:#00FFFF;">🌕 路徑一：月球量子計算平台</div>
+        <div class="bg26" style="margin-top:10px;line-height:1.85;">
+        <b>核心物理邏輯：</b><br>
+        量子計算最大的工程瓶頸是「量子退相干」——量子比特極容易受到溫度、振動、電磁干擾破壞。
+        地球上每台量子電腦都需要稀釋冷凍機將溫度降至 <b>-273.13°C（接近絕對零度 15 mK）</b>，
+        設備成本高達數百萬美元，且維護困難。<br><br>
+        <b>月球提供的天然優勢：</b><br>
+        • 月球永久陰影區（Permanently Shadowed Regions）溫度：<b>-233°C to -258°C</b><br>
+        • 幾乎沒有大氣層 → 振動雜訊接近零<br>
+        • 遠離地球電磁污染 → 量子態維持時間可大幅延長<br>
+        • 月球表面重力僅 1/6 → 機械振動傷害更低<br><br>
+        <b>這意味著什麼？</b><br>
+        月球可能讓量子計算的商業化時間從 2040 年提前至 <b>2032-2035 年</b>。
+        NASA 阿提米斯計劃 + ispace / Intuitive Machines 正在建立月球基礎設施，
+        量子硬體部署窗口比市場預期快得多。<br><br>
+        <b>潛在受益公司（需深度研究）：</b><br>
+        IONQ（離子阱量子電腦）、RGTI（超導量子）、IBM Quantum、
+        Quantinuum（Honeywell 子公司）、Rigetti Computing
+        </div>
+        </div>""", unsafe_allow_html=True)
+
+    with qcol2:
+        st.markdown("""<div class="bgcard" style="border-color:rgba(0,255,255,.3);min-height:420px;">
+        <div class="bg26c" style="color:#00FFFF;">🚗 路徑二：全自動駕駛量子中樞神經</div>
+        <div class="bg26" style="margin-top:10px;line-height:1.85;">
+        <b>問題定義（第一性原則）：</b><br>
+        當市場上數千萬台全自動駕駛（L5）車輛同時上路時，每台車都搭載自己品牌的 AI 模型：
+        Tesla FSD、Waymo Driver、小鵬 XNGP、Mobileye SuperVision、百度 Apollo——
+        它們說不同的「語言」，無法即時協同。<br><br>
+        <b>這是一個物理問題，不是軟體問題：</b><br>
+        • 十字路口 100 台不同品牌自動駕駛同時決策 → 誰優先？<br>
+        • 5G 最低延遲 1ms，但高速場景中 1ms 等於 3.6cm 的位移誤差<br>
+        • 各品牌 AI 決策衝突需要即時、公平、品牌中立的仲裁層<br><br>
+        <b>量子的角色：</b><br>
+        • <b>量子金鑰分發（QKD）</b>：建立跨品牌安全通訊標準層<br>
+        • <b>量子隨機數生成器（QRNG）</b>：公平仲裁多 AI 決策衝突，防止任何品牌偏袒<br>
+        • <b>量子感應器網路</b>：V2X（車對一切通訊）的量子加強版<br><br>
+        <b>百倍股邏輯：</b><br>
+        誰建立這個跨品牌協調層，就等於擁有整個自動駕駛時代的
+        <b>「電信基礎設施壟斷」</b>——這是歷史上每次交通革命都誕生的那種壟斷。
+        目前市場上幾乎沒有公司在做這件事，市值在億美元級，百倍空間物理成立。<br><br>
+        <b>相關公司（QRNG / QKD 領域）：</b><br>
+        ARQQ（量子加密）、ID Quantique（私人/QRNG）、Quantinuum
+        </div>
+        </div>""", unsafe_allow_html=True)
+
+    # 量子百倍股風險警告
+    st.markdown("""<div class="bgw" style="margin-top:10px;">
+    ⚠️ 量子百倍股特別風險警告：量子股是「技術期權」，不是「確定性成長股」。
+    持倉應以總資金 2-5% 為上限，虧損 50% 不罕見。必須搭配 6.2 節法庭分析提示詞深度研究後再決策。
+    統帥看好這個賽道的邏輯是「物理可行性 + 市場未定價」的組合——這才是百倍股的基因，
+    但需要 5-10 年的持有耐心與對本金歸零風險的心理承受能力。
+    </div>""", unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════
     # BLOCK C：DNA 掃描引擎輸入區
     # ════════════════════════════════════════════════════
     st.divider()
@@ -2741,23 +2843,25 @@ def _s63():
         "☢️ 核能/SMR": "CEG, VST, NNE, OKLO, SMR",
         "🤖 機器人": "TSLA, ISRG, RXRX, ACMR, BDTX",
         "🌐 AI 物理化": "TSLA, PLTR, AAPL, GOOGL, META, SOUN",
+        "⚛️ 量子中樞": "IONQ, RGTI, QBTS, QUBT, ARQQ, IBM, GOOGL, MSFT",
         "🛡️ 國防太空": "RKLB, LUNR, PLTR, HII, ACHR",
         "🇹🇼 台股潛力": "3529.TW, 2382.TW, 6531.TW, 3231.TW, 6550.TW",
     }
 
     in_col, pre_col = st.columns([2, 1])
-    with in_col:
-        ticker_val = st.session_state.get('bg_preset_val', "NVDA, PLTR, 3529.TW, 2382.TW, RKLB, IONQ")
-        tickers_input = st.text_input(
-            "🎯 輸入股票代號（逗號分隔，台股加 .TW/.TWO）",
-            value=ticker_val, key="bagger_tickers_in"
-        )
     with pre_col:
         st.markdown('<div class="bgml" style="margin-top:10px;">快速賽道範本</div>', unsafe_allow_html=True)
         preset_sel = st.selectbox("", list(PRESETS.keys()), key="bg_preset_sel", label_visibility="collapsed")
         if st.button("📥 載入範本", key="bg_load", use_container_width=True):
-            st.session_state['bg_preset_val'] = PRESETS[preset_sel]
+            # ✅ 直接寫入 text_input 的 session_state key，才能正確更新
+            st.session_state['bagger_tickers_in'] = PRESETS[preset_sel]
             st.rerun()
+    with in_col:
+        tickers_input = st.text_input(
+            "🎯 輸入股票代號（逗號分隔，台股加 .TW/.TWO）",
+            value="NVDA, PLTR, 3529.TW, 2382.TW, RKLB, IONQ",
+            key="bagger_tickers_in"
+        )
 
     run_scan = st.button("🧬 啟動 7D DNA 基因掃描", type="primary", use_container_width=True, key="run_bg_scan")
 
