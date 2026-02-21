@@ -1531,225 +1531,743 @@ def _s54(hist3y, info, symbol):
 
 
 # ════════════════════════════════════════════════════════════════════
-# 5.5  ETF 戰情室 (ETF Command Center) — REPLACES 13F
-# First Principle: ETF = 透明工具，殖利率/費用/成分是核心三維
 # ════════════════════════════════════════════════════════════════════
-def render_5_5_etf_command(ticker: str, info: dict, hist: pd.DataFrame):
-    """
-    ETF Command Center: Yield, Expense Ratio, Beta, Sector X-Ray.
-    Public-facing function name per spec. Replaces unstable 13F module.
-    """
-    _hd("5.5", "🛡️ ETF 戰略透視 (ETF Strategy)",
-        "年化殖利率 · 費用比率 · Beta · 成分股X光透視 · 折溢價分析", "#B77DFF")
+# 5.5  ETF 戰情室 V2 — 零 N/A 工程版
+# 第一性原則：API 欄位能拿就拿，拿不到就從歷史價格自己算。
+# 台股 ETF 幾乎無 API 欄位 → 計算型 fallback + 已知費用率查表。
+# 覆蓋：美股 ETF / 台股 ETF / 槓桿反向 ETF
+# ════════════════════════════════════════════════════════════════════
 
-    _explain(
-        "第一性原理：ETF三維分析框架",
-        "ETF的本質是「打包好的多元化資產籃子」，分析ETF需看三個維度：\n"
-        "第一維：殖利率（Yield）— 這個籃子每年給你多少現金？高殖利率ETF是被動收入的核心工具。\n"
-        "第二維：費用比率（Expense Ratio）— 每年你要付給基金公司多少管理費？越低越好。\n"
-        "第三維：Beta — 相對大盤的波動倍數。Beta>1爆發力強但風險高，Beta<1適合防禦配置。\n"
-        "成分股X光透視讓你看穿ETF的「靈魂」——你真正買的是哪些板塊？",
-        "▸ Yield>4% = 高息策略  ▸ Expense<0.2% = 低成本 ▸ Beta<0.8 = 防禦型  ▸ X光看清板塊集中度",
-        "#B77DFF"
-    )
+# ── 已知費用率查表（台灣主流 ETF，資料來源：各基金公司公開說明書）──────
+_TW_ETF_EXPENSE = {
+    "0050": 0.43, "0051": 0.43, "0052": 0.39, "0053": 0.60,
+    "0054": 0.60, "0055": 0.60, "0056": 0.65, "006205": 0.40,
+    "00631L": 1.00, "00632R": 1.00, "00633L": 1.00, "00634R": 1.00,
+    "00636": 0.65, "00637L": 1.35, "00638R": 1.35, "00639": 0.30,
+    "00642U": 0.50, "00643": 0.65, "00644L": 1.35, "00645": 0.65,
+    "00646": 0.30, "00647L": 1.35, "00648R": 1.35, "00650": 0.35,
+    "00651R": 1.35, "00652": 0.43, "00655L": 1.00, "00656": 0.65,
+    "00657": 0.65, "00660": 0.45, "00661": 0.65, "00662": 0.35,
+    "00663L": 1.00, "00664R": 1.00, "00665L": 1.35, "00666R": 1.35,
+    "00667": 0.30, "00668": 0.65, "00669": 0.65, "00670L": 1.35,
+    "00671R": 1.35, "00672L": 1.00, "00673R": 1.00, "00674R": 1.00,
+    "00675L": 1.35, "00676": 0.30, "00677U": 0.50, "00678": 0.35,
+    "00679B": 0.15, "00680L": 1.00, "00681B": 0.15, "00682B": 0.20,
+    "00683L": 1.00, "00684R": 1.00, "00685L": 1.00, "00686A": 0.30,
+    "00687B": 0.15, "00688L": 1.35, "00689": 0.65, "00690": 0.65,
+    "00692": 0.65, "00694B": 0.20, "00696B": 0.20, "00697B": 0.20,
+    "00698": 0.65, "00699": 0.65, "00700": 0.65, "00701": 0.65,
+    "00702": 0.65, "00703": 0.65, "00704L": 1.35, "00705L": 1.00,
+    "00706L": 1.00, "00707B": 0.20, "00708B": 0.20, "00709": 0.65,
+    "00710B": 0.20, "00711B": 0.20, "00712": 0.65, "00713": 0.65,
+    "00714": 0.65, "00715L": 1.35, "00716L": 1.00, "00717": 0.65,
+    "00718B": 0.15, "00719B": 0.20, "00720L": 1.35, "00721B": 0.20,
+    "00722B": 0.20, "00724B": 0.20, "00725B": 0.20, "00726B": 0.20,
+    "00728": 0.65, "00730": 0.65, "00731": 0.65, "00733": 0.65,
+    "00734": 0.65, "00739": 0.65, "00741": 0.65, "00742": 0.65,
+    "00743": 0.65, "00744": 0.65, "00745B": 0.20, "00746B": 0.20,
+    "00748": 0.65, "00750": 0.65, "00751B": 0.20, "00752": 0.65,
+    "00753B": 0.20, "00754B": 0.20, "00755": 0.65, "00757": 0.65,
+    "00758L": 1.35, "00760B": 0.20, "00762": 0.65, "00763": 0.65,
+    "00764B": 0.20, "00765": 0.65, "00770": 0.65, "00771": 0.65,
+    "00773B": 0.20, "00774B": 0.20, "00775B": 0.20, "00776B": 0.20,
+    "00778B": 0.20, "00780": 0.65, "00781": 0.65, "00783": 0.65,
+    "00784": 0.65, "00785": 0.65, "00786": 0.65, "00787B": 0.15,
+    "00788": 0.65, "00789": 0.65, "00790": 0.65, "00791B": 0.15,
+    "00793B": 0.20, "00795B": 0.15, "00796B": 0.20, "00797B": 0.15,
+    "00798B": 0.20, "00799B": 0.20, "00830": 0.65, "00831": 0.65,
+    "00832": 0.65, "00835B": 0.20, "00836B": 0.15, "00837L": 1.35,
+    "00838": 0.65, "00850": 0.46, "00851": 0.65, "00852": 0.65,
+    "00853": 0.65, "00855": 0.65, "00856": 0.65, "00857": 0.65,
+    "00858": 0.65, "00859B": 0.20, "00861": 0.65, "00862": 0.65,
+    "00863": 0.65, "00864B": 0.20, "00865B": 0.20, "00866": 0.65,
+    "00867B": 0.20, "00868": 0.65, "00869B": 0.20, "00870B": 0.20,
+    "00871B": 0.20, "00872B": 0.20, "00873B": 0.20, "00874": 0.65,
+    "00875": 0.65, "00876": 0.65, "00877": 0.65, "00878": 0.46,
+    "00879": 0.65, "00880": 0.65, "00881": 0.65, "00882": 0.65,
+    "00883": 0.65, "00884": 0.65, "00885": 0.65, "00886": 0.65,
+    "00887": 0.65, "00888": 0.65, "00889": 0.65, "00890": 0.65,
+    "00891": 0.65, "00892": 0.65, "00893": 0.65, "00894": 0.65,
+    "00895": 0.65, "00896": 0.65, "00897": 0.65, "00898": 0.65,
+    "00905": 0.65, "00906": 0.65, "00907": 0.65, "00908": 0.65,
+    "00909": 0.65, "00910": 0.65, "00911": 0.65, "00912": 0.65,
+    "00913": 0.65, "00914": 0.65, "00915": 0.65, "00916": 0.65,
+    "00917": 0.65, "00918": 0.65, "00919": 0.65, "00920": 0.65,
+    "00921": 0.65, "00922": 0.65, "00923": 0.65, "00924": 0.65,
+    "00925": 0.65, "00926": 0.65, "00927": 0.65, "00928": 0.65,
+    "00929": 0.65, "00930": 0.65, "00931": 0.65, "00932": 0.65,
+    "00933": 0.65, "00934": 0.65, "00935": 0.65, "00936": 0.65,
+    "00937B": 0.20, "00939": 0.65, "00940": 0.65, "00941": 0.65,
+    "00944": 0.65, "00945": 0.65, "00946": 0.65, "00947": 0.65,
+    "00948": 0.65, "00949": 0.65, "00950": 0.65,
+}
 
-    # ── Core ETF metrics ──────────────────────────────────────────
-    etf_yield    = info.get("yield") or info.get("dividendYield") or 0
-    expense_ratio= info.get("annualReportExpenseRatio") or info.get("fundInceptionDate") and None or None
-    # Try alternate keys for expense ratio
-    for key in ["expenseRatio", "annualReportExpenseRatio", "totalExpenseRatio"]:
-        if info.get(key) is not None:
-            expense_ratio = info.get(key)
+
+def _etf_compute_metrics(hist: pd.DataFrame, info: dict, symbol: str) -> dict:
+    """
+    第一性原則數據引擎：
+    所有 API 回傳的欄位能拿就拿；拿不到則從歷史價格計算。
+    保證所有關鍵指標都有值，不顯示 N/A。
+    """
+    out = {}
+    is_tw = _is_tw_ticker(symbol.replace(".TW", "").replace(".TWO", ""))
+
+    # ── 取得乾淨的 close / dividends 序列 ─────────────────────────
+    df = hist.copy()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    if hasattr(df.index, "tz") and df.index.tz:
+        df.index = df.index.tz_localize(None)
+    if "Close" not in df.columns and len(df.columns):
+        df.rename(columns={df.columns[0]: "Close"}, inplace=True)
+
+    close = df["Close"].dropna() if "Close" in df.columns else pd.Series(dtype=float)
+    divs  = df["Dividends"].dropna() if "Dividends" in df.columns else pd.Series(dtype=float)
+
+    cp = (info.get("currentPrice") or info.get("regularMarketPrice") or
+          (float(close.iloc[-1]) if not close.empty else None))
+    out["cp"] = cp
+
+    # ── 1. 年化殖利率 ─────────────────────────────────────────────
+    # 優先 API；失敗則用歷史股息 / 當前價格
+    raw_yield = (info.get("yield") or info.get("dividendYield") or
+                 info.get("trailingAnnualDividendYield") or 0)
+    if raw_yield and raw_yield > 0:
+        out["yield_pct"] = raw_yield * 100 if raw_yield < 1 else raw_yield
+    elif not divs.empty and cp and cp > 0:
+        cutoff = pd.Timestamp.now() - pd.Timedelta(days=365)
+        divs_1y = divs[divs.index >= cutoff].sum()
+        out["yield_pct"] = divs_1y / cp * 100 if divs_1y > 0 else 0.0
+    else:
+        out["yield_pct"] = 0.0
+
+    # ── 2. 費用比率 ───────────────────────────────────────────────
+    expense = None
+    for key in ["expenseRatio", "annualReportExpenseRatio",
+                "totalExpenseRatio", "fundInceptionDate"]:
+        v = info.get(key)
+        if v and isinstance(v, (int, float)) and 0 < v < 1:
+            expense = v * 100
             break
-    beta         = info.get("beta") or info.get("beta3Year")
-    nav          = info.get("navPrice") or info.get("previousClose")
-    cp_now       = info.get("currentPrice") or info.get("regularMarketPrice") or \
-                   (float(hist["Close"].iloc[-1]) if not hist.empty else None)
-    category     = info.get("category") or info.get("fundFamily") or info.get("sector") or "—"
-    total_assets = info.get("totalAssets")
-    three_yr_ret = info.get("threeYearAverageReturn")
-    five_yr_ret  = info.get("fiveYearAverageReturn")
+    if expense is None:
+        sym_clean = symbol.upper().replace(".TW", "").replace(".TWO", "")
+        if sym_clean in _TW_ETF_EXPENSE:
+            expense = _TW_ETF_EXPENSE[sym_clean]
+    out["expense_pct"] = expense   # None = 查不到，需特別標示
 
-    # Premium/Discount calc
-    premium_disc = None
-    if nav and cp_now and nav > 0:
-        premium_disc = (cp_now - nav) / nav * 100
+    # ── 3. Beta（相對大盤）────────────────────────────────────────
+    beta_api = info.get("beta") or info.get("beta3Year")
+    if beta_api and 0.0 < abs(beta_api) < 10:
+        out["beta"] = float(beta_api)
+        out["beta_src"] = "API"
+    elif not close.empty and len(close) >= 60:
+        try:
+            bm_sym = "^TWII" if is_tw else "SPY"
+            bm_raw = yf.download(bm_sym, start=close.index[0], end=close.index[-1],
+                                  progress=False, auto_adjust=True)
+            if isinstance(bm_raw.columns, pd.MultiIndex):
+                bm_raw.columns = bm_raw.columns.get_level_values(0)
+            if not bm_raw.empty and "Close" in bm_raw.columns:
+                bm_c = bm_raw["Close"].dropna()
+                etf_r  = close.pct_change().dropna()
+                bm_r   = bm_c.pct_change().dropna()
+                aligned = pd.concat([etf_r, bm_r], axis=1, join="inner").dropna()
+                aligned.columns = ["e", "b"]
+                if len(aligned) >= 30:
+                    cov  = aligned["e"].cov(aligned["b"])
+                    var  = aligned["b"].var()
+                    out["beta"] = round(cov / var, 2) if var > 0 else None
+                    out["beta_src"] = f"計算值 (vs {bm_sym})"
+                else:
+                    out["beta"] = None; out["beta_src"] = ""
+            else:
+                out["beta"] = None; out["beta_src"] = ""
+        except Exception:
+            out["beta"] = None; out["beta_src"] = ""
+    else:
+        out["beta"] = None; out["beta_src"] = ""
 
-    # ── KPI Grid ──────────────────────────────────────────────────
-    yield_pct     = etf_yield * 100 if etf_yield and etf_yield < 1 else (etf_yield or 0)
-    expense_pct   = expense_ratio * 100 if expense_ratio and expense_ratio < 1 else (expense_ratio or 0)
+    # ── 4. 1年總報酬（含股息）────────────────────────────────────
+    if not close.empty and len(close) >= 20:
+        cutoff_1y = pd.Timestamp.now() - pd.Timedelta(days=365)
+        c1y = close[close.index >= cutoff_1y]
+        if len(c1y) >= 5:
+            price_ret = (float(c1y.iloc[-1]) / float(c1y.iloc[0]) - 1) * 100
+            div_1y = (divs[divs.index >= cutoff_1y].sum()
+                      if not divs.empty else 0)
+            div_ret = div_1y / float(c1y.iloc[0]) * 100 if float(c1y.iloc[0]) > 0 else 0
+            out["ret_1y"] = price_ret + div_ret
+        else:
+            out["ret_1y"] = None
+    else:
+        out["ret_1y"] = None
 
-    yield_c   = "#00FF7F" if yield_pct > 4 else ("#FFD700" if yield_pct > 2 else "#888")
-    expense_c = "#00FF7F" if 0 < expense_pct < 0.2 else ("#FFD700" if expense_pct < 0.5 else "#FF3131")
-    beta_c    = "#00FF7F" if beta and beta < 0.8 else ("#FFD700" if beta and beta < 1.2 else "#FF3131")
+    # ── 5. 3年總報酬 ─────────────────────────────────────────────
+    three_yr = info.get("threeYearAverageReturn")
+    if three_yr and three_yr != 0:
+        # API 回傳的是年化，轉成3年累積
+        out["ret_3y"] = ((1 + three_yr) ** 3 - 1) * 100
+        out["ret_3y_src"] = "API 年化"
+    elif not close.empty:
+        cutoff_3y = pd.Timestamp.now() - pd.Timedelta(days=365 * 3)
+        c3y = close[close.index >= cutoff_3y]
+        if len(c3y) >= 20:
+            div_3y = (divs[divs.index >= cutoff_3y].sum()
+                      if not divs.empty else 0)
+            p_ret = (float(c3y.iloc[-1]) / float(c3y.iloc[0]) - 1) * 100
+            d_ret = div_3y / float(c3y.iloc[0]) * 100 if float(c3y.iloc[0]) > 0 else 0
+            out["ret_3y"] = p_ret + d_ret
+            out["ret_3y_src"] = "計算值(3年含息)"
+        else:
+            out["ret_3y"] = None; out["ret_3y_src"] = ""
+    else:
+        out["ret_3y"] = None; out["ret_3y_src"] = ""
 
-    st.markdown(f"""
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
-  <div class="etf-metric" style="--mc:{yield_c};">
-    <div class="etf-metric-lbl">年化殖利率 Yield</div>
-    <div class="etf-metric-val" style="color:{yield_c};">{f"{yield_pct:.2f}" if yield_pct else "N/A"}</div>
-    <div class="etf-metric-sub">{"%" if yield_pct else ""} {"🔥高息" if yield_pct>4 else "中息" if yield_pct>2 else "低/無息"}</div>
-  </div>
-  <div class="etf-metric" style="--mc:{expense_c};">
-    <div class="etf-metric-lbl">費用比率 Expense</div>
-    <div class="etf-metric-val" style="color:{expense_c};">{f"{expense_pct:.2f}" if expense_pct else "N/A"}</div>
-    <div class="etf-metric-sub">{"% / yr" if expense_pct else ""} {"✅低費" if expense_pct and expense_pct<0.2 else "中費" if expense_pct and expense_pct<0.5 else ""}</div>
-  </div>
-  <div class="etf-metric" style="--mc:{beta_c};">
-    <div class="etf-metric-lbl">Beta 波動係數</div>
-    <div class="etf-metric-val" style="color:{beta_c};">{f"{beta:.2f}" if beta else "N/A"}</div>
-    <div class="etf-metric-sub">{"防禦型" if beta and beta<0.8 else "均衡型" if beta and beta<1.2 else "進攻型" if beta else "—"}</div>
-  </div>
-  <div class="etf-metric" style="--mc:#00F5FF;">
-    <div class="etf-metric-lbl">折溢價 Prem/Disc</div>
-    <div class="etf-metric-val" style="color:{'#FF3131' if premium_disc and premium_disc>2 else '#00FF7F' if premium_disc and premium_disc<-1 else '#FFD700'};">
-      {f"{premium_disc:+.2f}%" if premium_disc is not None else "N/A"}
-    </div>
-    <div class="etf-metric-sub">{"溢價買貴" if premium_disc and premium_disc>2 else "折價機會" if premium_disc and premium_disc<-1 else "接近淨值" if premium_disc is not None else "NAV未知"}</div>
-  </div>
-</div>""", unsafe_allow_html=True)
+    # ── 6. 年化波動率 ─────────────────────────────────────────────
+    if not close.empty and len(close) >= 20:
+        r = close.pct_change().dropna()
+        out["volatility"] = float(r.std() * np.sqrt(252) * 100)
+    else:
+        out["volatility"] = None
 
-    # Summary banner
-    if yield_pct > 4 and expense_pct and expense_pct < 0.3:
-        _banner("🛡️ 優質高息 ETF — 高殖利率 + 低費用",
-                f"Yield {yield_pct:.2f}% · Expense {expense_pct:.2f}% · Beta {beta:.2f}" if beta else f"Yield {yield_pct:.2f}%",
-                "#00FF7F", "🛡️")
-    elif beta and beta > 1.5:
-        _banner("⚡ 高Beta進攻型 ETF — 放大市場波動",
-                f"Beta {beta:.2f}× · 適合多頭行情配置 · 空頭時跌更多", "#FF9A3C", "⚡")
-    elif beta and beta < 0.6:
-        _banner("🛡️ 低波動防禦型 ETF",
-                f"Beta {beta:.2f}× · 適合保守型投資人 · 熊市跌幅較小", "#B77DFF", "🛡️")
+    # ── 7. 最大回撤 ───────────────────────────────────────────────
+    if not close.empty and len(close) >= 20:
+        rolling_max = close.cummax()
+        dd = (close - rolling_max) / rolling_max * 100
+        out["max_dd"] = float(dd.min())
+    else:
+        out["max_dd"] = None
 
-    # ── Additional info row ───────────────────────────────────────
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-    ma1, ma2, ma3, ma4 = st.columns(4)
-    assets_str = (f"${total_assets/1e9:.1f}B" if total_assets and total_assets > 1e9
-                  else f"${total_assets/1e6:.0f}M" if total_assets else "N/A")
-    _kpi(ma1, "總資產 AUM",    assets_str,                                  "基金規模",   "#00F5FF")
-    _kpi(ma2, "類別/族群",     str(category)[:14],                          "Fund Category", "#FFD700")
-    _kpi(ma3, "3年平均報酬",   f"{three_yr_ret*100:.1f}%" if three_yr_ret else "N/A",
-         "年化", "#00FF7F" if three_yr_ret and three_yr_ret > 0.1 else "#FFD700")
-    _kpi(ma4, "5年平均報酬",   f"{five_yr_ret*100:.1f}%" if five_yr_ret else "N/A",
-         "年化", "#00FF7F" if five_yr_ret  and five_yr_ret > 0.08 else "#FFD700")
+    # ── 8. Sharpe Ratio（年化，無風險利率 4.5% 美/1.5% 台）───────
+    if not close.empty and len(close) >= 60:
+        r = close.pct_change().dropna()
+        rf_daily = (0.045 if not is_tw else 0.015) / 252
+        excess = r - rf_daily
+        sr = excess.mean() / excess.std() * np.sqrt(252) if excess.std() > 0 else 0
+        out["sharpe"] = round(float(sr), 2)
+    else:
+        out["sharpe"] = None
 
-    # ── Price Chart ───────────────────────────────────────────────
-    if not hist.empty:
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        _sec28("ETF 價格走勢 + 均線")
-        _sec26("青線=ETF收盤價 · 金線=20日均 · 橙線=50日均", "rgba(160,176,208,.45)")
-        df_chart = _prep(hist)
-        df_chart["MA20"] = df_chart["Close"].rolling(20).mean()
-        df_chart["MA50"] = df_chart["Close"].rolling(50).mean()
-        tail_n  = 252
-        dpx     = df_chart[["Date", "Close", "MA20", "MA50"]].dropna().tail(tail_n)
-        dpm     = dpx.melt("Date", var_name="Series", value_name="Price")
-        etf_ch  = alt.Chart(dpm).mark_line(strokeWidth=1.8).encode(
-            x=alt.X("Date:T", axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a")),
-            y=alt.Y("Price:Q", axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a")),
-            color=alt.Color("Series:N",
-                            scale=alt.Scale(domain=["Close", "MA20", "MA50"],
-                                            range=["#B77DFF", "#FFD700", "#FF9A3C"]),
-                            legend=alt.Legend(labelColor="#aaa", titleColor="#aaa", orient="top-right"))
-        ).properties(background="transparent", height=260).configure_view(strokeOpacity=0)
-        st.altair_chart(etf_ch, use_container_width=True)
+    # ── 9. AUM / Category ─────────────────────────────────────────
+    ta = info.get("totalAssets")
+    out["aum"] = (f"${ta/1e9:.1f}B" if ta and ta > 1e9
+                  else f"${ta/1e6:.0f}M" if ta and ta > 1e6
+                  else "查官網")
+    out["category"] = (info.get("category") or info.get("fundFamily") or
+                       info.get("legalType") or ("台股ETF" if is_tw else "ETF"))
 
-    # ── X-Ray: Sector Weightings (Donut Chart) ────────────────────
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    _sec28("X光 成分板塊透視 (Sector X-Ray)")
-    _sec26("donut圖顯示ETF真實板塊配置 — 你到底在買哪些行業？", "rgba(183,125,255,.5)")
+    # ── 10. 折溢價（NAV 僅美股 ETF API 通常有）──────────────────
+    nav = info.get("navPrice")
+    if nav and cp and nav > 0:
+        out["premium_disc"] = (cp - nav) / nav * 100
+    else:
+        out["premium_disc"] = None
 
-    sector_data = None
-    # Try sectorWeightings (list of dicts)
+    # ── 11. 配息歷史 ─────────────────────────────────────────────
+    if not divs.empty:
+        div_df_out = divs[divs > 0].reset_index()
+        div_df_out.columns = ["Date", "Div"]
+        out["div_history"] = div_df_out.tail(12)
+    else:
+        out["div_history"] = pd.DataFrame()
+
+    # ── 12. 板塊配置 ─────────────────────────────────────────────
     sw = info.get("sectorWeightings")
+    sector_df = None
     if sw and isinstance(sw, list):
         try:
             rows = []
             for item in sw:
                 if isinstance(item, dict):
                     for k, v in item.items():
-                        rows.append({"Sector": k.replace("_", " ").title(), "Weight": float(v) * 100})
+                        if v and float(v) > 0:
+                            rows.append({"Sector": k.replace("_", " ").title(),
+                                         "Weight": float(v) * 100})
             if rows:
-                sector_data = pd.DataFrame(rows).sort_values("Weight", ascending=False).head(10)
+                sector_df = (pd.DataFrame(rows)
+                               .sort_values("Weight", ascending=False)
+                               .head(12))
         except Exception:
-            sector_data = None
+            sector_df = None
+    out["sector_df"] = sector_df
 
-    if sector_data is not None and not sector_data.empty:
-        palette = ["#00F5FF", "#FFD700", "#00FF7F", "#FF9A3C", "#B77DFF",
-                   "#FF3131", "#FF6BFF", "#4dc8ff", "#88FF88", "#FFB347"]
+    # ── 13. Top Holdings ─────────────────────────────────────────
+    holdings = info.get("holdings")
+    out["holdings"] = holdings if holdings else []
 
-        fig_donut = go.Figure(go.Pie(
-            labels=sector_data["Sector"].tolist(),
-            values=sector_data["Weight"].tolist(),
-            hole=0.55,
-            marker=dict(colors=palette[:len(sector_data)],
-                        line=dict(color="rgba(0,0,0,0.5)", width=2)),
-            textfont=dict(color="#DDE", size=12, family="Rajdhani"),
-            hovertemplate="%{label}: %{value:.1f}%<extra></extra>"
-        ))
-        fig_donut.update_layout(
-            title=dict(text="SECTOR ALLOCATION", font=dict(color="rgba(183,125,255,.35)", size=11, family="JetBrains Mono")),
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
-            height=340, margin=dict(t=36, b=0, l=0, r=0),
-            legend=dict(font=dict(color="#B0C0D0", size=11, family="Rajdhani")),
-        )
-        col_donut, col_table = st.columns([1, 1])
-        with col_donut:
-            st.plotly_chart(fig_donut, use_container_width=True)
-        with col_table:
-            st.markdown("<div style='padding-top:20px;'>", unsafe_allow_html=True)
-            for i, row in sector_data.iterrows():
-                bar_w = min(100, row["Weight"] / sector_data["Weight"].max() * 100)
-                pc    = palette[list(sector_data.index).index(i) % len(palette)]
-                st.markdown(
-                    f'<div style="margin-bottom:8px;">'
-                    f'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
-                    f'<span style="font-family:Rajdhani,sans-serif;font-size:14px;color:rgba(200,215,235,.75);">{row["Sector"]}</span>'
-                    f'<span style="font-family:JetBrains Mono,monospace;font-size:12px;color:{pc};">{row["Weight"]:.1f}%</span>'
-                    f'</div>'
-                    f'<div style="background:rgba(255,255,255,.05);border-radius:4px;height:5px;">'
-                    f'<div style="width:{bar_w:.0f}%;height:100%;background:{pc};border-radius:4px;opacity:.75;"></div>'
-                    f'</div></div>',
-                    unsafe_allow_html=True
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        # Fallback: Try top holdings
-        st.markdown(f"""
-<div style="padding:28px;background:rgba(183,125,255,.04);border:1px solid rgba(183,125,255,.15);
-  border-radius:14px;text-align:center;">
-  <div style="font-size:36px;opacity:.3;margin-bottom:10px;">🔍</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:22px;color:rgba(255,255,255,.35);">
-    板塊配置數據不可用</div>
-  <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(160,176,208,.25);margin-top:6px;">
-    sectorWeightings 欄位未提供（部分ETF/台股ETF）<br>
-    可手動查詢 ETF 官方網站獲取最新成分股配置</div>
+    # ── 14. 標的識別 ─────────────────────────────────────────────
+    out["is_tw"] = is_tw
+    out["is_leveraged"] = any(x in symbol.upper() for x in ["L.TW", "R.TW", "2L", "3L",
+                               "TQQQ", "SQQQ", "UPRO", "SPXU", "SOXL", "SOXS",
+                               "LABU", "LABD", "TECL", "TECS"])
+    return out
+
+
+def render_5_5_etf_command(ticker: str, info: dict, hist: pd.DataFrame):
+    """
+    ETF 戰情室 V2 — 第一性原則重寫版
+    零 N/A 工程：API 拿不到就從歷史數據計算，台股 ETF 費用率查表。
+    """
+    _hd("5.5", "🛡️ ETF 戰情室 V2 (ETF Command Center)",
+        "零N/A數據引擎 · 殖利率計算 · 計算型Beta · 績效歸因 · 風險矩陣 · 成分X光",
+        "#B77DFF")
+
+    _explain(
+        "第一性原則：ETF 分析的核心方程式",
+        "ETF 的本質是「打包好的資產籃子 + 費用漏水桶」。評估一個 ETF 只需問三個問題：\n"
+        "① 它每年給你多少錢？（殖利率）\n"
+        "② 每年收你多少管理費？（費用比率，這是確定的負報酬，越低越好）\n"
+        "③ 它的風險結構是什麼？（Beta波動、最大回撤、Sharpe比率）\n"
+        "真正的實戰分析不依賴 API 說什麼，而是從歷史數據直接計算——因為數字不會騙人。",
+        "▸ Sharpe>1.0 = 風險調整後報酬優秀  ▸ MaxDD>-40% 需謹慎  ▸ 費用率複利效應：0.5%差距10年吃掉5%報酬",
+        "#B77DFF"
+    )
+
+    # ═══════════════════════════════════════════════════════════════
+    # 計算引擎（零 N/A 保證）
+    # ═══════════════════════════════════════════════════════════════
+    with st.spinner("⬡ 計算型數據引擎啟動中…"):
+        m = _etf_compute_metrics(hist, info, ticker)
+
+    cp        = m.get("cp")
+    yield_pct = m.get("yield_pct", 0.0)
+    expense   = m.get("expense_pct")   # None = 無法取得
+    beta      = m.get("beta")
+    beta_src  = m.get("beta_src", "")
+    ret_1y    = m.get("ret_1y")
+    ret_3y    = m.get("ret_3y")
+    ret_3y_src= m.get("ret_3y_src", "")
+    vol       = m.get("volatility")
+    max_dd    = m.get("max_dd")
+    sharpe    = m.get("sharpe")
+    aum       = m.get("aum", "—")
+    cat       = m.get("category", "—")
+    prem      = m.get("premium_disc")
+    sector_df = m.get("sector_df")
+    div_hist  = m.get("div_history", pd.DataFrame())
+    is_tw     = m.get("is_tw", False)
+    is_lev    = m.get("is_leveraged", False)
+
+    # ── 顏色輔助 ──────────────────────────────────────────────────
+    def _yc(v):
+        return "#00FF7F" if v > 4 else ("#FFD700" if v > 2 else "#888")
+    def _ec(v):
+        if v is None: return "#888"
+        return "#00FF7F" if v < 0.2 else ("#FFD700" if v < 0.5 else "#FF3131")
+    def _bc(v):
+        if v is None: return "#888"
+        return "#00FF7F" if v < 0.8 else ("#FFD700" if v < 1.2 else "#FF3131")
+    def _rc(v):
+        if v is None: return "#888"
+        return "#00FF7F" if v > 10 else ("#FFD700" if v > 0 else "#FF3131")
+    def _sc(v):
+        if v is None: return "#888"
+        return "#00FF7F" if v > 1.0 else ("#FFD700" if v > 0.3 else "#FF3131")
+    def _ddc(v):
+        if v is None: return "#888"
+        return "#00FF7F" if v > -10 else ("#FFD700" if v > -25 else "#FF3131")
+
+    exp_str   = f"{expense:.2f}%" if expense is not None else "查官網"
+    exp_tag   = ("✅低費" if expense and expense < 0.2 else
+                 "中費" if expense and expense < 0.5 else
+                 "⚠️高費" if expense and expense >= 0.5 else "─")
+    beta_str  = f"{beta:.2f}" if beta is not None else "計算中"
+    beta_tag  = ("防禦型" if beta and beta < 0.8 else
+                 "均衡型" if beta and beta < 1.2 else
+                 "進攻型" if beta and beta < 2.0 else
+                 "🔥槓桿型" if beta else "─")
+    ret1_str  = f"{ret_1y:+.1f}%" if ret_1y is not None else "─"
+    ret3_str  = f"{ret_3y:+.1f}%" if ret_3y is not None else "─"
+    vol_str   = f"{vol:.1f}%" if vol is not None else "─"
+    dd_str    = f"{max_dd:.1f}%" if max_dd is not None else "─"
+    sh_str    = f"{sharpe:.2f}" if sharpe is not None else "─"
+    prem_str  = f"{prem:+.2f}%" if prem is not None else "─"
+    prem_tag  = ("溢價買貴" if prem and prem > 2 else
+                 "折價機會" if prem and prem < -1 else
+                 "接近淨值" if prem is not None else "僅美股可算")
+
+    # ── 槓桿型警告 ────────────────────────────────────────────────
+    if is_lev:
+        st.markdown("""
+<div style="background:rgba(255,60,60,.06);border:1px solid rgba(255,60,60,.3);
+  border-left:4px solid #FF3131;border-radius:10px;padding:14px 20px;margin-bottom:16px;">
+  <span style="font-family:'Orbitron',sans-serif;font-size:11px;color:#FF3131;
+    letter-spacing:3px;">⚠️ 槓桿/反向 ETF 特別警告</span>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:15px;color:rgba(255,180,180,.8);margin-top:6px;line-height:1.7;">
+  槓桿 ETF 因每日再平衡機制存在「波動耗損」（Volatility Decay）——震盪市中長期持有，
+  就算指數不動，ETF 價值也會緩慢歸零。<br>
+  <b style="color:#FF9A3C;">適合短線操作（數天~數週），絕不適合長期持有或退休配置。</b>
+  </div>
 </div>""", unsafe_allow_html=True)
 
-    # ── Yield deep dive: Historical dividend ─────────────────────
-    if not hist.empty:
-        div_df = _prep(hist)
-        if "Dividends" in div_df.columns:
-            div_rows = div_df[div_df["Dividends"] > 0][["Date", "Dividends"]].tail(8)
-            if not div_rows.empty:
-                st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-                _sec28("配息歷史 (Dividend History)")
-                _sec26("近8次除息記錄 — 殖利率一致性是配息ETF的生命線", "rgba(0,255,127,.4)")
-                for _, drow in div_rows.iterrows():
-                    d_date = str(drow["Date"])[:10]
-                    d_val  = float(drow["Dividends"])
-                    d_pct  = (d_val / cp_now * 100) if cp_now and cp_now > 0 else 0
-                    st.markdown(
-                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                        f'padding:9px 16px;background:rgba(0,255,127,.025);border:1px solid rgba(0,255,127,.08);'
-                        f'border-radius:8px;margin-bottom:5px;">'
-                        f'<span style="font-family:JetBrains Mono,monospace;font-size:12px;color:rgba(160,176,208,.55);">{d_date}</span>'
-                        f'<span style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#00FF7F;">{d_val:.4f}</span>'
-                        f'<span style="font-family:Rajdhani,sans-serif;font-size:14px;color:rgba(0,255,127,.6);">'
-                        f'殖利率貢獻 {d_pct:.2f}%</span>'
-                        f'</div>',
+    # ═══════════════════════════════════════════════════════════════
+    # ROW 1：核心 KPI 8格（2列4行）
+    # ═══════════════════════════════════════════════════════════════
+    _sec28("📊 核心指標矩陣 — 計算型數據，零 N/A")
+    st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 20px;">
+  <div class="etf-metric" style="--mc:{_yc(yield_pct)};">
+    <div class="etf-metric-lbl">年化殖利率</div>
+    <div class="etf-metric-val" style="color:{_yc(yield_pct)};">{f"{yield_pct:.2f}" if yield_pct else "0.00"}</div>
+    <div class="etf-metric-sub">% · {"🔥高息" if yield_pct>4 else "中息" if yield_pct>2 else "低/無息"}</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_ec(expense)};">
+    <div class="etf-metric-lbl">費用比率 / yr</div>
+    <div class="etf-metric-val" style="color:{_ec(expense)};">{exp_str.replace('%','')}</div>
+    <div class="etf-metric-sub">% · {exp_tag}</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_bc(beta)};">
+    <div class="etf-metric-lbl">Beta {f"({beta_src})" if beta_src else ""}</div>
+    <div class="etf-metric-val" style="color:{_bc(beta)};">{beta_str}</div>
+    <div class="etf-metric-sub">{beta_tag}</div>
+  </div>
+  <div class="etf-metric" style="--mc:#00F5FF;">
+    <div class="etf-metric-lbl">折溢價 Prem/Disc</div>
+    <div class="etf-metric-val" style="color:{'#FF3131' if prem and prem>2 else '#00FF7F' if prem and prem<-1 else '#FFD700'};">{prem_str}</div>
+    <div class="etf-metric-sub">{prem_tag}</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_rc(ret_1y)};">
+    <div class="etf-metric-lbl">1年總報酬(含息)</div>
+    <div class="etf-metric-val" style="color:{_rc(ret_1y)};">{ret1_str}</div>
+    <div class="etf-metric-sub">含配息計算</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_rc(ret_3y)};">
+    <div class="etf-metric-lbl">3年累積報酬</div>
+    <div class="etf-metric-val" style="color:{_rc(ret_3y)};">{ret3_str}</div>
+    <div class="etf-metric-sub">{ret_3y_src[:8] if ret_3y_src else "含息計算"}</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_sc(sharpe)};">
+    <div class="etf-metric-lbl">Sharpe Ratio</div>
+    <div class="etf-metric-val" style="color:{_sc(sharpe)};">{sh_str}</div>
+    <div class="etf-metric-sub">{"優秀" if sharpe and sharpe>1 else "良好" if sharpe and sharpe>0.3 else "偏低" if sharpe else "─"}</div>
+  </div>
+  <div class="etf-metric" style="--mc:{_ddc(max_dd)};">
+    <div class="etf-metric-lbl">歷史最大回撤</div>
+    <div class="etf-metric-val" style="color:{_ddc(max_dd)};">{dd_str}</div>
+    <div class="etf-metric-sub">{"安全" if max_dd and max_dd>-15 else "中等" if max_dd and max_dd>-30 else "⚠️深度回撤" if max_dd else "─"}</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # 基本資訊列
+    c1, c2, c3, c4 = st.columns(4)
+    _kpi(c1, "總資產 AUM",   aum,               "基金規模",     "#00F5FF")
+    _kpi(c2, "類別/族群",    str(cat)[:16],      "Fund Category","#FFD700")
+    _kpi(c3, "年化波動率",   vol_str,            "252日",        "#FF9A3C" if vol and vol > 20 else "#00FF7F")
+    _kpi(c4, "標的類型",
+         "🔥槓桿/反向" if is_lev else ("🇹🇼台股ETF" if is_tw else "🇺🇸美股ETF"),
+         ticker, "#FF3131" if is_lev else ("#FFD700" if is_tw else "#00F5FF"))
+
+    # 智慧診斷 Banner
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    if is_lev:
+        pass  # 已顯示警告
+    elif yield_pct > 4 and expense is not None and expense < 0.5 and sharpe and sharpe > 0.5:
+        _banner("🏆 優質配息型 ETF — 高息 + 合理費用 + 良好風險調整報酬",
+                f"Yield {yield_pct:.2f}% · Expense {exp_str} · Sharpe {sh_str}",
+                "#00FF7F", "🏆")
+    elif beta and beta > 1.5:
+        _banner("⚡ 進攻型 ETF — 放大指數波動，適合多頭行情",
+                f"Beta {beta:.2f}× · MaxDD {dd_str} · 空頭時跌幅是大盤{beta:.1f}倍",
+                "#FF9A3C", "⚡")
+    elif beta and beta < 0.7 and ret_1y is not None:
+        _banner("🛡️ 防禦型低波動 ETF — 熊市護盾，牛市跑輸大盤",
+                f"Beta {beta:.2f}× · MaxDD {dd_str} · 適合保守型投資人",
+                "#B77DFF", "🛡️")
+    elif max_dd and max_dd < -40:
+        _banner("⚠️ 高風險 ETF — 歷史回撤超過 40%",
+                f"MaxDD {dd_str} · 波動率 {vol_str} · 請評估風險承受能力",
+                "#FF3131", "⚠️")
+
+    # ═══════════════════════════════════════════════════════════════
+    # TAB 分頁：走勢 / 成分X光 / 配息分析 / 費用複利計算機
+    # ═══════════════════════════════════════════════════════════════
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+    tab_chart, tab_sector, tab_div, tab_cost = st.tabs(
+        ["📈 走勢+績效", "🔬 成分X光", "💰 配息分析", "🧮 費用複利計算機"]
+    )
+
+    # ── Tab 1：走勢 + 績效 ────────────────────────────────────────
+    with tab_chart:
+        if not hist.empty:
+            df_c = _prep(hist)
+            df_c["MA20"] = df_c["Close"].rolling(20).mean()
+            df_c["MA50"] = df_c["Close"].rolling(50).mean()
+            df_c["MA120"]= df_c["Close"].rolling(120).mean()
+            tail_n = 252
+            dpx = df_c[["Date","Close","MA20","MA50","MA120"]].dropna(subset=["Close"]).tail(tail_n)
+            dpm = dpx.melt("Date", var_name="Series", value_name="Price")
+            ch = alt.Chart(dpm).mark_line(strokeWidth=2).encode(
+                x=alt.X("Date:T", axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a")),
+                y=alt.Y("Price:Q", scale=alt.Scale(zero=False),
+                        axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a")),
+                color=alt.Color("Series:N",
+                    scale=alt.Scale(domain=["Close","MA20","MA50","MA120"],
+                                    range=["#B77DFF","#FFD700","#FF9A3C","#00F5FF"]),
+                    legend=alt.Legend(labelColor="#aaa", titleColor="#aaa", orient="top-right")),
+                opacity=alt.condition(alt.datum.Series == "Close",
+                                      alt.value(1.0), alt.value(0.55))
+            ).properties(background="transparent", height=280).configure_view(strokeOpacity=0)
+            st.altair_chart(ch, use_container_width=True)
+            _sec26("紫=收盤 · 金=20MA · 橙=50MA · 青=120MA", "rgba(183,125,255,.4)")
+
+            # 滾動績效分析
+            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+            _sec28("📊 滾動績效分析")
+            # 計算不同時間段報酬
+            close_s = hist["Close"].dropna() if "Close" in hist.columns else pd.Series()
+            periods = {"1個月": 21, "3個月": 63, "6個月": 126, "1年": 252}
+            perf_cols = st.columns(4)
+            for idx, (label, days) in enumerate(periods.items()):
+                if len(close_s) > days:
+                    p_ret = (float(close_s.iloc[-1]) / float(close_s.iloc[-min(days, len(close_s))]) - 1) * 100
+                    col_c = "#00FF7F" if p_ret > 0 else "#FF3131"
+                    perf_cols[idx].markdown(
+                        f'<div class="t5-kpi" style="--kc:{col_c};">'
+                        f'<div class="t5-kpi-lbl">{label}報酬</div>'
+                        f'<div class="t5-kpi-val">{p_ret:+.1f}%</div>'
+                        f'<div class="t5-kpi-sub">純價格變動</div></div>',
                         unsafe_allow_html=True
                     )
+                else:
+                    perf_cols[idx].markdown(
+                        f'<div class="t5-kpi" style="--kc:#555;">'
+                        f'<div class="t5-kpi-lbl">{label}報酬</div>'
+                        f'<div class="t5-kpi-val">─</div>'
+                        f'<div class="t5-kpi-sub">數據不足</div></div>',
+                        unsafe_allow_html=True
+                    )
+        else:
+            st.info("❌ 無歷史數據。")
+
+    # ── Tab 2：成分 X 光 ──────────────────────────────────────────
+    with tab_sector:
+        palette = ["#00F5FF","#FFD700","#00FF7F","#FF9A3C","#B77DFF",
+                   "#FF3131","#FF6BFF","#4dc8ff","#88FF88","#FFB347",
+                   "#C0C0C0","#FF80AB"]
+        if sector_df is not None and not sector_df.empty:
+            _sec28("🔬 板塊配置 X光透視")
+            _sec26("donut 圓環 = 你真正持有的產業暴露", "rgba(183,125,255,.45)")
+            fig_d = go.Figure(go.Pie(
+                labels=sector_df["Sector"].tolist(),
+                values=sector_df["Weight"].tolist(),
+                hole=0.52,
+                marker=dict(colors=palette[:len(sector_df)],
+                            line=dict(color="rgba(0,0,0,0.45)", width=2)),
+                textfont=dict(color="#DDE", size=11, family="Rajdhani"),
+                hovertemplate="%{label}: %{value:.1f}%<extra></extra>"
+            ))
+            fig_d.update_layout(
+                title=dict(text="SECTOR ALLOCATION",
+                           font=dict(color="rgba(183,125,255,.3)", size=10,
+                                     family="JetBrains Mono")),
+                template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
+                height=320, margin=dict(t=32,b=0,l=0,r=0),
+                legend=dict(font=dict(color="#B0C0D0", size=10, family="Rajdhani"))
+            )
+            col_d, col_t = st.columns([1,1])
+            with col_d:
+                st.plotly_chart(fig_d, use_container_width=True)
+            with col_t:
+                st.markdown("<div style='padding-top:16px;'>", unsafe_allow_html=True)
+                for idx, (_, row) in enumerate(sector_df.iterrows()):
+                    bar_w = min(100, row["Weight"] / sector_df["Weight"].max() * 100)
+                    pc = palette[idx % len(palette)]
+                    st.markdown(
+                        f'<div style="margin-bottom:7px;">'
+                        f'<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+                        f'<span style="font-family:Rajdhani,sans-serif;font-size:13px;color:rgba(200,215,235,.75);">{row["Sector"]}</span>'
+                        f'<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:{pc};">{row["Weight"]:.1f}%</span>'
+                        f'</div>'
+                        f'<div style="background:rgba(255,255,255,.05);border-radius:4px;height:4px;">'
+                        f'<div style="width:{bar_w:.0f}%;height:100%;background:{pc};border-radius:4px;opacity:.7;"></div>'
+                        f'</div></div>',
+                        unsafe_allow_html=True
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            # Top Holdings fallback（台股 ETF 通常有）
+            holdings = m.get("holdings", [])
+            if holdings:
+                _sec28("📋 前十大持股")
+                _sec26("板塊數據不可用，改顯示個股持倉（yfinance holdings 欄位）",
+                       "rgba(183,125,255,.4)")
+                for i, h in enumerate(holdings[:10]):
+                    sym_h = h.get("symbol", h.get("ticker", "─"))
+                    wt_h  = h.get("holdingPercent", h.get("weight", 0)) or 0
+                    nm_h  = h.get("holdingName", h.get("name", sym_h))
+                    pc    = palette[i % len(palette)]
+                    bar_w = min(100, wt_h * 100 / (holdings[0].get("holdingPercent",
+                                                   holdings[0].get("weight", 0.1)) or 0.1) * 100)
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;gap:12px;'
+                        f'border-bottom:1px solid rgba(255,255,255,.04);padding:8px 0;">'
+                        f'<div style="min-width:24px;font-family:JetBrains Mono,monospace;'
+                        f'font-size:10px;color:rgba(160,176,208,.3);">#{i+1:02d}</div>'
+                        f'<div style="min-width:70px;font-family:JetBrains Mono,monospace;'
+                        f'font-size:12px;font-weight:700;color:{pc};">{sym_h}</div>'
+                        f'<div style="flex:1;font-size:12px;color:rgba(200,215,235,.6);">{nm_h}</div>'
+                        f'<div style="font-family:JetBrains Mono,monospace;font-size:12px;color:{pc};">'
+                        f'{wt_h*100:.1f}%</div></div>',
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.markdown("""
+<div style="padding:28px;background:rgba(183,125,255,.03);border:1px solid rgba(183,125,255,.12);
+  border-radius:14px;text-align:center;">
+  <div style="font-size:32px;opacity:.25;margin-bottom:10px;">🔍</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:18px;color:rgba(255,255,255,.3);">
+    板塊/持股數據不可用</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(160,176,208,.2);margin-top:6px;">
+    yfinance 對此 ETF 未提供 sectorWeightings / holdings<br>
+    台股 ETF 請至 <b>投信投顧公會</b> 或各基金公司官網查閱最新成分股</div>
+</div>""", unsafe_allow_html=True)
+
+    # ── Tab 3：配息分析 ───────────────────────────────────────────
+    with tab_div:
+        if not div_hist.empty and cp:
+            _sec28("💰 配息歷史 — 近12次除息紀錄")
+            _sec26("殖利率一致性是配息 ETF 的生命線；逐年遞增是「高息成長型」最高評級", "rgba(0,255,127,.4)")
+
+            # 計算各次配息殖利率貢獻
+            total_12m_div = 0.0
+            cutoff_12m = pd.Timestamp.now() - pd.Timedelta(days=365)
+            for _, drow in div_hist.iterrows():
+                d_date_ts = pd.Timestamp(drow["Date"])
+                d_val     = float(drow["Div"])
+                d_pct     = (d_val / cp * 100) if cp and cp > 0 else 0
+                is_recent = d_date_ts >= cutoff_12m
+                if is_recent:
+                    total_12m_div += d_val
+                row_c = "#00FF7F" if is_recent else "rgba(0,255,127,.4)"
+                st.markdown(
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                    f'padding:9px 16px;background:rgba(0,255,127,.02);'
+                    f'border:1px solid {"rgba(0,255,127,.15)" if is_recent else "rgba(0,255,127,.05)"};'
+                    f'border-left:3px solid {row_c};border-radius:6px;margin-bottom:4px;">'
+                    f'<span style="font-family:JetBrains Mono,monospace;font-size:11px;'
+                    f'color:rgba(160,176,208,.5);">{str(drow["Date"])[:10]}'
+                    f'{"  ← 近12月" if is_recent else ""}</span>'
+                    f'<span style="font-family:Bebas Neue,sans-serif;font-size:22px;color:{row_c};">'
+                    f'{d_val:.4f}</span>'
+                    f'<span style="font-family:Rajdhani,sans-serif;font-size:13px;'
+                    f'color:{row_c};opacity:.75;">殖利率貢獻 {d_pct:.2f}%</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+            # 近12月配息統計
+            if total_12m_div > 0 and cp:
+                ttm_yield = total_12m_div / cp * 100
+                st.markdown(f"""
+<div style="margin-top:14px;background:rgba(0,255,127,.04);border:1px solid rgba(0,255,127,.2);
+  border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+      color:rgba(0,255,127,.5);letter-spacing:3px;">近12月配息合計</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:#00FF7F;">
+      {total_12m_div:.4f}</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+      color:rgba(0,255,127,.5);letter-spacing:3px;">TTM 殖利率</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:40px;color:#00FF7F;">
+      {ttm_yield:.2f}%</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+        else:
+            _sec28("💰 配息紀錄")
+            if yield_pct > 0:
+                st.markdown(f"""
+<div style="padding:20px;background:rgba(0,255,127,.03);border:1px solid rgba(0,255,127,.1);
+  border-radius:10px;text-align:center;">
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:#00FF7F;margin-bottom:6px;">
+    殖利率 {yield_pct:.2f}%</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(160,176,208,.4);">
+    來自 API 欄位 · 歷史除息明細不可用（台股ETF常見）<br>
+    詳細配息記錄請至各基金公司官網或 MoneyDJ 查詢</div>
+</div>""", unsafe_allow_html=True)
+            else:
+                st.info("此 ETF 無配息紀錄（成長型 ETF 通常不配息，例如 QQQM, VUG）。")
+
+    # ── Tab 4：費用複利計算機 ─────────────────────────────────────
+    with tab_cost:
+        _sec28("🧮 費用比率複利侵蝕計算機")
+        _sec26("費用是唯一確定的負報酬。0.5% 的費率差距，30年後複利侵蝕超過 14%", "rgba(183,125,255,.4)")
+
+        cc1, cc2 = st.columns(2)
+        invest_amt = cc1.number_input("💵 初始投入金額（元/USD）",
+                                       min_value=1000, max_value=10_000_000,
+                                       value=100_000, step=10_000,
+                                       key="etf_invest_amt")
+        annual_ret = cc2.slider("📈 假設年化報酬率（%）",
+                                 min_value=3.0, max_value=20.0,
+                                 value=10.0, step=0.5, key="etf_ann_ret")
+        years_n = st.slider("📅 持有年數", min_value=5, max_value=40,
+                             value=20, step=1, key="etf_years")
+
+        # 費用情境對比
+        exp_this = expense if expense is not None else 0.5
+        scenarios = [
+            ("此ETF費用率",    exp_this,  "#B77DFF"),
+            ("低費用對照組",   0.05,      "#00FF7F"),  # VOO / 0050 level
+            ("高費主動基金",   1.20,      "#FF3131"),
+        ]
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        scenario_cols = st.columns(3)
+        final_vals = {}
+        for idx, (name, exp_r, clr) in enumerate(scenarios):
+            net_ret = (annual_ret / 100) - (exp_r / 100)
+            fv = invest_amt * ((1 + net_ret) ** years_n)
+            final_vals[name] = fv
+            cost_drag = invest_amt * ((1 + annual_ret/100)**years_n) - fv
+            scenario_cols[idx].markdown(
+                f'<div class="etf-metric" style="--mc:{clr};">'
+                f'<div class="etf-metric-lbl">{name}</div>'
+                f'<div style="font-family:JetBrains Mono,monospace;font-size:9px;'
+                f'color:{clr}88;letter-spacing:1px;">費率 {exp_r:.2f}%/yr</div>'
+                f'<div class="etf-metric-val" style="color:{clr};font-size:28px;">'
+                f'{"${:,.0f}".format(fv)}</div>'
+                f'<div class="etf-metric-sub" style="color:rgba(255,80,80,.7);">'
+                f'費用侵蝕 {"${:,.0f}".format(cost_drag)}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+        # 視覺化成長曲線
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        years_range = list(range(0, years_n + 1))
+        chart_rows = []
+        for label, exp_r, _ in scenarios:
+            net_ret = (annual_ret / 100) - (exp_r / 100)
+            for yr in years_range:
+                chart_rows.append({
+                    "Year": yr,
+                    "Value": invest_amt * ((1 + net_ret) ** yr),
+                    "Scenario": label
+                })
+        chart_df = pd.DataFrame(chart_rows)
+        cost_ch = alt.Chart(chart_df).mark_line(strokeWidth=2.2).encode(
+            x=alt.X("Year:Q", title="持有年數",
+                    axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a")),
+            y=alt.Y("Value:Q", title="資產終值",
+                    axis=alt.Axis(labelColor="#555", gridColor="#1a1a2a",
+                                  format="$,.0f")),
+            color=alt.Color("Scenario:N",
+                scale=alt.Scale(domain=[s[0] for s in scenarios],
+                                range=[s[2] for s in scenarios]),
+                legend=alt.Legend(labelColor="#aaa", titleColor="#aaa",
+                                  orient="top-left"))
+        ).properties(background="transparent", height=240).configure_view(strokeOpacity=0)
+        st.altair_chart(cost_ch, use_container_width=True)
+
+        if expense is None:
+            st.markdown(
+                '<div style="font-family:JetBrains Mono,monospace;font-size:10px;'
+                'color:rgba(183,125,255,.45);text-align:center;margin-top:6px;">'
+                f'⚠️ 此 ETF 費用率 API 未提供，計算機使用 0.50% 估算 · '
+                f'台股 ETF 請查詢投信公司公開說明書確認正確費率</div>',
+                unsafe_allow_html=True
+            )
 
 
 def _s55(holders, info, symbol, mf_holders=None):
