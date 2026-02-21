@@ -2599,6 +2599,12 @@ def _s63():
             ("🧬 生物科技（AI 藥物研發 + 精準醫療）", "#FF6B6B",
              "AI 將藥物研發時間從 12 年壓縮至 3 年，成本下降 80%。RNA 療法、個人化癌症治療、"
              "長壽科技。第一性原則：人類最大的恐懼是死亡，能延長高質量壽命的技術擁有無限定價權。"),
+            ("🌐 AI 物理化實踐（AI Physicalization）", "#E040FB",
+             "AI 不只活在伺服器裡。它正在滲透進每一個物理世界的節點：自動駕駛、智慧工廠、AI 眼鏡、"
+             "AI 手機、智慧電網、精準農業。這一波百倍股的邏輯不是「誰做出最強的模型」，"
+             "而是「誰把 AI 能力最深度嵌入一個每天被數十億人使用的物理場景」。"
+             "Tesla 當年的邏輯正是如此——不是最快的電動車，而是把軟體定義汽車物理化。"
+             "第一性原則：模型的價值由部署規模決定，物理世界才是 AI 最終的戰場。"),
         ]
         for title, color, desc in tracks:
             st.markdown(f"""<div style="background:rgba(255,255,255,.02);border-left:4px solid {color};
@@ -2657,6 +2663,39 @@ def _s63():
                 st.markdown(f'<div class="bgf" style="border-left-color:{color};">計分規則：{scoring}</div>', unsafe_allow_html=True)
 
         st.divider()
+        st.markdown('<div class="bg28">🔴 燒錢公司特別說明（Pre-Profit Mode）</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">許多歷史上最偉大的百倍股，在被發現的早期都是虧損的。用傳統 EPS 框架分析它們，只會得出「別碰」的結論。</div>', unsafe_allow_html=True)
+
+        col_pp1, col_pp2 = st.columns(2)
+        with col_pp1:
+            st.markdown("""<div class="bgcard" style="border-color:rgba(255,107,107,.25)">
+            <div class="bg26c" style="color:#FF6B6B;">📌 歷史案例</div>
+            <div class="bg26" style="margin-top:8px;">
+            • <b>Tesla（2018–2019）</b>：EPS 大幅虧損，但毛利率提升、交車量加速。誰看 EPS 就錯過了 100 倍。<br>
+            • <b>Palantir（PLTR 2020–2021）</b>：上市時虧損，但政府合約黏性極高、商業客戶加速。<br>
+            • <b>Amazon（1999–2002）</b>：燒錢燒了整個網路泡沫，但毛利率和用戶留存從未動搖。<br>
+            • <b>Netflix（2010–2013）</b>：大量投入內容，EPS 極低，但訂閱人數加速是真實信號。
+            </div></div>""", unsafe_allow_html=True)
+        with col_pp2:
+            st.markdown("""<div class="bgcard" style="border-color:rgba(0,255,157,.2)">
+            <div class="bg26c" style="color:#00FF9D;">📐 燒錢公司的正確評估框架</div>
+            <div class="bg26" style="margin-top:8px;">
+            燒錢不是問題，<b>燒的方式</b>才是關鍵：<br><br>
+            ✅ <b>好的燒錢</b>：毛利率高且提升 → 規模化後自然盈利<br>
+            ✅ <b>好的燒錢</b>：營收加速成長 → 每一分錢都在換客戶<br>
+            ✅ <b>好的燒錢</b>：高客戶黏性（NDR > 120%）→ 留住的客戶越來越值錢<br>
+            ❌ <b>壞的燒錢</b>：毛利率低且下降 → 商業模式根本不成立<br>
+            ❌ <b>壞的燒錢</b>：營收成長放緩 → 市場在收縮<br>
+            ❌ <b>壞的燒錢</b>：現金跑道 < 18 個月 → 稀釋風險
+            </div></div>""", unsafe_allow_html=True)
+
+        st.markdown('<div class="bgf">🔧 本系統偵測到 EPS < 0 時自動切換為「燒錢替代計分法」：<br>'
+                    'D1 → 用毛利率代替 ROE（驗證商業模式可行性）<br>'
+                    'D6 → 用 P/S 比率代替 FCF Margin（評估估值是否合理）<br>'
+                    'D7 → 用 P/S÷成長率代替 PEG（替代安全邊際計算）<br>'
+                    '100x 估算 → 純用營收 CAGR×0.7（含不確定性折扣，盈利後可上修）</div>', unsafe_allow_html=True)
+
+        st.divider()
         st.markdown('<div class="bgw">⚠️ 重要警告：百倍股需要 7–20 年的持有期。本工具是「識別潛力」的雷達，'
                     '不是「預測短期漲跌」的工具。找到 DNA ≥ 65 分的公司後，'
                     '下一步是深度研究其護城河可持續性、創辦人是否仍在主導公司、'
@@ -2673,6 +2712,7 @@ def _s63():
         ("⚡ AI 基礎設施", "成長加速期 🚀", "#FF4500", "機構持倉仍低，TAM 剛開始擴張，PE 擴張空間仍存在"),
         ("☢️ 核能 / SMR",  "黎明早期 🌅",  "#FFD700", "多數機構仍迴避，政策拐點已現，最佳佈局窗口"),
         ("🤖 機器人 / 具身AI","黎明期 🌅",  "#FFD700", "技術突破剛發生，商業化仍早期，高風險高潛力"),
+        ("🌐 AI 物理化實踐","黎明加速 🌅🚀","#E040FB", "AI 嵌入物理場景剛開始，Tesla/PLTR 模式複製中，PE 擴張最強烈"),
         ("🛡️ 國防 / 無人機", "成長早期 📈", "#ADFF2F", "地緣驅動持續，但部分標的估值已反映預期"),
         ("🧬 AI 生物科技",   "萌芽期 🌱",   "#00BFFF", "技術驗證仍早，需 3–5 年，極高風險極高潛力"),
         ("🏭 工業自動化",    "成長期 📈",   "#ADFF2F", "政策補貼驅動，但週期性風險存在"),
@@ -2700,6 +2740,7 @@ def _s63():
         "⚡ AI 算力": "NVDA, AMD, AVGO, ARM, SMCI, ALAB",
         "☢️ 核能/SMR": "CEG, VST, NNE, OKLO, SMR",
         "🤖 機器人": "TSLA, ISRG, RXRX, ACMR, BDTX",
+        "🌐 AI 物理化": "TSLA, PLTR, AAPL, GOOGL, META, SOUN",
         "🛡️ 國防太空": "RKLB, LUNR, PLTR, HII, ACHR",
         "🇹🇼 台股潛力": "3529.TW, 2382.TW, 6531.TW, 3231.TW, 6550.TW",
     }
@@ -2764,11 +2805,23 @@ def _s63():
                     fwd_pe       = _g("forwardPE")
                     trail_pe     = _g("trailingPE")
                     price        = _g("currentPrice", _g("regularMarketPrice"))
+                    ps_ratio     = _g("priceToSalesTrailing12Months")   # P/S for pre-profit
+                    eps_trail    = _g("trailingEps")                     # detect pre-profit
 
-                    # ── D1: ROE 引擎 (30) ──
-                    d1 = 30 if roe > 0.25 else 22 if roe > 0.20 else 12 if roe > 0.15 else 5 if roe > 0.10 else 0
+                    # ── 判斷是否為「燒錢 / 預盈利」公司 ──
+                    # 條件：EPS < 0 或 ROE < 0（虧損）且 trailingPE 不存在
+                    is_pre_profit = (eps_trail < 0) or (roe < 0 and trail_pe == 0)
 
-                    # ── D2: 營收加速度 (25) ──
+                    # ── D1: ROE 引擎 OR 燒錢替代指標 ──
+                    if is_pre_profit:
+                        # 燒錢公司：用「毛利率改善軌跡」+ 「現金跑道代理」替代 ROE
+                        # 高毛利率說明商業模式可行，只是尚未規模化
+                        # 我們把最高分降至 20（因為不確定性更高）
+                        d1 = 20 if gross_margin > 0.60 else 14 if gross_margin > 0.40 else 8 if gross_margin > 0.20 else 0
+                    else:
+                        d1 = 30 if roe > 0.25 else 22 if roe > 0.20 else 12 if roe > 0.15 else 5 if roe > 0.10 else 0
+
+                    # ── D2: 營收加速度 (25) — 對燒錢公司更重要，權重不變 ──
                     d2 = 25 if rev_growth > 0.30 else 18 if rev_growth > 0.20 else 10 if rev_growth > 0.10 else 4 if rev_growth > 0.05 else 0
 
                     # ── D3: 毛利護城河 (20) ──
@@ -2781,14 +2834,24 @@ def _s63():
                     else:
                         d4 = 15 if mkt_cap_b < 0.5 else 12 if mkt_cap_b < 3 else 7 if mkt_cap_b < 15 else 3 if mkt_cap_b < 50 else 0
 
-                    # ── D5: 再投資力 (5) ──
+                    # ── D5: 再投資力 (5) — 燒錢公司幾乎必然 0 配息，自動得滿分 ──
                     d5 = 5 if div_yield < 0.005 else 3 if div_yield < 0.02 else 1 if div_yield < 0.04 else 0
 
-                    # ── D6: 盈利品質 (3) ──
-                    d6 = 3 if fcf_pct > 0.15 else 1 if fcf_pct > 0.05 else 0
+                    # ── D6: 盈利品質 OR 現金跑道代理 (3) ──
+                    if is_pre_profit:
+                        # 燒錢公司：用 P/S 比率評估「市場給的信任溢價」是否合理
+                        # P/S < 10 代表估值相對保守（對高成長公司而言），給分
+                        d6 = 3 if (ps_ratio > 0 and ps_ratio < 5) else 2 if (ps_ratio > 0 and ps_ratio < 15) else 1 if rev_growth > 0.30 else 0
+                    else:
+                        d6 = 3 if fcf_pct > 0.15 else 1 if fcf_pct > 0.05 else 0
 
-                    # ── D7: 安全邊際 (2) ──
-                    d7 = 2 if (peg > 0 and peg < 0.5) else 1 if (peg > 0 and peg < 1.0) else 0
+                    # ── D7: 安全邊際 (2) — 燒錢公司 PEG 無意義，改用 P/S vs 成長率 ──
+                    if is_pre_profit:
+                        # 燒錢替代：若 P/S < 2× 營收成長率（%），視為有安全邊際
+                        ps_growth_ratio = ps_ratio / (rev_growth * 100) if (ps_ratio > 0 and rev_growth > 0) else 999
+                        d7 = 2 if ps_growth_ratio < 0.3 else 1 if ps_growth_ratio < 0.7 else 0
+                    else:
+                        d7 = 2 if (peg > 0 and peg < 0.5) else 1 if (peg > 0 and peg < 1.0) else 0
 
                     total = min(d1+d2+d3+d4+d5+d6+d7, 100)
 
@@ -2798,8 +2861,13 @@ def _s63():
                     elif total >= 35: grade, gcolor = "⚖️ 觀察名單",   "#00BFFF"
                     else:             grade, gcolor = "❄️ 不符條件",   "#808080"
 
-                    cagr_est = rev_growth * 0.6 + roe * 0.4 if (rev_growth > 0 and roe > 0) else None
-                    yrs100   = _math.log(100) / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
+                    # ── 100x 路徑估算（燒錢公司用營收 CAGR 代替 ROE） ──
+                    if is_pre_profit:
+                        # 燒錢模式：純用營收成長率估算，但加入不確定性折扣 0.7
+                        cagr_est = rev_growth * 0.7 if rev_growth > 0 else None
+                    else:
+                        cagr_est = rev_growth * 0.6 + roe * 0.4 if (rev_growth > 0 and roe > 0) else None
+                    yrs100 = _math.log(100) / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
 
                     results.append(dict(
                         sym=sym, name=name_s, industry=industry_s, currency=currency,
@@ -2807,6 +2875,7 @@ def _s63():
                         roe=roe, rev_growth=rev_growth, gross_margin=gross_margin,
                         op_margin=op_margin, fcf_pct=fcf_pct, div_yield=div_yield,
                         peg=peg, pe=(fwd_pe if fwd_pe > 0 else trail_pe),
+                        ps_ratio=ps_ratio, is_pre_profit=is_pre_profit,
                         d1=d1, d2=d2, d3=d3, d4=d4, d5=d5, d6=d6, d7=d7,
                         total=total, grade=grade, gcolor=gcolor,
                         yrs100=yrs100, cagr_est=cagr_est,
@@ -2841,14 +2910,16 @@ def _s63():
     for r in results:
         cur = r['currency']
         cap = f"{r['mkt_cap_b']:.1f}B {cur}" if r['mkt_cap_b'] > 0 else "N/A"
+        mode_tag = "🔴 燒錢模式" if r.get('is_pre_profit') else "🟢 盈利模式"
         rows.append({
             "代號": r['sym'], "公司": r['name'],
+            "模式": mode_tag,
             "DNA 分數": r['total'], "等級": r['grade'],
-            "ROE": f"{r['roe']:.1%}"             if r['roe']         else "N/A",
+            "ROE": f"{r['roe']:.1%}"             if r['roe'] and not r.get('is_pre_profit') else ("虧損" if r.get('is_pre_profit') else "N/A"),
             "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth']   else "N/A",
             "毛利率": f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A",
             "市值": cap,
-            "PEG": f"{r['peg']:.2f}"              if r['peg'] and r['peg']>0 else "N/A",
+            "PEG/PS": f"PS:{r['ps_ratio']:.1f}"  if r.get('is_pre_profit') and r.get('ps_ratio',0)>0 else (f"{r['peg']:.2f}" if r['peg'] and r['peg']>0 else "N/A"),
             "100x估算": f"~{r['yrs100']:.0f}年"   if r['yrs100'] and r['yrs100']<50 else "待評估",
         })
     df_tbl = pd.DataFrame(rows)
@@ -2882,6 +2953,18 @@ def _s63():
         gc   = r['gcolor']
         sc   = r['total']
         with st.expander(f"**{r['sym']}** — {r['grade']} ({sc}/100) · {r['name']}", expanded=(sc>=65)):
+
+            # ── 燒錢模式警示橫幅 ──
+            if r.get('is_pre_profit'):
+                st.markdown(f"""<div style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.3);
+                border-radius:8px;padding:10px 16px;margin-bottom:10px;">
+                <span style="font-size:22px;font-weight:800;color:#FF6B6B;">🔴 預盈利模式（Pre-Profit Mode）</span>
+                <span style="font-size:20px;color:rgba(200,210,220,.7);margin-left:10px;">
+                — EPS 為負，採用「燒錢替代計分法」（Tesla 2018、PLTR 2020 均屬此類）</span><br>
+                <span style="font-size:20px;color:rgba(180,190,210,.55);">
+                D1 以毛利率代替 ROE ｜ D6 以 P/S 估值合理性代替 FCF ｜ D7 以 P/S÷成長率代替 PEG ｜
+                100x 估算僅用營收 CAGR×0.7（含不確定折扣）</span>
+                </div>""", unsafe_allow_html=True)
 
             ca, cb, cc = st.columns([1,2,2])
 
@@ -2917,15 +3000,26 @@ def _s63():
 
             with cc:
                 st.markdown('<div class="bgml">財務快照</div>', unsafe_allow_html=True)
-                snaps = [
-                    ("ROE 資本效率",  f"{r['roe']:.1%}"          if r['roe']          else "N/A", "#FFD700"),
-                    ("營收成長 YoY",  f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
-                    ("毛利率",        f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#00BFFF"),
-                    ("營業利益率",    f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
-                    ("FCF Margin",    f"{r['fcf_pct']:.1%}"       if r['fcf_pct']      else "N/A", "#FF9A3C"),
-                    ("殖利率",        f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
-                    ("PEG 比率",      f"{r['peg']:.2f}"           if r['peg'] and r['peg']>0 else "N/A", "#00F5FF"),
-                ]
+                if r.get('is_pre_profit'):
+                    snaps = [
+                        ("毛利率（D1代理）",  f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#FFD700"),
+                        ("營收成長 YoY",       f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
+                        ("營業利益率",         f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
+                        ("EPS 狀態",           "⚠️ 虧損（燒錢期）",                                         "#FF9A3C"),
+                        ("P/S 比率（D6代理）", f"{r['ps_ratio']:.1f}x"    if r.get('ps_ratio',0)>0 else "N/A", "#00BFFF"),
+                        ("殖利率",             f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
+                        ("市值",               f"{r['mkt_cap_b']:.1f}B {r['currency']}",                    "#00F5FF"),
+                    ]
+                else:
+                    snaps = [
+                        ("ROE 資本效率",  f"{r['roe']:.1%}"          if r['roe']          else "N/A", "#FFD700"),
+                        ("營收成長 YoY",  f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
+                        ("毛利率",        f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#00BFFF"),
+                        ("營業利益率",    f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
+                        ("FCF Margin",    f"{r['fcf_pct']:.1%}"       if r['fcf_pct']      else "N/A", "#FF9A3C"),
+                        ("殖利率",        f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
+                        ("PEG 比率",      f"{r['peg']:.2f}"           if r['peg'] and r['peg']>0 else "N/A", "#00F5FF"),
+                    ]
                 for sl, sv, sc2 in snaps:
                     st.markdown(f"""<div class="bgrow">
                     <span class="bgrl">{sl}</span>
@@ -2936,23 +3030,28 @@ def _s63():
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
             if r['yrs100'] and r['yrs100'] < 60:
                 yc = "#00FF9D" if r['yrs100']<12 else ("#FFD700" if r['yrs100']<20 else "#FF9A3C")
+                cagr_note = "（燒錢模式：純用營收 CAGR×0.7，含高不確定折扣，盈利後實際 CAGR 可能更高）" if r.get('is_pre_profit') else "（CAGR = 營收成長×60% + ROE×40%，樂觀情境）"
                 st.markdown(f"""<div class="bgf" style="border-left-color:{yc};">
                 📐 100x 路徑估算：若 CAGR 維持 <b>{r['cagr_est']:.1%}</b>，
                 需 <b style="color:{yc};font-size:32px;">~{r['yrs100']:.0f} 年</b> 達到百倍。<br>
-                <span style="font-size:22px;opacity:.7;">（CAGR 估算 = 營收成長×60% + ROE×40%，此為樂觀情境，僅供方向參考）</span>
+                <span style="font-size:22px;opacity:.7;">{cagr_note}</span>
                 </div>""", unsafe_allow_html=True)
             else:
-                st.markdown('<div class="bgw">⚠️ 當前財務數據不足以估算 100x 路徑，需要正向 ROE 與正向營收成長同時存在。</div>', unsafe_allow_html=True)
+                st.markdown('<div class="bgw">⚠️ 當前財務數據不足以估算 100x 路徑，需要正向毛利率與正向營收成長同時存在。</div>', unsafe_allow_html=True)
 
             # ── Valkyrie 判定 ──
+            pre_tag = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
             if sc >= 80:
-                st.success(f"🔥 **SUPER NOVA！** {r['sym']} 的財務 DNA 極為罕見——高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、以及是否有非線性增長的催化劑。**")
+                st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{'高毛利商業模式已驗證 + 高速營收加速 + 市值天花板巨大，即使尚未盈利，其燒錢是「規模化投資」而非「商業模式失敗」。歷史上 Tesla（2019-2020）、PLTR（上市初期）的 DNA 與此類似。' if r.get('is_pre_profit') else '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。'}若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、現金跑道還有多久。**")
             elif sc >= 65:
-                st.warning(f"⚡ **百倍候選** — {r['sym']} 具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落至更高安全邊際再加倉。")
+                pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？管理層是否有明確的盈利時間表？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
+                st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
             elif sc >= 50:
-                st.info(f"📈 **成長潛力** — {r['sym']} 有部分優秀指標，但整體 DNA 組合不夠完整。研究其能否在未來 2–3 年提升 ROE 或毛利率，改善後重新掃描。")
+                pre_msg = "燒錢期有部分優秀指標，但整體 DNA 組合不夠完整。研究其毛利率趨勢——若毛利率持續提升，盈利後將快速釋放價值。" if r.get('is_pre_profit') else "有部分優秀指標，但整體 DNA 組合不夠完整。研究其能否在未來 2–3 年提升 ROE 或毛利率。"
+                st.info(f"📈 **成長潛力{pre_tag}** — {r['sym']} {pre_msg}")
             else:
-                st.markdown(f'<div class="bgw">❄️ {r["sym"]} 目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。建議尋找更早期、更小市值的標的。</div>', unsafe_allow_html=True)
+                pre_msg = f"燒錢且財務 DNA 不足，高風險標的。建議尋找毛利率更高、成長加速更明確的燒錢公司。" if r.get('is_pre_profit') else "目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。"
+                st.markdown(f'<div class="bgw">❄️ {r["sym"]} {pre_msg}</div>', unsafe_allow_html=True)
 
     # ── CSV 下載 ──
     st.divider()
@@ -2960,11 +3059,12 @@ def _s63():
     for r in results:
         export.append({
             "代號":r['sym'],"公司":r['name'],"產業":r['industry'],
+            "模式": "燒錢(Pre-Profit)" if r.get('is_pre_profit') else "盈利",
             "DNA總分":r['total'],"等級":r['grade'],
-            "D1_ROE引擎":r['d1'],"D2_營收加速":r['d2'],"D3_毛利護城河":r['d3'],
-            "D4_市值空間":r['d4'],"D5_再投資":r['d5'],"D6_盈利品質":r['d6'],"D7_安全邊際":r['d7'],
+            "D1_ROE或毛利引擎":r['d1'],"D2_營收加速":r['d2'],"D3_毛利護城河":r['d3'],
+            "D4_市值空間":r['d4'],"D5_再投資":r['d5'],"D6_盈利或PS品質":r['d6'],"D7_安全邊際":r['d7'],
             "ROE":r['roe'],"營收成長":r['rev_growth'],"毛利率":r['gross_margin'],
-            "FCF_Margin":r['fcf_pct'],"殖利率":r['div_yield'],"PEG":r['peg'],
+            "FCF_Margin":r['fcf_pct'],"P/S比率":r.get('ps_ratio'),"殖利率":r['div_yield'],"PEG":r['peg'],
             "市值B":r['mkt_cap_b'],"幣別":r['currency'],
             "100x估算年": round(r['yrs100'],1) if r['yrs100'] else None,
         })
