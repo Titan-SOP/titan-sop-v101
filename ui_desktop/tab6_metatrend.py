@@ -63,6 +63,11 @@ def show_guide_modal():
     **狀態監控**：隨時留意畫面中的警示訊號 (乖離過大、Phoenix 信號、加速度異常)。
     
     ---
+    **🧬 6.3 百倍股 10D DNA 升級版（Chris Mayer × Baillie Gifford 標準）**：
+    - **D8 🩸 創辦人綁定**：內部人持股 `heldPercentInsiders` > 10% 大加分（Owner-Operator 效應）
+    - **D9 📈 估值擴張**：P/E < 30 或 PEG < 1.5 加分（低估值 × 高成長 = 百倍股催化劑）
+    - **D10 🛡️ SaaS Rule of 40**：營收成長率 + 營業利益率 > 40% 加分（排除「燒錢黑洞」）
+    
     *建議：先執行 6.1 全局掃描，再針對目標標的進入 6.2 深度分析，且6.3有百倍股專區*
     """)
     
@@ -3392,25 +3397,24 @@ def _s63():
                     price        = _g("currentPrice", _g("regularMarketPrice"))
                     ps_ratio     = _g("priceToSalesTrailing12Months")   # P/S for pre-profit
                     eps_trail    = _g("trailingEps")                     # detect pre-profit
+                    insider_pct  = _g("heldPercentInsiders")             # D8: Skin in the Game
 
                     # ── 判斷是否為「燒錢 / 預盈利」公司 ──
                     # 條件：EPS < 0 或 ROE < 0（虧損）且 trailingPE 不存在
                     is_pre_profit = (eps_trail < 0) or (roe < 0 and trail_pe == 0)
 
-                    # ── D1: ROE 引擎 OR 燒錢替代指標 ──
+                    # ── D1: ROE 引擎 OR 燒錢替代指標 (22) ──
                     if is_pre_profit:
-                        # 燒錢公司：用「毛利率改善軌跡」+ 「現金跑道代理」替代 ROE
-                        # 高毛利率說明商業模式可行，只是尚未規模化
-                        # 我們把最高分降至 20（因為不確定性更高）
-                        d1 = 20 if gross_margin > 0.60 else 14 if gross_margin > 0.40 else 8 if gross_margin > 0.20 else 0
+                        # 燒錢公司：用「毛利率改善軌跡」替代 ROE，上限調至 15（不確定折扣）
+                        d1 = 15 if gross_margin > 0.60 else 10 if gross_margin > 0.40 else 6 if gross_margin > 0.20 else 0
                     else:
-                        d1 = 30 if roe > 0.25 else 22 if roe > 0.20 else 12 if roe > 0.15 else 5 if roe > 0.10 else 0
+                        d1 = 22 if roe > 0.25 else 17 if roe > 0.20 else 10 if roe > 0.15 else 4 if roe > 0.10 else 0
 
-                    # ── D2: 營收加速度 (25) — 對燒錢公司更重要，權重不變 ──
-                    d2 = 25 if rev_growth > 0.30 else 18 if rev_growth > 0.20 else 10 if rev_growth > 0.10 else 4 if rev_growth > 0.05 else 0
+                    # ── D2: 營收加速度 (20) — 對燒錢公司更重要 ──
+                    d2 = 20 if rev_growth > 0.30 else 14 if rev_growth > 0.20 else 8 if rev_growth > 0.10 else 3 if rev_growth > 0.05 else 0
 
-                    # ── D3: 毛利護城河 (20) ──
-                    d3 = 20 if gross_margin > 0.60 else 14 if gross_margin > 0.40 else 7 if gross_margin > 0.25 else 2 if gross_margin > 0.10 else 0
+                    # ── D3: 毛利護城河 (17) ──
+                    d3 = 17 if gross_margin > 0.60 else 12 if gross_margin > 0.40 else 6 if gross_margin > 0.25 else 2 if gross_margin > 0.10 else 0
 
                     # ── D4: 市值空間 (15) ──
                     d4 = 0
@@ -3438,7 +3442,65 @@ def _s63():
                     else:
                         d7 = 2 if (peg > 0 and peg < 0.5) else 1 if (peg > 0 and peg < 1.0) else 0
 
-                    total = min(d1+d2+d3+d4+d5+d6+d7, 100)
+                    # ════════════════════════════════════════════════════════
+                    # ── D8: 🩸 創辦人利益綁定 / Skin in the Game (8) ──
+                    # Chris Mayer：幾乎所有百倍股都有 Owner-Operator 在掌舵
+                    # ════════════════════════════════════════════════════════
+                    if insider_pct >= 0.20:
+                        d8 = 8   # 創辦人仍大量持股，利益高度綁定
+                    elif insider_pct >= 0.10:
+                        d8 = 6   # 達 10% 門檻，有明顯的內部人利益
+                    elif insider_pct >= 0.05:
+                        d8 = 3   # 適度持股
+                    elif insider_pct >= 0.01:
+                        d8 = 1   # 少量持股
+                    else:
+                        d8 = 0   # 純職業經理人，無利益綁定
+
+                    # ════════════════════════════════════════════════════════
+                    # ── D9: 📈 估值擴張潛力 / Valuation Multiple Expansion (5) ──
+                    # 低估值 × 高成長 = 百倍股最強催化劑；高 P/E 壓縮未來漲幅
+                    # ════════════════════════════════════════════════════════
+                    if is_pre_profit:
+                        # 燒錢公司：用 P/S 評估估值合理性（D9 已部分重疊 D6，但維度不同）
+                        d9 = 5 if (ps_ratio > 0 and ps_ratio < 5)  else \
+                             3 if (ps_ratio > 0 and ps_ratio < 10) else \
+                             1 if (ps_ratio > 0 and ps_ratio < 20) else 0
+                    else:
+                        # 盈利公司：P/E 或 PEG 複合評分
+                        pe_val = fwd_pe if fwd_pe > 0 else trail_pe
+                        if pe_val > 0 and pe_val < 20 and peg > 0 and peg < 1.0:
+                            d9 = 5   # P/E 低 + PEG 優秀：最大估值擴張空間
+                        elif pe_val > 0 and pe_val < 30:
+                            d9 = 4   # P/E < 30：合理估值，有擴張空間
+                        elif peg > 0 and peg < 1.5:
+                            d9 = 3   # PEG < 1.5：成長相對便宜
+                        elif pe_val > 0 and pe_val < 50:
+                            d9 = 2   # P/E < 50：輕度高估，擴張有限
+                        elif pe_val <= 0 or pe_val == 0:
+                            d9 = 1   # 無 P/E 數據，保守給分
+                        else:
+                            d9 = 0   # P/E ≥ 50：估值過高，易收縮
+
+                    # ════════════════════════════════════════════════════════
+                    # ── D10: 🛡️ Rule of 40 / 薩斯定律 — 營業利益擴張 (3) ──
+                    # SaaS/高成長公司：Rev Growth(%) + Op Margin(%) > 40 才合格
+                    # 防止高毛利但燒錢黑洞的陷阱
+                    # ════════════════════════════════════════════════════════
+                    rule40_val = (rev_growth * 100) + (op_margin * 100) if (rev_growth and op_margin) else None
+                    if rule40_val is not None:
+                        if rule40_val >= 60:
+                            d10 = 3   # 遠超 Rule of 40，世界級效率
+                        elif rule40_val >= 40:
+                            d10 = 2   # 通過 Rule of 40，SaaS 合格線
+                        elif rule40_val >= 20:
+                            d10 = 1   # 未達標但接近，持續觀察
+                        else:
+                            d10 = 0   # 不達標：成長燒錢但利益率太低
+                    else:
+                        d10 = 1 if rev_growth and rev_growth > 0.20 else 0  # 數據不足但高成長時保守給分
+
+                    total = min(d1+d2+d3+d4+d5+d6+d7+d8+d9+d10, 100)
 
                     if total >= 80:   grade, gcolor = "🔥 SUPER NOVA",  "#FF4500"
                     elif total >= 65: grade, gcolor = "⚡ 百倍候選",    "#FFD700"
@@ -3461,7 +3523,9 @@ def _s63():
                         op_margin=op_margin, fcf_pct=fcf_pct, div_yield=div_yield,
                         peg=peg, pe=(fwd_pe if fwd_pe > 0 else trail_pe),
                         ps_ratio=ps_ratio, is_pre_profit=is_pre_profit,
+                        insider_pct=insider_pct, rule40_val=rule40_val,
                         d1=d1, d2=d2, d3=d3, d4=d4, d5=d5, d6=d6, d7=d7,
+                        d8=d8, d9=d9, d10=d10,
                         total=total, grade=grade, gcolor=gcolor,
                         yrs100=yrs100, cagr_est=cagr_est,
                     ))
@@ -3503,8 +3567,10 @@ def _s63():
             "ROE": f"{r['roe']:.1%}"             if r['roe'] and not r.get('is_pre_profit') else ("虧損" if r.get('is_pre_profit') else "N/A"),
             "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth']   else "N/A",
             "毛利率": f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A",
+            "🩸 內部人持股": f"{r['insider_pct']:.1%}" if r.get('insider_pct', 0) > 0 else "N/A",
+            "📈 P/E": f"{r['pe']:.1f}x" if r.get('pe', 0) > 0 else "N/A",
+            "🛡️ Rule of 40": f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else "N/A",
             "市值": cap,
-            "PEG/PS": f"PS:{r['ps_ratio']:.1f}"  if r.get('is_pre_profit') and r.get('ps_ratio',0)>0 else (f"{r['peg']:.2f}" if r['peg'] and r['peg']>0 else "N/A"),
             "100x估算": f"~{r['yrs100']:.0f}年"   if r['yrs100'] and r['yrs100']<50 else "待評估",
         })
     df_tbl = pd.DataFrame(rows)
@@ -3548,6 +3614,7 @@ def _s63():
                 — EPS 為負，採用「燒錢替代計分法」（Tesla 2018、PLTR 2020 均屬此類）</span><br>
                 <span style="font-size:20px;color:rgba(180,190,210,.55);">
                 D1 以毛利率代替 ROE ｜ D6 以 P/S 估值合理性代替 FCF ｜ D7 以 P/S÷成長率代替 PEG ｜
+                D8 創辦人持股仍有效 ｜ D9 P/S 替代 P/E ｜ D10 Rule of 40 仍適用 ｜
                 100x 估算僅用營收 CAGR×0.7（含不確定折扣）</span>
                 </div>""", unsafe_allow_html=True)
 
@@ -3563,15 +3630,18 @@ def _s63():
                 </div>""", unsafe_allow_html=True)
 
             with cb:
-                st.markdown('<div class="bgml">7 維度分解</div>', unsafe_allow_html=True)
+                st.markdown('<div class="bgml">10 維度分解 (Chris Mayer × Baillie Gifford)</div>', unsafe_allow_html=True)
                 dims = [
-                    ("D1 ROE 引擎",   r['d1'], 30, "#FFD700"),
-                    ("D2 營收加速",   r['d2'], 25, "#00FF9D"),
-                    ("D3 毛利護城河", r['d3'], 20, "#00BFFF"),
-                    ("D4 市值空間",   r['d4'], 15, "#FF9A3C"),
-                    ("D5 再投資力",   r['d5'],  5, "#B77DFF"),
-                    ("D6 盈利品質",   r['d6'],  3, "#FF6B6B"),
-                    ("D7 安全邊際",   r['d7'],  2, "#00F5FF"),
+                    ("D1 ROE 引擎",        r['d1'], 22, "#FFD700"),
+                    ("D2 營收加速",        r['d2'], 20, "#00FF9D"),
+                    ("D3 毛利護城河",      r['d3'], 17, "#00BFFF"),
+                    ("D4 市值空間",        r['d4'], 15, "#FF9A3C"),
+                    ("D5 再投資力",        r['d5'],  5, "#B77DFF"),
+                    ("D6 盈利品質",        r['d6'],  3, "#FF6B6B"),
+                    ("D7 安全邊際",        r['d7'],  2, "#00F5FF"),
+                    ("D8 🩸 創辦人綁定",   r['d8'],  8, "#FF1493"),
+                    ("D9 📈 估值擴張",     r['d9'],  5, "#FFAA00"),
+                    ("D10 🛡️ Rule of 40", r['d10'], 3, "#00FF7F"),
                 ]
                 for dn, dg, dm, dc in dims:
                     fp = int((dg/dm)*100) if dm>0 else 0
@@ -3584,26 +3654,34 @@ def _s63():
                     </div></div>""", unsafe_allow_html=True)
 
             with cc:
-                st.markdown('<div class="bgml">財務快照</div>', unsafe_allow_html=True)
+                st.markdown('<div class="bgml">財務快照 + 三大百倍股關鍵</div>', unsafe_allow_html=True)
+                # ── 共用的三大百倍股指標 (D8/D9/D10) ──
+                insider_disp = f"{r['insider_pct']:.1%}" if r.get('insider_pct', 0) > 0 else "無資料"
+                insider_flag = " 🔥" if r.get('insider_pct', 0) >= 0.10 else (" ⚠️" if r.get('insider_pct', 0) >= 0.05 else "")
+                r40_disp     = f"{r['rule40_val']:.1f}%" if r.get('rule40_val') is not None else "無資料"
+                r40_flag     = " ✅" if (r.get('rule40_val') or 0) >= 40 else (" ❌" if (r.get('rule40_val') or 0) < 20 else "")
+                pe_disp      = f"{r['pe']:.1f}x" if r.get('pe', 0) > 0 else "N/A (虧損)"
+                peg_disp     = f"{r['peg']:.2f}" if r.get('peg', 0) > 0 else "N/A"
+
                 if r.get('is_pre_profit'):
                     snaps = [
-                        ("毛利率（D1代理）",  f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#FFD700"),
-                        ("營收成長 YoY",       f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
-                        ("營業利益率",         f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
-                        ("EPS 狀態",           "⚠️ 虧損（燒錢期）",                                         "#FF9A3C"),
-                        ("P/S 比率（D6代理）", f"{r['ps_ratio']:.1f}x"    if r.get('ps_ratio',0)>0 else "N/A", "#00BFFF"),
-                        ("殖利率",             f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
-                        ("市值",               f"{r['mkt_cap_b']:.1f}B {r['currency']}",                    "#00F5FF"),
+                        ("毛利率（D1代理）",           f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#FFD700"),
+                        ("營收成長 YoY",                f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
+                        ("營業利益率",                  f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
+                        ("P/S 比率（D6/D9代理）",      f"{r['ps_ratio']:.1f}x"    if r.get('ps_ratio',0)>0 else "N/A", "#00BFFF"),
+                        ("🩸 內部人持股（D8）",         insider_disp + insider_flag, "#FF1493"),
+                        ("🛡️ Rule of 40（D10）",       r40_disp + r40_flag,        "#00FF7F"),
+                        ("市值",                        f"{r['mkt_cap_b']:.1f}B {r['currency']}",                    "#00F5FF"),
                     ]
                 else:
                     snaps = [
-                        ("ROE 資本效率",  f"{r['roe']:.1%}"          if r['roe']          else "N/A", "#FFD700"),
-                        ("營收成長 YoY",  f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
-                        ("毛利率",        f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#00BFFF"),
-                        ("營業利益率",    f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
-                        ("FCF Margin",    f"{r['fcf_pct']:.1%}"       if r['fcf_pct']      else "N/A", "#FF9A3C"),
-                        ("殖利率",        f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
-                        ("PEG 比率",      f"{r['peg']:.2f}"           if r['peg'] and r['peg']>0 else "N/A", "#00F5FF"),
+                        ("ROE 資本效率",                f"{r['roe']:.1%}"          if r['roe']          else "N/A", "#FFD700"),
+                        ("營收成長 YoY",                f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
+                        ("毛利率",                      f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#00BFFF"),
+                        ("📈 P/E（D9估值）",            pe_disp,                                                      "#FFAA00"),
+                        ("📈 PEG（D9估值）",            peg_disp,                                                     "#FF9A3C"),
+                        ("🩸 內部人持股（D8）",         insider_disp + insider_flag, "#FF1493"),
+                        ("🛡️ Rule of 40（D10）",       r40_disp + r40_flag,        "#00FF7F"),
                     ]
                 for sl, sv, sc2 in snaps:
                     st.markdown(f"""<div class="bgrow">
@@ -3627,7 +3705,12 @@ def _s63():
             # ── Valkyrie 判定 ──
             pre_tag = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
             if sc >= 80:
-                st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{'高毛利商業模式已驗證 + 高速營收加速 + 市值天花板巨大，即使尚未盈利，其燒錢是「規模化投資」而非「商業模式失敗」。歷史上 Tesla（2019-2020）、PLTR（上市初期）的 DNA 與此類似。' if r.get('is_pre_profit') else '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。'}若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、現金跑道還有多久。**")
+                skin_note = f"內部人持股 {r.get('insider_pct',0):.1%}，{'創辦人仍掌舵。' if r.get('insider_pct',0)>=0.10 else '持股偏低，注意代理人風險。'}"
+                r40_note  = f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else 'N/A'
+                pre_body  = ('高毛利商業模式已驗證 + 高速營收加速 + 市值天花板巨大，即使尚未盈利，其燒錢是「規模化投資」而非「商業模式失敗」。'
+                             if r.get('is_pre_profit') else
+                             '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。')
+                st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{pre_body}{skin_note} Rule of 40：{r40_note}。若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、現金跑道還有多久。**")
             elif sc >= 65:
                 pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？管理層是否有明確的盈利時間表？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
                 st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
@@ -3648,8 +3731,11 @@ def _s63():
             "DNA總分":r['total'],"等級":r['grade'],
             "D1_ROE或毛利引擎":r['d1'],"D2_營收加速":r['d2'],"D3_毛利護城河":r['d3'],
             "D4_市值空間":r['d4'],"D5_再投資":r['d5'],"D6_盈利或PS品質":r['d6'],"D7_安全邊際":r['d7'],
+            "D8_創辦人綁定(Skin)":r['d8'],"D9_估值擴張(PE/PEG)":r['d9'],"D10_Rule_of_40":r['d10'],
             "ROE":r['roe'],"營收成長":r['rev_growth'],"毛利率":r['gross_margin'],
-            "FCF_Margin":r['fcf_pct'],"P/S比率":r.get('ps_ratio'),"殖利率":r['div_yield'],"PEG":r['peg'],
+            "營業利益率":r['op_margin'],"Rule_of_40值":r.get('rule40_val'),
+            "內部人持股":r.get('insider_pct'),"P/E":r.get('pe'),"PEG":r['peg'],
+            "FCF_Margin":r['fcf_pct'],"P/S比率":r.get('ps_ratio'),"殖利率":r['div_yield'],
             "市值B":r['mkt_cap_b'],"幣別":r['currency'],
             "100x估算年": round(r['yrs100'],1) if r['yrs100'] else None,
         })
