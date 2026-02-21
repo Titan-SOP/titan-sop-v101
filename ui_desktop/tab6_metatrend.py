@@ -2824,6 +2824,183 @@ def _s63():
         </div>
         </div>""", unsafe_allow_html=True)
 
+    # ─── 5 條預想發展路徑（根據現有量子公司研究方向外推）─────────────────
+    st.divider()
+    st.markdown(
+        '<div class="bg28" style="color:#00FFFF;">'
+        '🔭 預想中的量子破壞式創新——你可能還沒想到的 5 條路徑</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="bg26" style="margin-bottom:14px;">'
+        '基於 IonQ、Rigetti、IBM Quantum、D-Wave、Quantinuum、ARQQ、ID Quantique 等公司'
+        '當前正在解決的問題，統帥外推出以下 5 個市場幾乎完全未定價的破壞式創新方向——'
+        '這些不是遙遠的幻想，它們的物理基礎已被實驗室證實，缺的只是工程規模化。</div>',
+        unsafe_allow_html=True
+    )
+
+    q_paths = [
+        (
+            "⚔️ 路徑三：密碼學末日 + 後量子重建（Post-Quantum Cryptography）",
+            "#FF3131",
+            "確定性最高、時間最近的量子破壞式創新",
+            """<b>這是唯一「確定會發生」的量子革命，不是 IF，是 WHEN。</b><br><br>
+            <b>問題的物理本質：</b>今天全球所有的網路安全（銀行系統、軍事通訊、政府機密、區塊鏈）
+            都建立在 RSA 和 ECC 加密演算法上，而這兩種演算法依賴一個數學假設：
+            <b>「大數因式分解在傳統電腦上是不可能的」</b>。<br><br>
+            Shor 演算法已在理論上證明：一台足夠大的量子電腦可在數分鐘內破解 RSA-2048。
+            目前的量子電腦還不夠大，但每年量子比特數量呈指數成長。
+            NIST（美國國家標準局）在 2024 年已正式發佈後量子密碼學（PQC）標準，
+            美國 CISA 要求所有聯邦機構在 2030 年前完成遷移。<br><br>
+            <b>這意味著什麼？</b><br>
+            <b style="color:#FF3131;">全球所有使用 RSA/ECC 的系統必須升級</b>——這是一個沒有選擇、
+            不能拖延、預算確定的市場。銀行、國防、電信、雲端服務商全部在列。
+            TAM 估計 $20B-$100B（未來 10 年的合規支出）。<br><br>
+            <b>百倍股邏輯：</b>提供 PQC 遷移解決方案的公司現在市值極低，
+            但它們服務的是一個「監管強制執行的剛需市場」——這是最確定的成長曲線。<br><br>
+            <b>受益公司：</b>ARQQ（量子安全通訊）、ID Quantique（QRNG + QKD）、
+            PQShield（私人）、SandboxAQ（Google 分拆，私人）""",
+        ),
+        (
+            "🔬 路徑四：量子感應器革命（Quantum Sensing）——不需要量子電腦",
+            "#ADFF2F",
+            "最被市場忽視、最快可商業化的量子硬體賽道",
+            """<b>關鍵洞見：量子感應器不需要等待「容錯量子電腦」——它們現在就能用。</b><br><br>
+            量子力學讓我們能測量物理量到前所未有的精度。這不是理論，是已經在實驗室外部署的技術：<br><br>
+            <b>① 量子重力儀（Quantum Gravimeter）：</b><br>
+            測量重力梯度的精度比傳統儀器高 1000 倍。應用：
+            <b>不需要鑽探就能探測地下石油、礦藏、地下水、空洞</b>。
+            全球礦業公司每年花費數百億美元在地質勘探，量子重力儀可讓成功率提升 10 倍。
+            另一應用：地震預警（比現有系統提前 20-30 秒感測地殼形變）。<br><br>
+            <b>② 量子磁力儀（Quantum Magnetometer）：</b><br>
+            敏感度比現有儀器高出 10 萬倍。應用一：
+            <b>無創腦部掃描</b>——在室溫下測量神經元磁場，不需要昂貴的 MRI 機器，
+            可穿戴式設備就能做到，顛覆 $300B 醫學影像市場。
+            應用二：<b>水下潛艦偵測</b>（軍事應用，國防預算剛需）。<br><br>
+            <b>③ 量子 LiDAR / 單光子偵測：</b><br>
+            在<b>完全黑暗、濃霧、暴雨環境下</b>偵測障礙物，靈敏度是傳統 LiDAR 的 100 倍以上。
+            這是自動駕駛最後一個未解決的感知瓶頸——天候惡劣時傳統 LiDAR 失效的問題。<br><br>
+            <b>④ 量子原子鐘（Quantum Clock）：</b><br>
+            誤差小於 10⁻¹⁸ 秒。應用：<b>GPS 替代方案</b>——不需要衛星訊號的精準導航
+            （軍事反制 GPS 干擾、深海潛艦、地下隧道導航）。<br><br>
+            <b>受益公司：</b>Infleqtion（私人）、Vescent Photonics（私人）、
+            M-Squared Lasers（英國）、Muquans（法國）、
+            以及以 ARQQ、IONQ 的感測器研究部門為潛在受益方""",
+        ),
+        (
+            "💊 路徑五：量子分子模擬 → 材料與藥物的第一性原則（Quantum Simulation）",
+            "#FF9A3C",
+            "Feynman 在 1982 年預言的量子電腦原始用途，正在接近現實",
+            """<b>第一性原則：化學反應是量子現象，用古典電腦模擬它是在用直尺量曲線。</b><br><br>
+            化學的本質是電子的量子力學行為。傳統電腦模擬分子相互作用時，
+            每增加一個原子，計算複雜度就指數爆炸——模擬 50 個原子的分子，
+            需要比宇宙中原子數還多的記憶體。這是物理限制，不是工程問題。<br><br>
+            量子電腦天生就是在做量子計算，因此可以<b>精確模擬任意大小分子</b>。<br><br>
+            <b>三個改變世界的應用：</b><br><br>
+            <b>① 固態電池材料發現（Battery Revolution）：</b><br>
+            現有鋰電池能量密度接近物理極限。下一代固態電池需要發現新的電解質材料，
+            而傳統試誤法需要 20 年。量子模擬可在 2-3 年內找到最優材料。
+            一旦突破：EV 續航里程翻倍、充電時間縮至 5 分鐘、電池壽命延長至 20 年。
+            <b style="color:#FF9A3C;">這是 $5T 電動車革命的「最後一塊拼圖」。</b><br><br>
+            <b>② 氮固化催化劑（Fertilizer Revolution）：</b><br>
+            哈伯法合成氨（全球糧食的基礎）耗費全球能源的 2%，每年排放 5 億噸 CO₂。
+            自然界中固氮菌在常溫常壓下用鉬鐵蛋白催化完成這個反應——但為什麼有效，
+            我們用傳統電腦算不出來。量子模擬可以精確解析這個機制，
+            複製出人工催化劑，徹底淘汰哈伯法。影響：全球農業革命 + 氣候革命同時發生。<br><br>
+            <b>③ 精準藥物設計（Drug Discovery 2.0）：</b><br>
+            AlphaFold 解決了蛋白質結構預測，但「蛋白質如何動態折疊 + 藥物如何與目標蛋白精準結合」
+            仍是傳統電腦的極限。量子模擬讓藥物設計從「碰運氣」變成「工程設計」，
+            癌症、阿茲海默症、帕金森症的靶向療法開發時間從 12 年壓縮至 2-3 年。<br><br>
+            <b>受益公司：</b>Quantinuum（前身 Cambridge Quantum，已有量子化學成果）、
+            IONQ（生物醫藥合作管線）、IBM Quantum（材料科學計劃）、
+            QSimulate（私人，Harvard 量子化學 spinout）""",
+        ),
+        (
+            "📈 路徑六：量子金融霸權（Quantum Financial Supremacy）",
+            "#B77DFF",
+            "最快商業化的量子計算應用——金融機構已在秘密部署",
+            """<b>第一性原則：金融市場的核心計算問題是 NP-hard 問題，傳統電腦只能近似解。</b><br><br>
+            <b>① 投資組合優化（Portfolio Optimization）：</b><br>
+            管理 10,000 支股票的最優配置問題，傳統電腦需要嘗試的組合數遠超宇宙原子數。
+            量子退火（D-Wave 的核心技術）已被 Volkswagen、Fujitsu、富士通用於
+            實際的物流和金融優化問題。當這個技術達到量子優越性，
+            <b>擁有量子最優化引擎的基金，將系統性地榨乾所有用傳統演算法的競爭對手</b>。<br><br>
+            <b>② 量子蒙地卡羅（Quantum Monte Carlo）：</b><br>
+            衍生性商品定價（期權、期貨、結構性商品）依賴蒙地卡羅模擬，
+            傳統方法收斂速度是 1/√N，量子版本是 1/N——<b>指數級加速</b>。
+            摩根大通、高盛、匯豐已公開發表量子金融研究論文，秘密部署更早。<br><br>
+            <b>③ 即時風險計算（Real-Time Risk Management）：</b><br>
+            2008 年金融危機的部分原因是銀行無法即時計算跨資產類別的相關風險。
+            量子電腦可在毫秒內完成全行業壓力測試，讓「下一次金融危機」的系統性風險可被即時偵測。<br><br>
+            <b>百倍股邏輯：</b>金融業有錢、有動機、受監管壓力，是量子計算最快付費的買方市場。
+            第一家提供量子金融 SaaS 的公司，將面對一個<b>無限預算的客戶群</b>。<br><br>
+            <b>受益公司：</b>D-Wave Systems（量子退火，已上市）、Zapata Computing（已合併）、
+            QC Ware（私人，Goldman Sachs 投資）、Multiverse Computing（私人，BBVA 合作）""",
+        ),
+        (
+            "🌍 路徑七：量子氣候工程（Quantum Climate Intelligence）",
+            "#00FF9D",
+            "最大的 TAM——解決人類文明級別的問題，政府預算是後盾",
+            """<b>第一性原則：氣候變遷是分子層面的量子問題，傳統電腦的氣候模型本質上是粗糙近似。</b><br><br>
+            <b>① 碳捕捉催化劑設計（Carbon Capture 2.0）：</b><br>
+            現有 DAC（直接空氣碳捕捉）成本約 $400-$1000/噸 CO₂，太貴無法規模化。
+            成本瓶頸在於催化劑效率——而找到最優催化劑就是一個分子模擬問題。
+            量子電腦可在原子層面設計出效率高 10 倍的碳捕捉材料，
+            讓 DAC 成本降至 $50/噸以下，打開 <b>$10T 級別的碳市場</b>。<br><br>
+            <b>② 量子氣候模型（Quantum Climate Simulation）：</b><br>
+            現有最先進氣候模型（如 CMIP6）解析度約 100km，無法預測區域性極端氣候。
+            量子計算可將解析度提升至 1km，讓農業、保險業、城市規劃獲得前所未有的
+            氣候預測精度——<b>這是一個每年 $500B 的風險管理市場</b>。<br><br>
+            <b>③ 量子智慧電網（Quantum Grid Optimization）：</b><br>
+            當太陽能 + 風能 + 電池 + 電動車充電站構成複雜的動態電網，
+            傳統優化算法在毫秒內無法求解最優調度。量子算法可實現<b>零浪費的即時電網調度</b>，
+            讓可再生能源滲透率從 40% 突破至 90% 以上，徹底解決棄電問題。<br><br>
+            <b>百倍股邏輯：</b>氣候問題有<b>政府強制預算（全球碳稅、ESG 合規）</b>做為後盾，
+            不是依賴市場自願購買——這是最確定的長期需求之一。
+            解決氣候問題的公司，其 TAM 是無上限的，因為問題的規模就是整個地球經濟體。<br><br>
+            <b>受益公司：</b>Quantinuum（化學模擬）、IBM Quantum（與 Boeing 合作航空材料）、
+            SandboxAQ（Google 分拆，量子 AI 應用）、
+            以及間接受益的 CEG/VST 核能股（量子優化電網後，核能的 24/7 穩定電力優勢更大）""",
+        ),
+    ]
+
+    for title, color, subtitle, body in q_paths:
+        with st.expander(f"**{title}**", expanded=False):
+            st.markdown(
+                f'<div style="display:inline-block;background:rgba(0,0,0,0.3);'
+                f'border:1px solid {color}55;border-radius:6px;'
+                f'padding:4px 12px;margin-bottom:10px;">'
+                f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+                f'color:{color};letter-spacing:2px;">{subtitle}</span></div>',
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f'<div style="background:rgba(255,255,255,0.02);border:1px solid {color}22;'
+                f'border-left:3px solid {color};border-radius:0 10px 10px 0;'
+                f'padding:16px 20px;font-size:22px;color:rgba(200,215,230,0.85);line-height:1.85;">'
+                f'{body}</div>',
+                unsafe_allow_html=True
+            )
+
+    # 量子百倍股整體投資邏輯總結
+    st.markdown(
+        '<div style="margin-top:20px;background:rgba(0,255,255,0.03);'
+        'border:1px solid rgba(0,255,255,0.2);border-radius:12px;padding:20px 24px;">'
+        '<div class="bg26c" style="color:#00FFFF;margin-bottom:10px;">'
+        '⚛️ 量子百倍股七條路徑總覽 — 確定性排序</div>'
+        '<div style="font-size:22px;color:rgba(200,215,230,0.8);line-height:2.0;">'
+        '🔴 <b style="color:#FF3131;">最確定（5年內）</b>：路徑三 密碼學末日重建（監管強制，無法逃避）<br>'
+        '🟠 <b style="color:#ADFF2F;">高確定（5-8年）</b>：路徑四 量子感應器（不需量子電腦，現在就能商業化）<br>'
+        '🟡 <b style="color:#FF9A3C;">中確定（8-12年）</b>：路徑六 量子金融霸權（金融業已秘密部署）<br>'
+        '🔵 <b style="color:#00BFFF;">需要突破（10-15年）</b>：路徑五 分子模擬、路徑七 氣候工程<br>'
+        '🟣 <b style="color:#E040FB;">高風險高潛力（不確定）</b>：路徑一 月球量子計算、路徑二 自駕中樞<br><br>'
+        '<b>統帥建議倉位配置：</b>密碼學重建（40%）+ 量子感應器（30%）+ 月球/自駕中樞（20%）+ 其他（10%）<br>'
+        '<span style="font-size:18px;color:rgba(160,176,208,0.5);">'
+        '每條路徑總倉位控制在 1-2%，量子板塊合計不超過 5-8% 的總資金。</span>'
+        '</div></div>',
+        unsafe_allow_html=True
+    )
+
     # 量子百倍股風險警告
     st.markdown("""<div class="bgw" style="margin-top:10px;">
     ⚠️ 量子百倍股特別風險警告：量子股是「技術期權」，不是「確定性成長股」。
