@@ -3040,6 +3040,310 @@ def _s63():
             key="bagger_tickers_in"
         )
 
+    # ════════════════════════════════════════════════════
+    # BLOCK C-1：範本第一性原則深度論述（依選中範本動態渲染）
+    # ════════════════════════════════════════════════════
+
+    PRESET_THESIS = {
+
+        "⚡ AI 算力": {
+            "color": "#FFD700",
+            "stage": "成長加速期 🚀",
+            "tagline": "算力是 AI 時代的電力——工業革命中所有電力公司都是百倍股",
+            "why_100x": """
+            <b>百倍股物理邏輯：</b>AI 每一層應用（大模型訓練、推論、邊緣部署）都必須經過算力這一層。
+            不管誰贏得 AI 應用層競爭，算力基礎設施都是贏家。這是「賣鏟子」的邏輯，
+            但比賣鏟子更好——因為 AI 時代的鏟子有<b>網路效應與標準壟斷</b>。<br><br>
+            <b>萊特定律驗證：</b>GPU 算力每 2 年翻倍、每 FLOP 成本每年下降 ~30%，
+            但市場對算力的需求增速更快（每年 +40-60%），形成「成本下降但需求更快增長」的完美飛輪。<br><br>
+            <b>TAM 計算：</b>2024 年全球 AI 算力市場 ~$100B → 2030 年預估 $1T+，
+            CAGR 約 40%。按百倍公式：EPS 成長 10x × PE 擴張 10x = 100x。
+            在 TAM 從 $100B → $1T 的過程中，龍頭企業的 EPS 有充分空間成長 10 倍以上。<br><br>
+            <b>護城河分析：</b><br>
+            • NVDA：CUDA 生態系鎖定效應，15 年積累，競爭者需要 5-10 年才能打破<br>
+            • AVGO：客製化 ASIC（Google TPU、Meta MTIA、Apple Neural Engine），毛利率 >70%<br>
+            • ARM：每台 AI 裝置（手機、邊緣 AI）都需要 ARM 架構，收授權費，輕資產高毛利<br>
+            • SMCI：AI 伺服器直接冷卻（液冷），受益算力密度提升，市場分額快速擴張
+            """,
+            "risk": "AMD 追趕速度、客製化 ASIC 侵蝕 NVIDIA 份額、AI 泡沫週期性回調、中國禁令影響",
+            "companies": [
+                ("NVDA", "算力帝國", "CUDA 生態壟斷，Data Center 年營收 $80B+，最確定的 AI 基礎設施龍頭"),
+                ("AMD", "挑戰者", "MI300X 搶占推論市場，PE 擴張空間大於 NVDA，勝在估值"),
+                ("AVGO", "隱形冠軍", "客製化 ASIC + 網路晶片，Google/Meta/Apple 都是大客戶，毛利率 >70%"),
+                ("ARM", "授權壟斷者", "所有 AI 邊緣裝置的架構授權，輕資產商業模式，真正的躺贏型公司"),
+                ("SMCI", "算力散熱王", "液冷伺服器市場第一，算力密度越高越有利，高成長但波動極大"),
+                ("ALAB", "光子互連", "AI 算力叢集內部通訊的下一代基礎設施，規模還小但增速驚人"),
+            ],
+        },
+
+        "☢️ 核能/SMR": {
+            "color": "#00FF9D",
+            "stage": "黎明早期 🌅 — 最佳佈局窗口",
+            "tagline": "AI 的電力危機 × 碳中和 × 能源安全——三股力量同時推動核能復興",
+            "why_100x": """
+            <b>第一性原則：能量密度決定一切。</b><br>
+            1 公斤鈾的能量 = 1 公斤煤炭的 300 萬倍。這不是觀點，是物理定律。<br><br>
+            <b>AI 電力危機的量化：</b>一個 ChatGPT 回應消耗的電力是 Google 搜尋的 10 倍。
+            ChatGPT 一天的電力消耗相當於 17 萬個美國家庭。
+            到 2030 年，全球 AI 數據中心電力需求將超過法國全國用電量。
+            太陽能和風能無法提供 24/7 穩定的基載電力——核能是唯一解答。<br><br>
+            <b>SMR 的破壞式創新邏輯：</b><br>
+            傳統大型核電站：$10B+ 成本，15+ 年建設，只有主權國家才建得起。<br>
+            SMR（小型模組反應爐）：$300M-$1B 成本，5 年建設，像工廠一樣批量製造，
+            直接部署在數據中心旁邊。Microsoft/Google/Amazon 已簽署 SMR 採購協議。<br><br>
+            <b>PE 擴張的催化劑：</b>市場 10 年前認為核能是「夕陽產業」，PE 被壓到底部。
+            當共識逆轉（已開始發生），PE 從 10x 擴張到 30-50x，本身就是 3-5 倍。
+            再加上 EPS 成長，百倍空間成立。<br><br>
+            <b>TAM：</b>全球電力市場 $3T，核能目前佔 ~10%，
+            SMR 目標 2040 年佔據新增電力 30% = $300B+ 新市場
+            """,
+            "risk": "核能監管不確定性、SMR 技術商業化延遲、可再生能源成本持續下降競爭、政治風向逆轉",
+            "companies": [
+                ("CEG", "美國核電龍頭", "最大核電運營商，Microsoft 長期購電協議，Three Mile Island 重啟，現金流確定"),
+                ("VST", "核 + 天然氣", "德州電力市場龍頭，AI 數據中心電力採購熱點，近期股價強勁"),
+                ("NNE", "SMR 純種股", "純 SMR 開發商，市值極小，高風險高潛力，技術驗證是關鍵里程碑"),
+                ("OKLO", "Sam Altman 背書", "OpenAI CEO 擔任董事會主席，微型核反應爐，技術前沿但商業化仍早期"),
+                ("SMR", "NuScale Power", "全球第一個獲 NRC 認證的 SMR 設計，但近期有客戶取消訂單的風險，需深研"),
+            ],
+        },
+
+        "🤖 機器人": {
+            "color": "#00BFFF",
+            "stage": "黎明期 🌅 — 技術突破剛發生",
+            "tagline": "人口老齡化是不可逆的物理事實——機器人是唯一解藥，且 AI 讓它終於看得見想得到",
+            "why_100x": """
+            <b>為什麼現在是黎明期而不是更早？</b><br>
+            機器人不是新技術，工廠機器人已存在 50 年。但過去的機器人是「盲目的」——
+            只能在嚴格控制的環境中執行預設動作，遇到意外就停機。<br><br>
+            <b>2023-2024 年發生了什麼？</b><br>
+            大語言模型 + 視覺模型（GPT-4V、Gemini、Claude）讓機器人第一次真正「看得見」：
+            辨識不規則物體、理解人類指令、在混沌環境中自主決策。
+            這是質變，不是量變。之前 50 年的機器人技術積累突然變得可用。<br><br>
+            <b>人口老齡化的不可逆性：</b><br>
+            日本：65 歲以上人口 30%，勞動力短缺已是國家緊急問題。
+            中國：人口拐點已過，2030 年勞動人口絕對減少。
+            德國/韓國/台灣：製造業嚴重缺工。
+            這不是政策可以逆轉的趨勢——機器人是唯一的數學解。<br><br>
+            <b>TAM 計算：</b><br>
+            全球製造業用工成本 $5T/年 → 機器人替代率若達 20% = $1T TAM<br>
+            醫療護理機器人（老年照護）$500B+ TAM<br>
+            物流/倉儲機器人（Amazon 效應全球複製）$300B TAM<br><br>
+            <b>萊特定律驗證：</b>工業機器人每 10 年成本下降 50%，
+            現在 AI 視覺系統的加入讓功能指數提升，但成本繼續下降——典型的破壞式創新軌跡
+            """,
+            "risk": "AI 視覺在非結構化環境的可靠性、機器人訓練數據缺乏、勞工政策阻力、資本密集度高",
+            "companies": [
+                ("TSLA", "Optimus 人形機器人", "Elon 宣稱 Optimus 比汽車業務更大。FSD 的電腦視覺技術直接遷移，工廠先試點"),
+                ("ISRG", "手術機器人壟斷者", "Da Vinci 手術機器人市佔率 >80%，裝機量飛輪效應，ROE >20%，最確定的醫療機器人龍頭"),
+                ("RXRX", "AI 藥物機器人", "用 AI 機器人做藥物篩選，整合量子模擬方向，燒錢期但毛利率結構良好"),
+                ("ACMR", "半導體清洗機器人", "晶圓清洗設備，台積電/三星供應商，國產替代概念 + AI 擴產受益"),
+                ("BDTX", "精準醫療機器人", "蛋白降解靶向藥物，用 AI 機器人加速研發管線，小市值高風險"),
+            ],
+        },
+
+        "🌐 AI 物理化": {
+            "color": "#E040FB",
+            "stage": "黎明加速 🌅🚀 — PE 擴張最強烈的賽道",
+            "tagline": "模型的價值由部署規模決定——誰把 AI 最深度嵌入物理世界，誰就是下一個 Tesla",
+            "why_100x": """
+            <b>核心論點：AI 應用層的百倍股不是「最強模型」，而是「最深物理化」。</b><br><br>
+            <b>Tesla 模式的本質：</b>Tesla 不是最快的電動車，也不是最聰明的 AI 公司，
+            但它是第一個把「軟體定義」深度嵌入物理產品（汽車）的公司。
+            結果：硬體賣一次，軟體升級永遠收費，數據護城河不斷加深。
+            這個模式正在被複製到所有物理場景。<br><br>
+            <b>物理化 AI 的百倍股方程式：</b><br>
+            物理場景（每天被數十億人使用）× AI 深度嵌入（不可替代）× 軟體化收費 = 無限複利<br><br>
+            <b>五個物理化前線：</b><br>
+            ① <b>自動駕駛</b>：Tesla FSD、Waymo → 汽車變成「帶輪子的 AI 訂閱服務」<br>
+            ② <b>AI 眼鏡/穿戴</b>：Meta Ray-Ban → 現實世界的 AI 入口，永遠在線，數據飛輪<br>
+            ③ <b>AI 手機</b>：Apple Intelligence → 最大的 AI 分發平台（16 億台裝置），App Store 2.0<br>
+            ④ <b>智慧工廠</b>：PLTR AIP → 把 AI 嵌入每個製造決策，政府/軍事長期合約<br>
+            ⑤ <b>語音 AI 物聯網</b>：SoundHound → 汽車/餐廳/醫院的語音 AI 界面，不被大廠直接替代<br><br>
+            <b>PE 擴張邏輯：</b>AI 物理化公司目前的 PE 反映的是「傳統硬體公司」，
+            市場尚未定價「軟體化訂閱」的 ARR 飛輪。一旦市場共識轉換，
+            PE 重估就是 3-10 倍，再加 EPS 成長 = 百倍
+            """,
+            "risk": "AI 監管（自駕事故/隱私）、大廠自研替代（Google/Amazon 自建語音 AI）、估值泡沫化後的回調",
+            "companies": [
+                ("TSLA", "AI 物理化原型", "Optimus + FSD + Dojo = 三條 AI 物理化飛輪，但估值已大幅反映，需等回調"),
+                ("PLTR", "政府/企業 AI 作業系統", "AIP 把 AI 嵌入決策流程，政府合約黏性極高，ROE 剛轉正，成長加速"),
+                ("AAPL", "AI 最大分發管道", "16 億台裝置 × Apple Intelligence = 史上最大 AI 應用商店，但增速偏慢"),
+                ("GOOGL", "AI 多面手", "Waymo（自駕）+ Gemini（模型）+ 量子計算，但龐大體量限制百倍空間"),
+                ("META", "AI 穿戴物理化", "Ray-Ban 智慧眼鏡正在創造新的 AI 入口，廣告 AI 優化已貢獻財報"),
+                ("SOUN", "語音 AI 純種股", "汽車/醫療/餐飲的語音界面，市值小、成長快、燒錢中，高風險高潛力"),
+            ],
+        },
+
+        "⚛️ 量子中樞": {
+            "color": "#00FFFF",
+            "stage": "黎明前夜 🌑🌅 — 市場幾乎未定價",
+            "tagline": "7 條破壞式創新路徑已在上方「量子百倍股深度研究」專區完整呈現",
+            "why_100x": """
+            <b>統帥聲明：量子是本系統中風險最高、潛力最大的賽道。</b><br><br>
+            量子百倍股的完整第一性原則論述已在本節上方「量子百倍股深度研究」專區詳細呈現，
+            包含 7 條破壞式創新路徑：<br><br>
+            🌕 <b>路徑一</b>：月球量子計算平台（天然超低溫環境解決退相干瓶頸）<br>
+            🚗 <b>路徑二</b>：全自動駕駛量子中樞神經（跨品牌 AI 協調層）<br>
+            ⚔️ <b>路徑三</b>：密碼學末日重建 PQC（最確定，監管強制，2030 年前）<br>
+            🔬 <b>路徑四</b>：量子感應器革命（不需量子電腦，現在就能商業化）<br>
+            💊 <b>路徑五</b>：量子分子模擬（固態電池 + 藥物設計 + 氮固化）<br>
+            📈 <b>路徑六</b>：量子金融霸權（投資組合優化 + 衍生品定價）<br>
+            🌍 <b>路徑七</b>：量子氣候工程（碳捕捉 + 電網優化）<br><br>
+            <b>投資組合建議：</b>以路徑三（ARQQ）和路徑四（感應器公司）作為確定性錨點，
+            以路徑一/二（IONQ、RGTI）作為技術期權倉位。<br><br>
+            <b>注意：IBM 和 GOOGL 在此名單中代表「量子計算大廠進度追蹤指標」，
+            而非純量子百倍股——它們的量子業務對整體市值影響極小。</b>
+            """,
+            "risk": "量子退相干尚未工程化解決、商業化時間表持續延後、政府補貼縮減、被大廠研究部門邊緣化",
+            "companies": [
+                ("IONQ", "離子阱量子先鋒", "最高量子體積指標，與 Airbus/Hyundai/摩根大通有合作，商業化最積極"),
+                ("RGTI", "量子感測 + 計算", "超導量子比特路線，量子感應器應用有近期商業化機會，市值小波動大"),
+                ("QBTS", "D-Wave 量子退火", "量子退火（非通用量子電腦），已用於物流/金融優化，是最接近商業化的量子應用"),
+                ("QUBT", "光子量子計算", "室溫運作的光子量子網路，不需要稀釋冷凍機，若技術成立是革命性的"),
+                ("ARQQ", "量子密碼學", "PQC + QKD 商業部署，路徑三的最直接受益者，確定性最高的量子純種股"),
+                ("IBM", "量子計算標準制定者", "IBM Quantum 路線圖最透明，1000+ 量子比特，適合追蹤量子進度基準"),
+                ("GOOGL", "量子霸權宣告者", "Willow 晶片，量子計算研究領先，但對整體估值影響小，追蹤技術進度用"),
+                ("MSFT", "拓撲量子押注", "Majorana 拓撲量子比特路線，錯誤率比超導量子比特低 1000 倍，若成立是顛覆性的"),
+            ],
+        },
+
+        "🛡️ 國防太空": {
+            "color": "#ADFF2F",
+            "stage": "成長早期 📈 — 地緣政治長期驅動",
+            "tagline": "戰爭改變武器需求，太空成為新戰場——政府預算是最確定的護城河",
+            "why_100x": """
+            <b>第一性原則：每一次戰爭技術革命都誕生了百倍股。</b><br><br>
+            一戰：化工 + 坦克 → 百倍股誕生<br>
+            二戰：航空 + 雷達 → Boeing/Raytheon 前身<br>
+            冷戰：核武 + 衛星 → 洛克希德/諾斯羅普<br>
+            <b>AI 戰爭時代（2024-2040）：無人機 + 太空 + AI 偵測 → 下一批百倍股</b><br><br>
+            <b>烏克蘭戰爭的啟示（第一性原則驗證）：</b><br>
+            Starlink 讓烏克蘭軍隊在失去傳統通訊後仍能指揮 → 衛星通訊是現代戰爭的神經系統<br>
+            廉價無人機擊落昂貴坦克 → 戰爭成本結構正在被顛覆，低成本智能武器贏<br>
+            AI 偵測 + 無人機蜂群 → 傳統空軍優勢消失，AI 反應速度勝過人類飛行員<br><br>
+            <b>太空的百倍股邏輯：</b><br>
+            地球軌道正在商業化，衛星部署成本從 $10B → $1M（SpaceX Falcon 9 效應）。
+            這意味著以前只有主權國家才能做的衛星應用，現在私人公司可以做：<br>
+            • 全球即時監控（任何地點每 30 分鐘重訪一次）<br>
+            • 衛星寬頻（偏遠地區的網路基礎設施）<br>
+            • 精確導航替代（GPS 備份）<br>
+            • 月球/火星任務（NASA 外包計劃）<br><br>
+            <b>政府合約的護城河：</b>美國國防預算 $886B/年，五年期合約，不受景氣循環影響，
+            比任何商業客戶都穩定。一旦進入供應商名單，替換成本極高。
+            """,
+            "risk": "和平進展導致國防預算縮減、政府合約延遲/取消、SpaceX 未上市導致最大受益者無法直接投資",
+            "companies": [
+                ("RKLB", "火箭實驗室", "Neutron 中型火箭 + Electron 小型火箭，太空版 SpaceX，衛星部署 + 月球任務，市值仍小"),
+                ("LUNR", "月球快遞", "Intuitive Machines，NASA 月球著陸任務承包商，阿提米斯計劃直接受益"),
+                ("PLTR", "AI 戰場作業系統", "Maven Smart System + AIP，美軍 AI 決策系統的核心供應商，政府合約黏性最高"),
+                ("HII", "航母製造壟斷者", "全美唯一的核動力航母製造商，技術壟斷 + 政府剛需，類公用事業的穩健成長"),
+                ("ACHR", "城市空中交通", "電動垂直起降飛行器（eVTOL），軍事後勤 + 民用航空，技術驗證關鍵期"),
+            ],
+        },
+
+        "🇹🇼 台股潛力": {
+            "color": "#FF9A3C",
+            "stage": "特殊賽道 🇹🇼 — AI 供應鏈深度受益",
+            "tagline": "台灣是全球 AI 供應鏈的不可替代樞紐——沒有台灣半導體，AI 革命就沒有零件",
+            "why_100x": """
+            <b>第一性原則：AI 算力的每一個 FLOP 都必須先經過台灣製造。</b><br><br>
+            <b>台灣的不可替代性（物理現實）：</b><br>
+            TSMC 持有全球 90%+ 的先進製程（3nm/2nm）產能。
+            NVIDIA H100/H200/B200 全部在 TSMC 生產。
+            AMD、Apple、Qualcomm 的 AI 晶片也在 TSMC。
+            這不是市場選擇，是 10 年技術累積造成的物理壁壘。<br><br>
+            <b>台股中小型 AI 受益股的百倍基因：</b><br>
+            大公司（台積電）的百倍機會已過，但 AI 供應鏈的長尾受益者仍在早期：<br>
+            ① 封裝測試（CoWoS 先進封裝）→ AI 晶片需要 HBM 記憶體與 GPU 封裝在一起<br>
+            ② PCB/散熱（液冷板、銅箔基板）→ 算力密度提升，熱管理成為瓶頸<br>
+            ③ 電源管理（PMIC / VR）→ 每台 AI 伺服器有 10-20 個電源模組<br>
+            ④ 連接器/線纜（高速傳輸）→ GPU 叢集內部通訊的「毛細血管」<br><br>
+            <b>台股與美股的差異定價機會：</b><br>
+            相同的 AI 供應鏈概念，台股的本益比通常比美股低 30-50%，
+            加上台幣升值效應（AI 美元收入），雙重紅利。<br><br>
+            <b>個股說明（依代號）：</b><br>
+            3529（力旺電子）：IP 授權商業模式，嵌入式非揮發記憶體，每台 AI 晶片都需要<br>
+            2382（廣達）：AI 伺服器最大 ODM，NVIDIA GB200 NVL 主要代工夥伴<br>
+            6531（愛普）：高頻測試介面，AI 晶片測試必需，高毛利率<br>
+            3231（緯創）：AI 伺服器 + 機器人，正在轉型高毛利 AI 硬體<br>
+            6550（北極星藥業）：AI 醫療賽道，生技 × AI 雙引擎，但需獨立評估
+            """,
+            "risk": "台海地緣政治風險（最大尾端風險）、客戶集中度（NVIDIA 訂單變化直接衝擊）、人民幣貶值競爭",
+            "companies": [
+                ("3529.TW", "力旺電子", "嵌入式非揮發記憶體 IP 授權，每顆 AI 晶片都需要，輕資產高毛利，台版 ARM"),
+                ("2382.TW", "廣達電腦", "全球最大 AI 伺服器代工，GB200 NVL 的核心製造夥伴，受益 NVIDIA 擴產"),
+                ("6531.TW", "愛普科技", "高頻測試介面卡，AI 晶片測試必需，毛利率 >60%，市值仍偏小"),
+                ("3231.TW", "緯創資通", "AI 伺服器 + 機器人雙主軸，股價已啟動但本益比仍低於美股同業"),
+                ("6550.TW", "北極星藥業", "AI 藥物研發賽道，生技 × AI，需獨立深度研究基本面"),
+            ],
+        },
+    }
+
+    # 動態渲染選中範本的深度分析
+    if preset_sel in PRESET_THESIS:
+        thesis = PRESET_THESIS[preset_sel]
+        tc = thesis["color"]
+
+        with st.expander(
+            f"📖 {preset_sel} 第一性原則深度論述 — 為什麼這個賽道能誕生百倍股？（點此展開）",
+            expanded=False
+        ):
+            # 標頭
+            st.markdown(
+                f'<div style="background:rgba(0,0,0,0.3);border:1px solid {tc}33;'
+                f'border-left:4px solid {tc};border-radius:0 10px 10px 0;'
+                f'padding:14px 20px;margin-bottom:16px;">'
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                f'color:{tc}88;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;">'
+                f'景氣循環位置</div>'
+                f'<div style="font-size:18px;font-weight:800;color:{tc};">{thesis["stage"]}</div>'
+                f'<div style="font-size:13px;color:rgba(200,215,235,0.75);margin-top:6px;">'
+                f'{thesis["tagline"]}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+            # 百倍股論述
+            st.markdown(
+                f'<div style="background:rgba(255,255,255,0.02);border:1px solid {tc}22;'
+                f'border-left:3px solid {tc};border-radius:0 10px 10px 0;'
+                f'padding:16px 20px;font-size:22px;color:rgba(200,215,230,0.85);'
+                f'line-height:1.85;margin-bottom:16px;">'
+                f'{thesis["why_100x"]}</div>',
+                unsafe_allow_html=True
+            )
+
+            # 風險警告
+            st.markdown(
+                f'<div style="background:rgba(255,100,100,0.04);border:1px solid rgba(255,100,100,0.2);'
+                f'border-radius:8px;padding:10px 16px;margin-bottom:16px;">'
+                f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
+                f'color:rgba(255,107,107,0.7);letter-spacing:2px;">⚠️ 核心風險</span>'
+                f'<div style="font-size:22px;color:rgba(255,170,170,0.75);margin-top:4px;">'
+                f'{thesis["risk"]}</div></div>',
+                unsafe_allow_html=True
+            )
+
+            # 個股速覽表
+            st.markdown(
+                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
+                f'color:{tc}88;letter-spacing:4px;text-transform:uppercase;margin-bottom:8px;">'
+                f'📊 範本個股速覽</div>',
+                unsafe_allow_html=True
+            )
+            for sym, name, desc in thesis["companies"]:
+                st.markdown(
+                    f'<div style="display:flex;align-items:flex-start;gap:14px;'
+                    f'border-bottom:1px solid rgba(255,255,255,0.04);padding:8px 0;">'
+                    f'<div style="min-width:70px;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:13px;font-weight:700;color:{tc};">{sym}</div>'
+                    f'<div style="min-width:100px;font-size:13px;font-weight:600;'
+                    f'color:rgba(220,230,245,0.9);">{name}</div>'
+                    f'<div style="font-size:13px;color:rgba(160,176,208,0.6);flex:1;">{desc}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
     run_scan = st.button("🧬 啟動 7D DNA 基因掃描", type="primary", use_container_width=True, key="run_bg_scan")
 
     if run_scan:
