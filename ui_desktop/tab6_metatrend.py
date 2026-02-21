@@ -2504,130 +2504,124 @@ def _s62():
                 ))
 
 
-# SECTION 6.3 — 獵殺清單 [FIX #8] st.form + drop_duplicates
+# ═══════════════════════════════════════════════════════════════
+# SECTION 6.3 — 百倍股雷達 (100-Bagger Screener)
 # ═══════════════════════════════════════════════════════════════
 def _s63():
-    st.markdown('<div class="t6-sec-head" style="--sa:#FF9A3C"><div class="t6-sec-num">6.3</div><div><div class="t6-sec-title" style="color:#FF9A3C;">獵殺清單 (Kill List Dashboard)</div><div class="t6-sec-sub">V90.3 · Form Entry + Real-time PnL Tracking + drop_duplicates</div></div></div>', unsafe_allow_html=True)
+    """6.3 百倍股雷達 (100-Bagger Screener)"""
+    st.markdown("### 🚀 尋找百倍股 (100-Bagger Radar)")
+    st.caption("基於第一性原理，結合 Chris Mayer (百倍法則) 與 Baillie Gifford (破壞式創新) 的極端財務特徵掃描器。")
 
-    with st.expander("📝 錄入新獵殺目標 (Log New Target)", expanded=False):
-        with st.form("target_form_v300", clear_on_submit=True):
-            log_ticker = st.text_input("代號 (Ticker)")
-            log_action = st.selectbox("操作 (Action)", ["Buy", "Sell"])
-            log_entry = st.number_input("進場價 (Entry Price)", min_value=0.0, format="%.2f")
-            log_target = st.number_input("目標價 (Target Price)", min_value=0.0, format="%.2f")
-            log_stop = st.number_input("停損價 (Stop Loss)", min_value=0.0, format="%.2f")
-            log_note = st.text_area("理由 (Rationale)", placeholder="簡述進場的核心邏輯...")
-            submitted = st.form_submit_button("💾 存入戰情室", type="primary")
-            if submitted:
-                if not log_ticker or log_entry <= 0:
-                    st.toast("⚠️ 請輸入有效的代號與進場價。", icon="⚡")
-                else:
-                    if 'watchlist' not in st.session_state:
-                        st.session_state.watchlist = pd.DataFrame(columns=[
-                            "Date", "Ticker", "Action", "Entry Price", "Target Price",
-                            "Stop Loss", "Rationale", "Status", "Current Price", "PnL %"
-                        ])
-                    new_row = pd.DataFrame([{
-                        "Date": datetime.now().strftime("%Y-%m-%d"),
-                        "Ticker": log_ticker.upper(),
-                        "Action": log_action,
-                        "Entry Price": log_entry,
-                        "Target Price": log_target,
-                        "Stop Loss": log_stop,
-                        "Rationale": log_note,
-                        "Status": "⏳ Holding",
-                        "Current Price": np.nan,
-                        "PnL %": np.nan
-                    }])
-                    st.session_state.watchlist = pd.concat(
-                        [st.session_state.watchlist, new_row], ignore_index=True
-                    ).drop_duplicates(subset=['Ticker', 'Entry Price'], keep='last')
-                    st.toast(f"✅ {log_ticker} 已成功存入戰情室！", icon="🎯")
+    st.markdown("##### 🎯 1. 輸入潛力股名單 (Target List)")
+    tickers_input = st.text_input(
+        "輸入股票代號 (台股請加 .TW 或 .TWO，美股直接輸入):",
+        value="3131.TW, 3529.TW, 2382.TW, PLTR, TSLA"
+    )
 
-    st.markdown("---")
+    if st.button("🧬 啟動基因檢測 (Run Screener)", use_container_width=True):
+        tickers = [t.strip() for t in tickers_input.split(",") if t.strip()]
+        if not tickers:
+            st.warning("⚠️ 請輸入至少一檔股票。")
+            return
 
-    # Mirror Engine
-    if st.button("🔄 更新最新戰況 (Refresh PnL)", use_container_width=True, key="refresh_kl_v300"):
-        if 'watchlist' in st.session_state and not st.session_state.watchlist.empty:
-            with st.spinner("啟動鏡像結算引擎..."):
-                wl = st.session_state.watchlist.copy()
-                tks = wl['Ticker'].unique().tolist()
+        results = []
+        with st.spinner("🧠 正在掃描企業財務基因..."):
+            for sym in tickers:
                 try:
-                    prices_data = yf.download(tks, period="1d", progress=False)
-                    rows = []
-                    for _, row in wl.iterrows():
-                        try:
-                            if len(tks) > 1:
-                                cp = float(prices_data['Close'][row['Ticker']].iloc[-1])
-                            else:
-                                cp = float(prices_data['Close'].iloc[-1])
-                            if pd.isna(cp):
-                                rows.append(row); continue
-                            row['Current Price'] = cp
-                            if row['Action'] == 'Buy':
-                                pnl = ((cp / row['Entry Price']) - 1) * 100
-                            else:
-                                pnl = ((row['Entry Price'] / cp) - 1) * 100
-                            row['PnL %'] = pnl
-                            if row['Action'] == 'Buy':
-                                if cp >= row['Target Price']:
-                                    row['Status'] = '🏆 Win'
-                                elif cp <= row['Stop Loss']:
-                                    row['Status'] = '💀 Loss'
-                                else:
-                                    row['Status'] = '⏳ Holding'
-                            else:
-                                if cp <= row['Target Price']:
-                                    row['Status'] = '🏆 Win'
-                                elif cp >= row['Stop Loss']:
-                                    row['Status'] = '💀 Loss'
-                                else:
-                                    row['Status'] = '⏳ Holding'
-                        except Exception:
-                            pass
-                        rows.append(row)
-                    st.session_state.watchlist = pd.DataFrame(rows)
-                    st.toast("戰況已更新！", icon="🔄")
+                    tk = yf.Ticker(sym)
+                    info = tk.info
+
+                    # --- Extract Metrics (with safe fallbacks) ---
+                    # 1. Market Cap (Billion TWD or USD)
+                    mkt_cap = info.get("marketCap", 0)
+                    currency = info.get("currency", "USD")
+                    mkt_cap_b = mkt_cap / 1e9
+
+                    # 2. Reinvestment (Zero Dividend is good for 100-baggers)
+                    div_yield = info.get("dividendYield", 0)
+                    if div_yield is None: div_yield = 0
+
+                    # 3. Capital Efficiency (ROE / ROA as proxy for ROIC)
+                    roe = info.get("returnOnEquity", 0)
+                    if roe is None: roe = 0
+
+                    # 4. Disruptive Growth (Revenue Growth & Gross Margin)
+                    rev_growth = info.get("revenueGrowth", 0)
+                    if rev_growth is None: rev_growth = 0
+
+                    gross_margin = info.get("grossMargins", 0)
+                    if gross_margin is None: gross_margin = 0
+
+                    # 5. Valuation (Trailing P/E)
+                    pe = info.get("trailingPE", 0)
+                    if pe is None: pe = 0
+
+                    # --- Scoring Logic (0 to 100) ---
+                    score = 0
+                    # Capital Efficiency: ROE > 15% is the engine
+                    if roe > 0.20: score += 25
+                    elif roe > 0.15: score += 15
+
+                    # Reinvestment: Zero dividend gets max points
+                    if div_yield < 0.01: score += 20
+                    elif div_yield < 0.03: score += 10
+
+                    # Disruptive Growth: High Growth + High Margin
+                    if rev_growth > 0.20: score += 20
+                    elif rev_growth > 0.10: score += 10
+
+                    if gross_margin > 0.40: score += 20
+                    elif gross_margin > 0.20: score += 10
+
+                    # Market Cap Bonus: Small caps have more room to grow 100x
+                    if currency == "TWD" and mkt_cap_b < 50: score += 15
+                    elif currency == "USD" and mkt_cap_b < 5: score += 15
+
+                    results.append({
+                        "代號": sym,
+                        "百倍基因分數": min(score, 100),
+                        "市值 (10億)": f"{mkt_cap_b:.1f} {currency}",
+                        "ROE (資本效率)": f"{roe:.1%}",
+                        "毛利率 (護城河)": f"{gross_margin:.1%}",
+                        "營收成長 (破壞力)": f"{rev_growth:.1%}",
+                        "殖利率 (越低越好)": f"{div_yield:.1%}",
+                        "本益比": f"{pe:.1f}" if pe > 0 else "N/A"
+                    })
                 except Exception as e:
-                    st.toast(f"❌ 更新失敗: {e}", icon="💀")
-        else:
-            st.toast("ℹ️ 清單為空，無可更新的戰況。", icon="📡")
+                    st.toast(f"無法完整讀取 {sym} 的財務數據: {e}")
 
-    # Scoreboard
-    if 'watchlist' not in st.session_state or st.session_state.watchlist.empty:
-        st.toast("ℹ️ 戰情室目前無獵殺目標。", icon="📡")
-    else:
-        wl = st.session_state.watchlist.copy()
-        holding = len(wl[wl['Status'] == '⏳ Holding'])
-        wins = len(wl[wl['Status'] == '🏆 Win'])
-        losses = len(wl[wl['Status'] == '💀 Loss'])
-        avg_pnl = wl['PnL %'].mean()
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("目前持倉", f"{holding} 檔")
-        m2.metric("勝場", f"{wins} 檔")
-        m3.metric("敗場", f"{losses} 檔")
-        m4.metric("平均 PnL", f"{avg_pnl:.2f}%" if not pd.isna(avg_pnl) else "N/A")
+            # --- Render Results ---
+            if results:
+                df_res = pd.DataFrame(results)
+                df_res = df_res.sort_values(by="百倍基因分數", ascending=False).reset_index(drop=True)
 
-        # Rank cards
-        for idx, (_, row) in enumerate(wl.iterrows()):
-            pnl_v = row.get('PnL %', 0)
-            pnl_d = f"{pnl_v:+.2f}%" if pd.notna(pnl_v) else "N/A"
-            pnl_c = "#00FF7F" if pd.notna(pnl_v) and pnl_v >= 0 else "#FF6B6B"
-            st.markdown(f'<div class="hunt-rank-card"><div class="hunt-rank-num">{idx + 1}</div><div style="flex:1"><div class="hunt-rank-ticker">{row.get("Ticker", "")}</div><div class="hunt-rank-detail">{row.get("Action", "")} @ {row.get("Entry Price", 0):.2f} → Target {row.get("Target Price", 0):.2f} | Stop {row.get("Stop Loss", 0):.2f}</div></div><div style="text-align:right"><div style="font-family:var(--f-i);font-size:22px;font-weight:800;color:{pnl_c};">{pnl_d}</div><div style="font-size:12px;color:rgba(180,180,180,0.6);">{row.get("Status", "")}</div></div></div>', unsafe_allow_html=True)
+                st.markdown("##### 🧬 2. 基因掃描報告 (Screener Results)")
 
-        with st.expander("📋 完整數據表"):
-            st.dataframe(wl.style.format({
-                "Entry Price": "{:.2f}", "Target Price": "{:.2f}",
-                "Stop Loss": "{:.2f}", "Current Price": "{:.2f}", "PnL %": "{:+.2f}%"
-            }), use_container_width=True)
+                def color_score(val):
+                    color = '#00FF9D' if val >= 80 else '#FFB800' if val >= 60 else '#FF4B4B'
+                    return f'color: {color}; font-weight: bold'
 
-        if st.button("🗑️ 清空清單", type="secondary", use_container_width=True, key="clear_kl_v300"):
-            st.session_state.watchlist = pd.DataFrame(columns=wl.columns)
-            st.toast("獵殺清單已清空！", icon="🗑️")
-            st.rerun()
+                st.dataframe(
+                    df_res.style.map(color_score, subset=['百倍基因分數']),
+                    use_container_width=True
+                )
+
+                # AI Conclusion
+                st.divider()
+                top_stock = df_res.iloc[0]
+                top_score = top_stock['百倍基因分數']
+
+                if top_score >= 80:
+                    st.success(f"⚡ [Valkyrie AI 判定] 發現極端異常值！**{top_stock['代號']}** 獲得 {top_score} 分。它展現了完美的「高 ROE + 高毛利 + 低配息再投資」特徵，且市值具備極高爆發潛力，強烈建議納入長期追蹤名單！")
+                elif top_score >= 60:
+                    st.warning(f"⚖️ [Valkyrie AI 判定] **{top_stock['代號']}** 獲得 {top_score} 分。具備部分成長股基因，但某些護城河指標 (如毛利率或ROE) 尚未達到破壞式創新的絕對統治標準。")
+                else:
+                    st.error("🔴 [Valkyrie AI 判定] 本次掃描未發現符合「百倍股雙引擎」特徵的標的。請注意，傳統高股息或成熟期大企業，在此模型中得分通常極低。")
+            else:
+                st.error("❌ 掃描失敗，請確認代號是否輸入正確。")
 
 
-# ═══════════════════════════════════════════════════════════════
+
 # SECTION 6.4 — 全境獵殺
 # ═══════════════════════════════════════════════════════════════
 def _s64():
