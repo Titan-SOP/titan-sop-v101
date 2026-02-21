@@ -351,150 +351,455 @@ class TitanAgentCouncil:
                 st.toast(f"⚠️ AI 模型初始化失敗: {e}", icon="⚡")
 
     def generate_battle_prompt(self, ticker, price, geo_data, rating_info,
-                               intel_text="", commander_note="", selected_principles=None):
+                               intel_text="", commander_note="", selected_principles=None,
+                               mode="full_tribunal"):
+        """
+        TRIBUNAL PROTOCOL V400 — 重構版提示詞引擎
+        mode: "full_tribunal" | "bull_thesis" | "bear_thesis" | "stress_test" | "quick_verdict"
+        """
         level, name, desc, color = rating_info
-        # 幾何數據格式化
-        geo_str = f"""
-1. 超長期視角 (35 年): 角度 {geo_data.get('35Y',{}).get('angle',0)}°, R² {geo_data.get('35Y',{}).get('r2',0)}, 斜率 {geo_data.get('35Y',{}).get('slope',0)}
-2. 長期視角 (10 年): 角度 {geo_data.get('10Y',{}).get('angle',0)}°, R² {geo_data.get('10Y',{}).get('r2',0)}, 斜率 {geo_data.get('10Y',{}).get('slope',0)}
-3. 中長期視角 (5 年): 角度 {geo_data.get('5Y',{}).get('angle',0)}°, R² {geo_data.get('5Y',{}).get('r2',0)}, 斜率 {geo_data.get('5Y',{}).get('slope',0)}
-4. 中期視角 (3 年): 角度 {geo_data.get('3Y',{}).get('angle',0)}°, R² {geo_data.get('3Y',{}).get('r2',0)}, 斜率 {geo_data.get('3Y',{}).get('slope',0)}
-5. 短中期視角 (1 年): 角度 {geo_data.get('1Y',{}).get('angle',0)}°, R² {geo_data.get('1Y',{}).get('r2',0)}, 斜率 {geo_data.get('1Y',{}).get('slope',0)}
-6. 短期視角 (6 個月): 角度 {geo_data.get('6M',{}).get('angle',0)}°, R² {geo_data.get('6M',{}).get('r2',0)}, 斜率 {geo_data.get('6M',{}).get('slope',0)}
-7. 極短期視角 (3 個月): 角度 {geo_data.get('3M',{}).get('angle',0)}°, R² {geo_data.get('3M',{}).get('r2',0)}, 斜率 {geo_data.get('3M',{}).get('slope',0)}
+        acc   = geo_data.get('acceleration', 0)
+        phx   = geo_data.get('phoenix_signal', False)
+        a35   = geo_data.get('35Y', {}).get('angle', 0)
+        a10   = geo_data.get('10Y', {}).get('angle', 0)
+        a5    = geo_data.get('5Y',  {}).get('angle', 0)
+        a3y   = geo_data.get('3Y',  {}).get('angle', 0)
+        a1    = geo_data.get('1Y',  {}).get('angle', 0)
+        a6    = geo_data.get('6M',  {}).get('angle', 0)
+        a3    = geo_data.get('3M',  {}).get('angle', 0)
+        r2_1  = geo_data.get('1Y',  {}).get('r2', 0)
+        r2_3  = geo_data.get('3M',  {}).get('r2', 0)
+        r2_10 = geo_data.get('10Y', {}).get('r2', 0)
+        sl_1  = geo_data.get('1Y',  {}).get('slope', 0)
+        sl_3  = geo_data.get('3M',  {}).get('slope', 0)
 
-加速度: {geo_data.get('acceleration',0)}° (3M角度 - 1Y角度)
-Phoenix 信號: {'🔥 觸發' if geo_data.get('phoenix_signal') else '❄️ 未觸發'}
-"""
-        principles_str = ""
+        # ── 預計算關鍵衍生指標（AI 必須以這些具體數字為錨）──
+        consistency_score = sum([
+            1 if a35 > 0 else 0, 1 if a10 > 0 else 0,
+            1 if a5  > 0 else 0, 1 if a3y > 0 else 0,
+            1 if a1  > 0 else 0, 1 if a6  > 0 else 0,
+            1 if a3  > 0 else 0,
+        ])  # 0-7, 全正=7 表示全週期一致上揚
+        trend_divergence = abs(a1 - a3)       # 大表示短期突破或崩潰
+        long_short_gap   = a10 - a3           # 正=長強短弱(高位); 負=長弱短強(反彈)
+        momentum_ratio   = (a3 / a1) if a1 != 0 else 0  # >1=加速, <1=減速, <0=背離
+
+        # ── 情境判定 (給 AI 明確的戰場地形) ──
+        if a1 > 30 and acc > 15 and r2_1 > 0.8:
+            market_context = "【上升加速期】趨勢強勁且加速，主要風險是過熱後的急回。"
+        elif a1 > 15 and -10 < acc < 10:
+            market_context = "【穩定上升期】趨勢健康，加速度平穩，適合抱倉。"
+        elif -10 < a1 < 15 and abs(acc) < 10:
+            market_context = "【橫盤整理期】方向不明，方向突破前不宜重倉。"
+        elif a1 < 0 and acc < -10:
+            market_context = "【下跌加速期】趨勢負向且惡化，任何反彈都是逃命機會。"
+        elif phx:
+            market_context = "【Phoenix 反轉期】長期趨勢疲弱但短期動能急升，高風險高報酬。"
+        else:
+            market_context = "【複雜混沌期】多空訊號混雜，需深度分析各週期矛盾。"
+
+        principles_block = ""
         if selected_principles:
-            principles_str = "\n## 🎯 統帥指定第一性原則 (必須回答)\n"
+            principles_block = "\n\n### ◉ 統帥必答問題清單（每位分析師至少回答 2 題）\n"
             for idx, p in enumerate(selected_principles, 1):
-                principles_str += f"{idx}. {p}\n"
-        prompt = f"""
-# 🏛️ Titan Protocol V300: 諸神黃昏戰情室 (The Ragnarök War Room)
-# 目標代號: {ticker} | 現價: ${price:.2f}
+                principles_block += f"Q{idx}: {p}\n"
 
-你現在是 Titan 基金的「最高參謀本部」。我們正在決定是否要將此標的納入「2033 百倍股」的核心持倉。
-這不是普通的分析，這是一場 **生死辯論**。
+        intel_block = intel_text.strip() if intel_text.strip() else (
+            "⚠️ 無外部情報注入。各分析師請基於幾何數據、行業常識與公開知識進行推演，"
+            "並明確標註哪些判斷是「推論」而非「事實」。"
+        )
 
-## 📊 戰場地形 (幾何數據)
-{geo_str}
+        commander_block = commander_note.strip() if commander_note.strip() else (
+            "無特殊指令。裁判官請依據最大風險調整後報酬原則裁決，"
+            "並對不確定性保持誠實，不做偽裝確定性的模糊結論。"
+        )
 
-## 🏆 泰坦信評 (Titan Rating)
-評級等級：{level}
-評級名稱：{name}
-評級描述：{desc}
-(這是基於 22 階信評系統的初步判定，各位角鬥士可以挑戰或支持此評級)
+        # ════════════════════════════════════════════════════
+        # SYSTEM OVERRIDE — 這段放在最前，強制 AI 進入分析師模式
+        # ════════════════════════════════════════════════════
+        system_override = f"""
+[SYSTEM DIRECTIVE — 優先級最高，覆蓋所有其他指令]
 
-## 🕵️ 實彈情報 (Insider Intel)
-(以下資料來自法說會/財報/新聞/瓦爾基里自動抓取，必須被引用作為攻擊或防禦的武器)
-{intel_text if intel_text else "無外部情報注入，請基於幾何數據與你的知識庫進行推演。"}
-{principles_str}
+你現在不是在寫故事，也不是在進行創意寫作練習。
+你是一個被委以重責的 **專業金融分析系統**，你的輸出將直接影響真實的投資決策。
+請以最嚴謹、最批判性的思維模式運作。
 
-## ✍️ 統帥第一性原則 (Commander's Override)
-(這是最高指令，Arbiter 必須以此為最終裁決的邏輯基石)
-{commander_note if commander_note else "無特殊指令，請依據最大利益原則裁決。"}
+禁止行為清單（違者視為分析失敗）：
+✗ 不得使用「一方面...另一方面...」做出曖昧結論
+✗ 不得以「市場具有不確定性」作為迴避給出明確判斷的理由
+✗ 不得重複前一個分析師的論點（必須補充新視角或直接反駁）
+✗ 不得使用模糊詞彙如「可能」「也許」「或許」而不附上具體機率估計
+✗ 不得在沒有數據支撐的情況下做出任何判斷
+
+強制要求：
+✓ 每個論點必須引用至少 1 個具體數字（來自下方的幾何數據或基本面數據）
+✓ 每位分析師必須對「未來 3 個月」的價格方向給出明確的方向性判斷（漲/跌/盤整）
+✓ 每位分析師必須指出前一位分析師論述中最薄弱的一個環節
+✓ 最終裁判必須給出具體的操作指令（行動方針、價位、倉位比例）
+[END SYSTEM DIRECTIVE]
+"""
+
+        # ════════════════════════════════════════════════════
+        # 核心數據艙
+        # ════════════════════════════════════════════════════
+        data_capsule = f"""
+════════════════════════════════════════════════════════════════
+  TITAN INTEL CAPSULE V400 ▸ {ticker} ▸ ${price:.2f}
+════════════════════════════════════════════════════════════════
+
+◈ 市場情境判定：{market_context}
+◈ 泰坦信評：{level} — {name}（{desc}）
+
+━━━ 【A】七維幾何矩陣 ━━━
+時間窗口  │  趨勢角度   │  R² 線性度  │  月斜率
+──────────┼─────────────┼─────────────┼──────────────
+35年長河  │  {a35:+7.2f}°  │    {geo_data.get('35Y',{}).get('r2',0):.4f}    │  {geo_data.get('35Y',{}).get('slope',0):+.6f}
+10年宏觀  │  {a10:+7.2f}°  │    {r2_10:.4f}    │  {geo_data.get('10Y',{}).get('slope',0):+.6f}
+5年中期   │  {a5:+7.2f}°  │    {geo_data.get('5Y',{}).get('r2',0):.4f}    │  {geo_data.get('5Y',{}).get('slope',0):+.6f}
+3年中短   │  {a3y:+7.2f}°  │    {geo_data.get('3Y',{}).get('r2',0):.4f}    │  {geo_data.get('3Y',{}).get('slope',0):+.6f}
+1年近期   │  {a1:+7.2f}°  │    {r2_1:.4f}    │  {sl_1:+.6f}
+6月短期   │  {a6:+7.2f}°  │    {geo_data.get('6M',{}).get('r2',0):.4f}    │  {geo_data.get('6M',{}).get('slope',0):+.6f}
+3月極短   │  {a3:+7.2f}°  │    {r2_3:.4f}    │  {sl_3:+.6f}
+
+━━━ 【B】衍生動能指標 ━━━
+▸ 加速度 (3M°−1Y°)  ：{acc:+.2f}°  {'← 動能加速 🚀' if acc > 10 else ('← 動能衰退 ⚠️' if acc < -10 else '← 動能平穩')}
+▸ 趨勢一致性評分    ：{consistency_score}/7（{consistency_score} 個時間窗口角度為正）
+▸ 長短期背離指數    ：{trend_divergence:.2f}°（10Y−3M = {long_short_gap:.2f}°，{'長強短弱→高位風險' if long_short_gap > 15 else ('長弱短強→反彈訊號' if long_short_gap < -15 else '長短一致')}）
+▸ 動能比率 (3M/1Y) ：{momentum_ratio:.2f}x（{'加速上攻' if momentum_ratio > 1.2 else ('加速下行' if momentum_ratio < -1 else ('動能減退' if 0 < momentum_ratio < 0.8 else '正常'))})
+▸ Phoenix 逆轉訊號 ：{'🔥 已觸發（長期角度負、短期角度＞25°）' if phx else '❄️ 未觸發'}
+
+━━━ 【C】實彈情報（Valkyrie Intel）━━━
+{intel_block}
+
+━━━ 【D】統帥最高指令 ━━━
+{commander_block}
+{principles_block}
+════════════════════════════════════════════════════════════════
+"""
+
+        # ════════════════════════════════════════════════════
+        # 模式分支 — 依用戶選擇生成不同格式的 prompt
+        # ════════════════════════════════════════════════════
+
+        if mode == "quick_verdict":
+            analyst_block = f"""
+## 任務：快速裁決（Quick Verdict Mode）
+
+你是「地球頂點·全知者」——查理·蒙格與索羅斯的思維融合體。
+你剛剛獨自審閱了以上所有數據。現在以 500-800 字，給出一份**乾淨俐落的專業裁決**。
+
+必須包含：
+1. **核心論點**（3 條，每條不超過 2 句話，必須引用具體數字）
+2. **最大風險**（1 條，必須指出上方數據中最令你不安的訊號）
+3. **操作指令**（格式如下，所有項目必填）
+
+### 【Apex 裁決】
+- **行動方針**：[Strong Buy / Buy / 觀望 / Sell / Strong Sell]
+- **進場視窗**：[價格區間 + 觸發條件]
+- **停損邏輯**：[$XXX，對應 X% 回撤，基於哪個支撐]
+- **停利目標**：[$XXX / $XXX（分批），基於哪個壓力]
+- **持倉比例**：[X%，理由]
+- **持有週期**：[預計持有 X 個月]
+- **一句定論**：[不得超過 20 字的最終判斷]
+"""
+
+        elif mode == "bull_thesis":
+            analyst_block = f"""
+## 任務：多頭論文建構（Bull Thesis Mode）
+
+你的任務是為 {ticker} 建構最強大的多頭投資論文。
+不是「平衡分析」，是**盡一切可能論證為什麼這是值得買入的標的**。
+
+分三個角色進行，每個角色 **600 字以上**，觀點必須不同：
+
+### 📐 角色一：量化師（Quant Bull）
+從幾何數據出發，**只挑選對多頭有利的訊號**來論證趨勢健康。
+- 必引數據：趨勢一致性評分 {consistency_score}/7、加速度 {acc:+.1f}°、1Y R² {r2_1:.4f}
+- 必回答：角度數值說明趨勢有多堅實？R² 說明趨勢有多穩定？
+
+### 💼 角色二：成長投資人（Growth Bull）
+從基本面和行業趨勢出發，論證為什麼當前估值是合理甚至低估的。
+- 必引用實彈情報中的財務數據
+- 必回答：未來 3 年的 EPS 成長路徑是什麼？
+
+### 🚀 角色三：破壞式創新先知（Visionary Bull）
+從 10 年視角論證這是百倍股。
+- 必引用：行業 TAM、技術護城河、網路效應
+- 必回答：2033 年這家公司的市值天花板是多少？為什麼？
+
+### ⚖️ 多頭論文總結（Thesis Summary）
+整合三個角色，給出：
+- **3 個最強買入理由**（每條必須有具體數字支撐）
+- **3 個最需監控的風險**（論文成立的前提條件）
+- **價格目標**：保守 $X / 基準 $X / 樂觀 $X（12 個月）
+"""
+
+        elif mode == "bear_thesis":
+            analyst_block = f"""
+## 任務：空頭論文建構（Bear Thesis Mode）
+
+你的任務是為 {ticker} 建構最嚴密的空頭/做空論文。
+不是「平衡分析」，是**盡一切可能找出這個標的的致命缺陷**。
+
+分三個角色進行，每個角色 **600 字以上**：
+
+### 📐 角色一：數學空手（Quant Bear）
+從幾何數據出發，**只挑選對空頭有利的訊號**。
+- 必引數據：加速度 {acc:+.1f}°、動能比率 {momentum_ratio:.2f}x、長短期背離 {long_short_gap:.2f}°
+- 必回答：角度和 R² 說明了什麼風險？歷史上類似幾何形態的後續走勢？
+
+### 🐻 角色二：Michael Burry（Value Short）
+從估值和財務數據出發，找出帳面上看不見的泡沫。
+- 必引用實彈情報中的財務數據（PE、負債比、FCF）
+- 必回答：均值回歸後，股價應該在哪裡？
+
+### ⚰️ 角色三：宏觀毀滅者（Macro Bear）
+從宏觀環境出發，找出會壓垮這個標的的外部因素。
+- 必回答：利率、匯率、地緣政治、競爭對手中，哪個威脅最大？概率多高？
+
+### ⚖️ 空頭論文總結
+- **3 個最嚴重的做空理由**（每條必須有具體數字）
+- **空頭成立的催化劑**（什麼事件會觸發下跌？）
+- **下跌目標**：保守 -X% / 基準 -X% / 極端 -X%（12 個月）
+- **做空的致命風險**（什麼情況下空頭論文會破功？）
+"""
+
+        elif mode == "stress_test":
+            analyst_block = f"""
+## 任務：極限壓力測試（Stress Test Mode）
+
+不是分析正常情況。你的任務是系統性地測試 {ticker} 在各種極端情境下的生存能力。
+
+### 情境一：股市崩盤 20%（Black Swan）
+- 假設 SPY 下跌 20%，{ticker} 會跌多少？
+- 基於幾何數據（β 係數、加速度 {acc:+.1f}°），估算最壞情況的跌幅
+- {ticker} 在崩盤後，趨勢線的支撐位在哪裡？
+
+### 情境二：利率再升 200bps
+- 高利率對該公司估值（PE 壓縮）的精確影響
+- DCF 模型在利率 +2% 下，公允價值會變為？
+- 幾何角度是否能抵抗利率衝擊？
+
+### 情境三：核心業務遭受顛覆
+- 如果最大競爭對手以 50% 折扣搶市場，影響多深？
+- 公司的護城河（引用基本面數據）能撐多久？
+- 幾何數據中是否已經出現顛覆前兆（動能比率 {momentum_ratio:.2f}x）？
+
+### 情境四：內部人大量出逃
+- 如果高管在 6 個月內出售 30% 持股，這說明什麼？
+- 結合當前幾何位置（信評 {level}），如何解讀？
+
+### 壓力測試總結
+- **生存概率**：[在上述四種情境下，各給出 0-100% 的生存評分]
+- **最脆弱的環節**：[一句話總結最容易斷裂的地方]
+- **對沖建議**：[如何用 20% 的倉位對沖 80% 的核心風險？]
+"""
+
+        else:  # full_tribunal — 完整五人法庭（大幅強化版）
+            analyst_block = f"""
+## ⚖️ TRIBUNAL PROTOCOL V400 — 五人金融法庭
+
+**庭審對象**：{ticker} @ ${price:.2f}
+**法庭性質**：這是一個投資決策法庭，每位分析師是「專家證人」，不是演員。
+**判決後果**：裁決將直接決定是否動用基金的真實資本。
 
 ---
 
-## ⚔️ 五大角鬥士戰鬥程序 (Battle Protocol)
-
-請扮演以下五位角色，進行一場**史詩級的對話 (Epic Debate)**。
-
-**【絕對規則 (Anti-Laziness Protocol)】**
-1. **字數強制**：每一位角色的發言 **不得少於 800 字** (Arbiter 需 1000 字以上)。
-2. **禁止客套**：這是一場你死我活的辯論。Burry 必須尖酸刻薄，Visionary 必須狂熱，Insider 必須狡猾。
-3. **第一性原則**：所有論點必須回歸物理極限、現金流本質與技術邊界，禁止使用模糊的金融術語。
-4. **數據引用**：每個論點必須明確引用上方的幾何數據或實彈情報。
-5. **互動續寫**：每位角色發言時，必須引用前一位角色的觀點並進行反駁或補充，確保辯論連續性。
-
-### 角色定義：
-
-**1. 【幾何死神】(The Quant - 冷血數學家)**
-* **性格**：冷血、無情、只相信數學。
-* **任務**：根據上方的幾何數據 (35Y, 10Y, 3M 斜率與加速度)，判斷股價是否過熱？R² 是否穩定？
-* **口頭禪**：「數據不會說謊，人類才會。」
-* **論點要求**：至少 800 字，必須引用具體角度與 R² 數值。必須分析 7 個時間窗口的趨勢一致性。
-
-**2. 【內部操盤手】(The Insider - CEO/CFO 化身)**
-* **性格**：防禦性強、報喜不報憂、擅長畫大餅。
-* **任務**：利用「實彈情報」中的數據，護航公司的成長故事。解釋為何現在是買點？
-* **對抗**：當 Burry 攻擊估值時，你要拿出營收成長率反擊。並且必須引用 Quant 的幾何數據來支持你的觀點。
-* **論點要求**：至少 800 字，若無實彈情報則從行業趨勢切入。必須引用瓦爾基里提供的基本面數據 (如毛利率、ROE)。
-
-**3. 【大賣空獵人】(The Big Short - Michael Burry 化身)**
-* **性格**：極度悲觀、被害妄想、尋找崩盤的前兆。
-* **任務**：攻擊「內部人」的謊言。找出估值泡沫、毛利下滑、宏觀衰退的訊號。你必須引用 Insider 的論點並逐一駁斥。
-* **第一性原則**：均值回歸是宇宙鐵律。所有拋物線最終都會墜毀。
-* **論點要求**：至少 800 字，必須質疑信評等級的合理性。必須指出瓦爾基里數據中的風險點 (如負債比過高)。
-
-**4. 【創世紀先知】(The Visionary - Cathie Wood/Elon Musk 化身)**
-* **性格**：狂熱、指數級思維、無視短期虧損。
-* **任務**：使用「萊特定律 (Wright's Law)」與「破壞式創新」來碾壓 Burry 的傳統估值。你必須引用 Burry 的悲觀論點並展示為何他錯了。
-* **論點**：別跟我談 PE，看 2033 年的 TAM (潛在市場)。
-* **論點要求**：至少 800 字，必須展望未來 5-10 年的產業變革。必須引用瓦爾基里提供的產業資訊與新聞動態。
-
-**5. 【地球頂點·全知者】(The Apex Arbiter - 查理·蒙格 + 科技七巨頭創辦人)**
-* **腦袋**：查理·蒙格 (反向思考) + 貝佐斯/馬斯克 (極致商業直覺)。
-* **任務**：你是最終法官。聽完前面四人的血戰後，結合「統帥第一性原則」，給出最終判決。你必須引用各方論點，並解釋為何某方的邏輯更有說服力。
-* **輸出格式**：
-    * **【戰場總結】**：(300 字評析各方論點的強弱，明確指出誰的論點最有力、誰的論點有漏洞)
-    * **【第一性原則裁決】**：(400 字回歸物理與商業本質的判斷，必須回答統帥指定的第一性原則問題)
-    * **【操作指令】**：
-        - 行動方針：Strong Buy / Buy / Wait / Sell / Strong Sell
-        - 進場價位：基於趨勢線乖離率建議 (具體數字)
-        - 停損價位：明確數字
-        - 停利價位：明確數字
-        - 持倉建議：輕倉/標準倉/重倉/空倉
-        - 風險提示：[3 個關鍵風險]
-* **論點要求**：至少 1000 字，必須展現真正的智慧而非模板化結論。必須整合瓦爾基里的基本面、新聞與幾何數據。
+### 【出庭順序與強制輸出規格】
 
 ---
 
-## 📋 輸出格式要求
+## 🧮 證人一：量化分析師（The Quant）
+**身份**：15 年期貨市場量化策略師，只信數學，蔑視敘事。
 
-請按照以下結構輸出：
+**出庭必須完成以下 6 項量化分析**（跳過任何一項視為作證不完整）：
 
-## 🤖 幾何死神 (The Quant)
-[800+ 字的冷血數學分析，必須分析 7 個時間窗口]
+**[Q1] 趨勢一致性鑑定**
+- 7 個時間窗口的角度逐一解讀，明確哪些窗口一致、哪些出現矛盾
+- 趨勢一致性評分 {consistency_score}/7 代表什麼含義？歷史案例比較。
 
----
+**[Q2] R² 線性度審計**
+- 1Y R²={r2_1:.4f}，3M R²={r2_3:.4f}，10Y R²={r2_10:.4f}
+- R² 高說明趨勢可預測性強，低說明震盪無方向。當前數值屬於哪種狀態？
 
-## 💼 內部操盤手 (The Insider)
-[800+ 字的成長故事護航，並引用 Quant 的數據與瓦爾基里基本面]
+**[Q3] 加速度動能判定**
+- 加速度 {acc:+.2f}°（3M角度−1Y角度）
+- 正值=近期加速上攻，負值=動能衰退。當前加速度意味著什麼交易機會？
 
----
+**[Q4] 動能比率分析**
+- 動能比率 {momentum_ratio:.2f}x（3M角度 / 1Y角度）
+- 比率 >1.2 表示加速突破，<0 表示趨勢背離。如何解讀？
 
-## 🐻 大賣空獵人 (The Big Short)
-[800+ 字的悲觀攻擊，並駁斥 Insider 的論點，指出瓦爾基里數據中的風險]
+**[Q5] Phoenix 訊號驗證**
+- Phoenix 訊號 = 長期角度（10Y）< 0 且 短期角度（6M）> 25°
+- 當前狀態：{'已觸發。歷史上此訊號的成功率與失敗案例各是什麼？' if phx else '未觸發。距離觸發條件還差多遠？'}
 
----
+**[Q6] 量化交易結論**
+- 基於以上五項分析，給出：
+  * 3 個月方向預判：[漲/跌/盤整] + 信心度 [X%]
+  * 關鍵支撐位（基於趨勢線計算）
+  * 關鍵壓力位（基於歷史角度推算）
 
-## 🚀 創世紀先知 (The Visionary)
-[800+ 字的狂熱展望，並反駁 Burry 的悲觀，引用產業趨勢與新聞]
-
----
-
-## ⚖️ 地球頂點·全知者 (The Apex Arbiter)
-
-### 【戰場總結】
-[300+ 字，評析各方論點，指出誰最有力]
-
-### 【第一性原則裁決】
-[400+ 字，回答統帥指定問題，整合瓦爾基里數據]
-
-### 【操作指令】
-- **行動方針**: [Strong Buy / Buy / Wait / Sell / Strong Sell]
-- **進場價位**: $XXX (基於趨勢線 ±Y%)
-- **停損價位**: $XXX
-- **停利價位**: $XXX
-- **持倉建議**: [輕倉/標準倉/重倉/空倉]
-- **風險提示**: [3 個關鍵風險]
+**字數要求**：800 字以上。每個子項目獨立展開，不得合併簡化。
 
 ---
 
-請以繁體中文回答。確保每個角色的論述都具有深度與獨特性，避免重複論點，並且每位角色都必須引用前面角色的觀點進行互動。字數要求是最低門檻，請盡量詳細展開論述。
+## 💼 證人二：公司內部人（The Insider）
+**身份**：你是該公司的 CFO，剛剛結束法說會，正在捍衛股價的合理性。
+
+**你知道一個秘密**：你比任何外部分析師都更了解公司的真實狀況。
+但你也必須對抗以下已知的攻擊點（Quant 剛才的數據不能被忽視）：
+
+**必須完成以下 5 項陳述**：
+
+**[I1] 引用 Quant 數據為多頭背書**
+- 從 Quant 的 6 項分析中，選出 2-3 個對你最有利的數據，說明為什麼幾何趨勢支持公司基本面。
+
+**[I2] 基本面護城河宣示**
+- 引用瓦爾基里情報中的財務數據（毛利率、ROE、FCF、市值等）
+- 說明這些指標為什麼證明公司有可持續的競爭優勢
+
+**[I3] 成長路徑具體化**
+- 未來 4 個季度，你預期哪些財務指標會改善？具體幅度是？
+- 如果沒有具體財務數據可引用，請基於行業標準進行估算並明確說明是估算
+
+**[I4] 機構目標價解讀**
+- 當前機構平均目標價與現價的關係，代表多少上行空間？
+- 最樂觀和最悲觀的分析師各在哪裡，為什麼？
+
+**[I5] CFO 反質詢**
+- 預測 Burry（下一位）最可能攻擊你哪個弱點，主動提出防禦論點
+
+**字數要求**：800 字以上。
+
+---
+
+## 🐻 證人三：做空獵人（The Big Short — Michael Burry）
+**身份**：你是 CDS 交易的先驅，你發現了 2008 年次貸危機。你有妄想症，但妄想症患者有時候是對的。
+
+**你剛剛聽了 Quant 和 Insider 的陳述，現在逐一拆解他們的謊言。**
+
+**必須完成以下 5 項質詢**：
+
+**[B1] 拆解 Quant 的數學盲點**
+- Quant 的量化分析遺漏了什麼？哪個數字其實是危險信號而非利多？
+- 特別針對：動能比率 {momentum_ratio:.2f}x 和長短期背離 {long_short_gap:.2f}° 代表的真實含義
+
+**[B2] 撕開 Insider 的財務面具**
+- 從瓦爾基里數據中找出 Insider 沒有提到的危險指標（負債比？FCF 品質？SBC 稀釋？）
+- 用具體計算揭露：若均值回歸發生，股價應該在哪裡？
+
+**[B3] 泰坦信評的合理性質疑**
+- 信評 {level}（{name}）真的成立嗎？
+- 找出至少 2 個讓你對信評存疑的具體數據矛盾
+
+**[B4] 宏觀死亡威脅**
+- 外部環境中，哪個因素最可能在未來 6 個月內摧毀這個「成長故事」？
+- 給出具體的觸發條件和下跌目標
+
+**[B5] 做空論文**
+- 如果你要做空這支股票，你的論文是什麼？
+- 進場價位、催化劑、目標價、停損點
+
+**字數要求**：800 字以上。Burry 的風格是尖酸刻薄但有憑有據，不是謾罵。
+
+---
+
+## 🚀 證人四：創世紀先知（The Visionary — Cathie Wood × Peter Thiel）
+**身份**：你看到了別人看不見的未來。你的基金持有這支股票 3 年了，你對抗 Burry 的方式不是辯論估值，而是讓他的估值框架變得無關緊要。
+
+**你剛剛聽了 Burry 的做空論文，現在逐一反駁。**
+
+**必須完成以下 5 項陳述**：
+
+**[V1] Burry 的框架錯誤**
+- 指出 Burry 使用了哪個過時的分析框架
+- 解釋為什麼傳統 PE/DCF 在這個行業是「用直尺量曲線」
+
+**[V2] 萊特定律 × 技術曲線**
+- 引用萊特定律（Wright's Law）：產量翻倍→成本下降 X%
+- 計算：若此規律成立，未來 3-5 年公司的成本結構會如何演化？
+
+**[V3] TAM 爆炸性計算**
+- 目前公司的市場占有率是多少？
+- 若市場規模在 2030 年達到 $X Trillion，公司若能保持 Y% 市占，市值應該是？
+- 必須給出具體數字，哪怕是範圍估算
+
+**[V4] 引用幾何數據為長期多頭背書**
+- 從 Quant 的幾何數據中，引用 35Y 和 10Y 的長期角度
+- 說明長期趨勢線的斜率意味著什麼複利回報率
+
+**[V5] 信仰與風險**
+- 承認 Burry 的哪一個擔憂是真實存在的
+- 說明為什麼即便這個風險成立，長期投資邏輯仍然不變
+
+**字數要求**：800 字以上。
+
+---
+
+## ⚖️ 裁判官：地球頂點·全知者（The Apex Arbiter）
+**身份**：查理·蒙格的反向思考 × 橋水達里歐的風險平衡哲學 × 索羅斯的反身性理論。
+
+**你剛剛聆聽了四位專家證人的完整陳述。現在做出最終裁決。**
+**這個裁決是真實資金的操作依據，你不能模糊，不能騎牆。**
+
+**必須完成以下結構（總字數 1200 字以上）**：
+
+### 【A. 法庭辯論總結】（300 字）
+- 四位證人中，誰的論點最有說服力？為什麼？（必須具體說明哪個數據或邏輯最有力）
+- 哪位證人的論述存在最明顯的邏輯漏洞？具體指出。
+- 多空雙方的核心分歧點是什麼？（一句話定義戰場）
+
+### 【B. 第一性原則裁決】（400 字）
+- 回到最基本的問題：這家公司的商業模式，在物理和數學上，能持續創造超額回報嗎？
+- 引用具體的幾何數據（至少 3 個數字）支持你的裁決
+{principles_block if principles_block else "- 基於你的判斷，回答最關鍵的一個問題：此時買入，風險調整後的期望值是正還是負？"}
+
+### 【C. 最終操作指令】（格式嚴格，所有項目必填，不得留空）
+- **行動方針**：[Strong Buy / Buy / 分批佈局 / 觀望 / 減持 / Sell / Strong Sell]
+- **觸發條件**：[什麼條件觸發執行？價格、技術、基本面各選一個]
+- **進場價位**：[$XXX（基於趨勢線乖離率計算）]
+- **停損邏輯**：[$XXX，對應 -X% 跌幅，基於哪個支撐水平]
+- **停利目標 1**：[$XXX，+X%，對應哪個壓力位/技術目標]
+- **停利目標 2**：[$XXX，+X%，長期目標]
+- **持倉建議**：[X% of Portfolio，理由]
+- **預期持有**：[X 個月，理由]
+- **核心風險三條**：
+  * 風險 1：[具體事件，觸發概率 X%，若觸發跌幅 -X%]
+  * 風險 2：[具體事件，觸發概率 X%，若觸發跌幅 -X%]
+  * 風險 3：[具體事件，觸發概率 X%，若觸發跌幅 -X%]
+
+### 【D. 一句定論】
+[不超過 25 個字，最終判決，不得模糊，不得對沖]
+"""
+
+        # 最終完整 prompt 組合
+        prompt = f"""{system_override}
+
+{'='*64}
+  TITAN TRIBUNAL PROTOCOL V400
+  分析標的：{ticker} | 現價：${price:.2f} | 模式：{mode.upper()}
+  生成時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{'='*64}
+
+{data_capsule}
+
+{'='*64}
+  分析任務
+{'='*64}
+{analyst_block}
+
+{'='*64}
+  輸出規範
+{'='*64}
+
+**語言**：繁體中文（技術術語可保留英文）
+**格式**：嚴格遵守上方每個角色的 [代碼] 子項目結構，逐一回答
+**深度**：這不是摘要，是完整分析。每個子項目獨立展開，不得簡化合併
+**禁止**：不得在結論中使用「需要進一步觀察」「視情況而定」等迴避性語言
+**收尾**：全文最後一句必須是裁判官的【一句定論】，作為整份報告的錨點
+
+請開始輸出。
 """
         return prompt
 
@@ -540,6 +845,48 @@ FIRST_PRINCIPLES_20 = [
     "[終極] 反脆弱性：遇黑天鵝(戰爭/疫情)是受傷還是獲利？",
     "[終極] 百倍股基因：2033 年若活著，它會變成什麼樣子？",
 ]
+
+# ═══════════════════════════════════════════════════════════════
+# [V2] 精準狙擊問題庫 — 投資委員會級別的外科手術提問
+# 設計原則：每個問題都必須可用現有量化數據回答
+#           問題本身即告訴 AI「我要的是數字，不是敘述」
+# ═══════════════════════════════════════════════════════════════
+SURGICAL_QUESTIONS = {
+    "📐 趨勢結構診斷": [
+        "7個時間維度中，哪幾個方向一致？哪裡出現背離？背離的操作意義是什麼？",
+        "R²值最低的時間窗口是哪個？這個R²水平讓當前信評的可信度打幾折？",
+        "當前加速度訊號的含義：在歷史上，類似加速度水平後的90天股價表現有什麼規律？",
+        "Phoenix訊號（長期空頭+短期強多逆轉）：觸發/未觸發各意味著什麼？成功反轉的歷史確認條件是什麼？",
+        "上帝軌道乖離率的均值回歸速度：類似乖離水平通常需要幾個月回歸，應對策略是什麼？",
+    ],
+    "💰 估值與基本面診斷": [
+        "Forward PE / PEG 搭配當前營收成長率，給出合理估值區間，以及現在是貴還是便宜。",
+        "毛利率和營業利益率的趨勢方向：若繼續此趨勢3年，對合理股價的影響是多少？",
+        "自由現金流殖利率（FCF ÷ 市值）是多少？和10年期美債比，這筆投資的風險溢酬是否充足？",
+        "用逆向工程推算：要讓現在的股價合理，公司需要在未來3年實現多少年化成長率？這個成長率現實嗎？",
+        "機構平均目標價的可信度分析：過去一年機構的預測準確率和偏差方向，應打幾折使用？",
+    ],
+    "⚠️ 空頭論述與風險識別": [
+        "給我3個讓這筆投資在6個月內虧損20%的具體情境，每個附上觸發條件和發生概率估計。",
+        "技術性停損三法：趨勢線支撐位、波動率（ATR法）、52週低點——三個方法各給出具體停損價格。",
+        "這家公司當前市場敘事中最大的謊言是什麼？市場在相信哪個未必會成真的故事？",
+        "若主要競爭對手削減20%售價，這家公司的毛利率和競爭護城河能撐幾個季度？",
+        "財務壓力測試：若利率維持高位2年，公司的現金流和負債比例能否支撐正常運營？",
+    ],
+    "🎯 進出場操作策略": [
+        "給一個可直接執行的進場Checklist（非建議，是二元條件：每項滿足=✅/不滿足=❌，全✅才進場）。",
+        "若總帳戶100萬，最大單筆損失控制在2%，這支股票的合理倉位是多少股？計算過程請展示。",
+        "分批建倉策略：第一批最優進場點？加碼條件？減倉條件？完全退出條件？各是什麼？",
+        "設計一個機械式出場規則，讓我在不做主觀判斷的情況下，自動知道何時離場。",
+        "基於當前3個月和1年角度差，動能最可能持續幾個月？對應的最佳持有期和出場時機預估。",
+    ],
+    "🔭 宏觀與產業脈絡": [
+        "當前利率、通膨、景氣循環對這家公司是順風還是逆風？請量化：每升息1碼對其估值影響多少？",
+        "這家公司在AI/半導體/所在產業未來18個月最可能發生的結構性變化中，處於什麼位置？",
+        "地緣政治風險（台海/美中關稅/供應鏈重組）對這家公司的直接衝擊：最壞情景下影響多大？",
+        "若整體市場修正20%，基於這支股票的歷史Beta，它預計下跌多少？相對表現如何？",
+    ],
+}
 
 # Tab 4 精選 10 條 (原始 V90.2 設計)
 ESSENTIAL_PRINCIPLES_10 = [
@@ -1667,136 +2014,496 @@ def _s61():
 
 
 # ═══════════════════════════════════════════════════════════════
-# SECTION 6.2 — 個股深鑽 (CROWN JEWEL — FULLY RESTORED)
 # ═══════════════════════════════════════════════════════════════
-def _s62():
-    st.markdown('<div class="t6-sec-head" style="--sa:#FFD700"><div class="t6-sec-num">6.2</div><div><div class="t6-sec-title" style="color:#FFD700;">個股深鑽 — 7D 幾何 + 信評 + 上帝軌道 + 戰略工廠</div><div class="t6-sec-sub">Deep Dive · Spectrum · God Orbit · Strategy Factory</div></div></div>', unsafe_allow_html=True)
-    ticker_in = st.text_input("🎯 輸入代號 (支援上市/上櫃/美股)", "NVDA", key="deep_ticker_v300").strip()
+# SECTION 6.2 — 個股深鑽 V400 (CROWN JEWEL — FULLY ENHANCED)
+# ═══════════════════════════════════════════════════════════════
 
-    if st.button("🚀 啟動深鑽分析", type="primary", key="btn_deep_v300"):
-        with st.spinner(f"正在分析 {ticker_in}…"):
-            geo = compute_7d_geometry(ticker_in)
+def _s62_geo_interpretation_panel(geo, ticker_in, price):
+    """幾何解讀面板 — 將原始角度翻譯成人類語言"""
+    a35 = geo['35Y']['angle'];  a10 = geo['10Y']['angle']
+    a5  = geo['5Y']['angle'];   a3y = geo['3Y']['angle']
+    a1  = geo['1Y']['angle'];   a6  = geo['6M']['angle']
+    a3  = geo['3M']['angle'];   acc = geo['acceleration']
+    r2_1 = geo['1Y']['r2'];     r2_3 = geo['3M']['r2']
+    phx = geo['phoenix_signal']
+
+    consistency_score = sum([a35>0, a10>0, a5>0, a3y>0, a1>0, a6>0, a3>0])
+    trend_divergence  = abs(a1 - a3)
+    long_short_gap    = a10 - a3
+    momentum_ratio    = (a3 / a1) if a1 != 0 else 0
+
+    st.markdown("""
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+    color:rgba(0,245,255,.35);letter-spacing:4px;text-transform:uppercase;
+    margin:16px 0 8px;">
+    ◈ 幾何解讀矩陣 — Geometry Interpretation Matrix
+    </div>""", unsafe_allow_html=True)
+
+    ka, kb, kc, kd = st.columns(4)
+
+    cs_color = "#00FF7F" if consistency_score >= 6 else ("#FFD700" if consistency_score >= 4 else "#FF6B6B")
+    cs_label = "全週期共振" if consistency_score == 7 else (
+               "強勢共振" if consistency_score >= 5 else (
+               "部分背離" if consistency_score >= 3 else "多空混沌"))
+    ka.markdown(f"""
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;padding:12px;text-align:center;">
+    <div style="font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:2px;margin-bottom:4px;">趨勢一致性</div>
+    <div style="font-size:28px;font-weight:900;color:{cs_color};line-height:1.1;">{consistency_score}<span style="font-size:14px;opacity:0.5;">/7</span></div>
+    <div style="font-size:10px;color:{cs_color};margin-top:4px;">{cs_label}</div>
+    </div>""", unsafe_allow_html=True)
+
+    mr_color = "#00FF7F" if momentum_ratio > 1.2 else ("#FF6B6B" if momentum_ratio < 0 else "#FFD700")
+    mr_label = "加速上攻" if momentum_ratio > 1.2 else (
+               "加速下行" if momentum_ratio < -0.5 else (
+               "動能減退" if 0 < momentum_ratio < 0.8 else "方向背離" if momentum_ratio < 0 else "正常巡航"))
+    kb.markdown(f"""
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;padding:12px;text-align:center;">
+    <div style="font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:2px;margin-bottom:4px;">動能比率 3M/1Y</div>
+    <div style="font-size:28px;font-weight:900;color:{mr_color};line-height:1.1;">{momentum_ratio:+.2f}<span style="font-size:12px;opacity:0.5;">x</span></div>
+    <div style="font-size:10px;color:{mr_color};margin-top:4px;">{mr_label}</div>
+    </div>""", unsafe_allow_html=True)
+
+    div_color = "#FF9A3C" if trend_divergence > 20 else ("#FFD700" if trend_divergence > 10 else "#00FF7F")
+    div_label = "高度背離⚠️" if trend_divergence > 20 else ("輕微背離" if trend_divergence > 10 else "高度一致✅")
+    kc.markdown(f"""
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;padding:12px;text-align:center;">
+    <div style="font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:2px;margin-bottom:4px;">短長背離指數</div>
+    <div style="font-size:28px;font-weight:900;color:{div_color};line-height:1.1;">{trend_divergence:.1f}<span style="font-size:12px;opacity:0.5;">°</span></div>
+    <div style="font-size:10px;color:{div_color};margin-top:4px;">{div_label}</div>
+    </div>""", unsafe_allow_html=True)
+
+    lsg_color = "#FF9A3C" if long_short_gap > 15 else ("#00BFFF" if long_short_gap < -15 else "#D3D3D3")
+    lsg_label = "長強短弱→高位" if long_short_gap > 15 else ("長弱短強→反彈" if long_short_gap < -15 else "長短一致")
+    kd.markdown(f"""
+    <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;padding:12px;text-align:center;">
+    <div style="font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:2px;margin-bottom:4px;">10Y−3M 差值</div>
+    <div style="font-size:28px;font-weight:900;color:{lsg_color};line-height:1.1;">{long_short_gap:+.1f}<span style="font-size:12px;opacity:0.5;">°</span></div>
+    <div style="font-size:10px;color:{lsg_color};margin-top:4px;">{lsg_label}</div>
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+    with st.expander("📖 幾何指標完整解讀說明（點此展開）", expanded=False):
+        st.markdown("""
+**▸ 趨勢角度（°）是什麼？**
+將股價取自然對數後做線性回歸，斜率換算成角度。
+- **> 45°** = 極強上升通道（年化回報通常 > 50%）
+- **20°–45°** = 健康上升（年化 15%–50%）
+- **0°–20°** = 弱上升或橫盤（年化 0%–15%）
+- **< 0°** = 下降趨勢，角度越負越危險
+
+**▸ R²（線性度）是什麼？**
+趨勢的「可預測性」。R²=1.0 表示完全線性，R²=0 表示完全混沌。
+- **> 0.90** = 機構資金流入，趨勢高度可靠
+- **0.70–0.90** = 趨勢存在但有波動
+- **< 0.50** = 震盪行情，趨勢角度意義有限
+
+**▸ 加速度（Acceleration）是什麼？**
+= 3M角度 − 1Y角度。衡量近期動能是否在增強。
+- **> +15°** = 動能急速加速，可能過熱
+- **0°–15°** = 溫和加速，健康
+- **< 0°** = 動能衰退，需謹慎
+
+**▸ 動能比率（Momentum Ratio）是什麼？**
+= 3M角度 / 1Y角度。
+- **> 1.2** = 近期突破加速，短多訊號
+- **0.8–1.2** = 正常運行
+- **< 0** = 長多短空，趨勢背離，危險訊號
+
+**▸ Phoenix 訊號是什麼？**
+= 10Y角度 < 0 且 6M角度 > 25°。長期趨勢疲弱但短期突然爆發。
+高風險高報酬，可能真正反轉，也可能死貓反彈，需配合基本面驗證。
+
+**▸ 趨勢一致性評分（0–7）**
+7個時間窗口中，有幾個角度為正。
+- **7/7** = 全週期共振多頭
+- **5–6/7** = 強勢，有個別分歧
+- **3–4/7** = 多空拉鋸
+- **< 3/7** = 空頭主導
+        """)
+
+    if a1 > 30 and acc > 15 and r2_1 > 0.8:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "🚀", "#00FF7F", "上升加速期",
+            f"趨勢強勁且加速（1Y={a1:+.1f}°，加速度={acc:+.1f}°，R²={r2_1:.3f}）。主要風險是過熱後的急回調。策略：追趨勢但設緊停損。"
+        )
+    elif a1 > 15 and -10 < acc < 10:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "📈", "#ADFF2F", "穩定上升期",
+            f"趨勢健康，加速度平穩（1Y={a1:+.1f}°，加速度={acc:+.1f}°）。適合持倉。策略：回調至趨勢線附近加碼，不追高。"
+        )
+    elif -10 < a1 < 15 and abs(acc) < 10:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "⚖️", "#FFD700", "橫盤整理期",
+            f"方向不明（1Y={a1:+.1f}°，一致性={consistency_score}/7）。等待突破前不宜重倉。策略：觀望，等待加速度轉向。"
+        )
+    elif a1 < 0 and acc < -10:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "💀", "#FF3131", "下跌加速期",
+            f"趨勢負向且惡化（1Y={a1:+.1f}°，加速度={acc:+.1f}°）。任何反彈都是逃命機會。策略：清倉或做空。"
+        )
+    elif phx:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "🔥", "#FF6347", "Phoenix 反轉期",
+            f"長期趨勢疲弱但短期動能急升（10Y={a10:+.1f}°，6M={a6:+.1f}°）。高風險高報酬。必須配合基本面驗證才敢進場。"
+        )
+    else:
+        ctx_icon, ctx_color, ctx_txt, ctx_detail = (
+            "🌪️", "#B0B0B0", "複雜混沌期",
+            f"多空訊號混雜（一致性={consistency_score}/7，加速度={acc:+.1f}°）。低倉位或觀望。"
+        )
+
+    st.markdown(f"""
+    <div style="background:rgba(255,255,255,0.02);border:1px solid {ctx_color}33;
+    border-left:4px solid {ctx_color};border-radius:0 10px 10px 0;padding:14px 18px;margin:10px 0;">
+    <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-size:22px;">{ctx_icon}</span>
+    <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+    color:{ctx_color};letter-spacing:2px;text-transform:uppercase;">{ctx_txt}</div>
+    <div style="font-size:12px;color:rgba(200,210,220,0.7);margin-top:3px;">{ctx_detail}</div>
+    </div></div></div>""", unsafe_allow_html=True)
+
+
+def _s62():
+    st.markdown('<div class="t6-sec-head" style="--sa:#FFD700"><div class="t6-sec-num">6.2</div><div><div class="t6-sec-title" style="color:#FFD700;">個股深鑽 V400 — 幾何解讀 + 情境判定 + 法庭級分析提示詞</div><div class="t6-sec-sub">Deep Dive · Interpretation · Tribunal Prompt Engine · God Orbit</div></div></div>', unsafe_allow_html=True)
+
+    c_in, c_btn = st.columns([4, 1])
+    ticker_in = c_in.text_input(
+        "🎯 輸入代號（支援台股上市/上櫃/美股）",
+        value=st.session_state.get('deep_ticker', 'NVDA'),
+        key="deep_ticker_v300"
+    ).strip().upper()
+
+    if c_btn.button("🚀 啟動深鑽", type="primary", use_container_width=True, key="btn_deep_v300"):
+        with st.spinner(f"▶ 解碼 {ticker_in} 全維度幾何…"):
+            geo    = compute_7d_geometry(ticker_in)
             rating = titan_rating_system(geo) if geo else ("N/A", "N/A", "N/A", "#808080")
-        st.session_state['deep_geo'] = geo
+        st.session_state['deep_geo']    = geo
         st.session_state['deep_rating'] = rating
         st.session_state['deep_ticker'] = ticker_in
+        st.session_state.pop('valkyrie_report_v300', None)
+        st.session_state.pop('battle_prompt_v300',   None)
 
     if 'deep_geo' not in st.session_state or st.session_state.get('deep_ticker') != ticker_in:
-        st.toast("ℹ️ 請輸入代號並啟動分析。", icon="📡")
+        st.info("ℹ️ 請輸入代號後點擊「啟動深鑽」。")
         return
-    geo = st.session_state['deep_geo']
+
+    geo    = st.session_state['deep_geo']
     rating = st.session_state['deep_rating']
     lvl, name, desc, color = rating
 
-    # ── RANK BADGE ──
-    st.markdown(f'<div class="rank-badge-wrap"><div class="rank-badge">{lvl}</div><div class="rank-badge-name">{name}</div><div class="rank-badge-desc">{desc}</div></div>', unsafe_allow_html=True)
+    if geo is None:
+        st.error(f"❌ 無法取得 {ticker_in} 的歷史數據，請確認代號是否正確。")
+        return
 
-    if geo:
-        _render_spectrum(geo, ticker_in)
-        c1, c2 = st.columns(2)
-        acc = geo['acceleration']
-        acc_c = "#00FF7F" if acc > 0 else "#FF6B6B"
-        c1.markdown(f'<div style="text-align:center;padding:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;"><div style="font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:3px;margin-bottom:6px;">ACCELERATION (G-FORCE)</div><div style="font-family:var(--f-i);font-size:42px;font-weight:800;color:{acc_c};line-height:1;">{acc:+.1f}°</div></div>', unsafe_allow_html=True)
-        phx = geo['phoenix_signal']
-        phx_c = "#FF6347" if phx else "rgba(100,115,135,0.3)"
-        c2.markdown(f'<div style="text-align:center;padding:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;"><div style="font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:3px;margin-bottom:6px;">PHOENIX SIGNAL</div><div style="font-family:var(--f-i);font-size:28px;font-weight:800;color:{phx_c};line-height:1;">{"🔥 TRIGGERED" if phx else "— INACTIVE"}</div></div>', unsafe_allow_html=True)
+    # ── 信評徽章 ──
+    st.markdown(f'<div class="rank-badge-wrap"><div class="rank-badge" style="background:linear-gradient(135deg,{color} 0%,#333 50%,{color} 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{lvl}</div><div class="rank-badge-name" style="color:{color};">{name}</div><div class="rank-badge-desc">{desc}</div></div>', unsafe_allow_html=True)
 
+    _render_spectrum(geo, ticker_in)
+
+    acc = geo['acceleration']
+    phx = geo['phoenix_signal']
+    r2_1 = geo['1Y']['r2']
+
+    c1, c2, c3 = st.columns(3)
+    acc_c = "#00FF7F" if acc > 10 else ("#FFD700" if acc > 0 else "#FF6B6B")
+    c1.markdown(f'<div style="text-align:center;padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;"><div style="font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:3px;margin-bottom:6px;">ACCELERATION (G-FORCE)</div><div style="font-family:var(--f-i);font-size:44px;font-weight:900;color:{acc_c};line-height:1;">{acc:+.1f}°</div><div style="font-size:10px;color:{acc_c};margin-top:4px;">{"動能急速加速 🚀" if acc>15 else ("溫和加速" if acc>0 else ("動能衰退 ⚠️" if acc>-15 else "動能崩潰 💀"))}</div></div>', unsafe_allow_html=True)
+
+    phx_c = "#FF6347" if phx else "rgba(100,115,135,0.3)"
+    c2.markdown(f'<div style="text-align:center;padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;"><div style="font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:3px;margin-bottom:6px;">PHOENIX SIGNAL</div><div style="font-family:var(--f-i);font-size:22px;font-weight:800;color:{phx_c};line-height:1.3;">{"🔥 TRIGGERED" if phx else "— INACTIVE"}</div><div style="font-size:10px;color:{phx_c};margin-top:4px;">{"長空短多逆轉！需基本面驗證" if phx else "長短趨勢尚未出現逆轉格局"}</div></div>', unsafe_allow_html=True)
+
+    r2_c = "#00FF7F" if r2_1 > 0.9 else ("#FFD700" if r2_1 > 0.7 else "#FF9A3C")
+    c3.markdown(f'<div style="text-align:center;padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;"><div style="font-family:var(--f-m);font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:3px;margin-bottom:6px;">1Y R² 線性度</div><div style="font-family:var(--f-i);font-size:44px;font-weight:900;color:{r2_c};line-height:1;">{r2_1:.3f}</div><div style="font-size:10px;color:{r2_c};margin-top:4px;">{"趨勢極可靠 ✅" if r2_1>0.9 else ("趨勢可靠" if r2_1>0.7 else "趨勢震盪")}</div></div>', unsafe_allow_html=True)
+
+    # ── 幾何解讀矩陣 ──
+    st.divider()
+    price_now = 0.0
+    dp_data = st.session_state.get('daily_price_data', {}).get(ticker_in)
+    if dp_data is not None and not dp_data.empty:
+        price_now = float(dp_data['Close'].iloc[-1])
+    _s62_geo_interpretation_panel(geo, ticker_in, price_now)
+
+    # ── 圖表 Tabs ──
+    st.divider()
+    tab_radar, tab_orbit, tab_monthly = st.tabs(["🕸️ 7D 雷達圖", "🌌 上帝軌道", "📊 月K線圖"])
+    with tab_radar:
         _render_radar(geo, ticker_in)
-
-        # ── [FIX #4] 上帝軌道 ──
-        st.divider()
-        st.subheader("📈 全歷史對數線性回歸 (上帝軌道)")
+    with tab_orbit:
+        st.caption("📡 對數線性回歸：股價在長期成長通道中的位置。藍線=趨勢通道，綠線=實際價格。")
         _render_god_orbit(ticker_in)
-
+    with tab_monthly:
+        st.caption("🕯️ 月K線 + MA87（橘）+ MA284（藍）。長期均線方向代表資金長期趨勢。")
         _render_monthly_chart(ticker_in)
 
-    # ── [FIX #5] 9 Smart Links ──
+    # ── 智能連結 ──
     st.divider()
-    with st.expander("🔗 智能快捷連結 (9 個必備資源)", expanded=False):
+    with st.expander("🔗 智能快捷連結（9 個必備研究資源）", expanded=False):
         tk_clean = ticker_in.replace('.TW', '').replace('.TWO', '')
-        st.markdown(f"1. **[TradingView](https://www.tradingview.com/chart/?symbol={ticker_in})** — 技術圖表與指標分析")
-        st.markdown(f"2. **[Finviz](https://finviz.com/quote.ashx?t={ticker_in})** — 美股視覺化看板")
-        if ticker_in.endswith(('.TW', '.TWO')):
-            st.markdown(f"3. **[Yahoo 台股](https://tw.stock.yahoo.com/quote/{tk_clean})** — 台股即時報價與新聞")
-        else:
-            st.markdown(f"3. **[Yahoo Finance](https://finance.yahoo.com/quote/{ticker_in})** — 完整財務報表與預測")
-        st.markdown(f"4. **[StockCharts](https://stockcharts.com/h-sc/ui?s={ticker_in})** — 專業技術分析工具")
-        st.markdown(f"5. **[鉅亨網](https://invest.cnyes.com/twstock/TWS/{tk_clean})** — 台股即時新聞與財報")
-        st.markdown(f"6. **[Goodinfo](https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={tk_clean})** — 台股財務指標寶庫")
-        st.markdown(f"7. **[公開資訊觀測站](https://mops.twse.com.tw/mops/web/t05st03)** — 官方財報與法說會公告")
-        st.markdown(f"8. **[AlphaMemo](https://www.alphamemo.ai/free-transcripts)** — AI 法說會逐字稿分析")
-        if not ticker_in.endswith(('.TW', '.TWO')):
-            st.markdown(f"9. **[SEC Edgar](https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={ticker_in})** — 美股官方 10-K/10-Q 文件")
-        else:
-            st.markdown(f"9. **[證券櫃檯買賣中心](https://www.tpex.org.tw/web/stock/aftertrading/otc_quotes_no1430/stk_wn1430.php?l=zh-tw)** — 上櫃股票資訊")
+        lc1, lc2, lc3 = st.columns(3)
+        with lc1:
+            st.markdown(f"**[📈 TradingView](https://www.tradingview.com/chart/?symbol={ticker_in})** — 技術圖表")
+            st.markdown(f"**[📊 Finviz](https://finviz.com/quote.ashx?t={ticker_in})** — 美股看板")
+            st.markdown(f"**[📉 StockCharts](https://stockcharts.com/h-sc/ui?s={ticker_in})** — 技術分析")
+        with lc2:
+            if ticker_in.endswith(('.TW', '.TWO')):
+                st.markdown(f"**[🇹🇼 Yahoo 台股](https://tw.stock.yahoo.com/quote/{tk_clean})** — 即時報價")
+                st.markdown(f"**[📰 鉅亨網](https://invest.cnyes.com/twstock/TWS/{tk_clean})** — 台股新聞")
+                st.markdown(f"**[💰 Goodinfo](https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={tk_clean})** — 財務指標")
+            else:
+                st.markdown(f"**[💹 Yahoo Finance](https://finance.yahoo.com/quote/{ticker_in})** — 財務報表")
+                st.markdown(f"**[📋 SEC Edgar](https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={ticker_in})** — 官方文件")
+                st.markdown(f"**[🔬 Macrotrends](https://www.macrotrends.net/stocks/charts/{ticker_in.split('.')[0]})** — 長期財務圖表")
+        with lc3:
+            st.markdown(f"**[🏛️ 公開資訊觀測站](https://mops.twse.com.tw/mops/web/t05st03)** — 官方財報")
+            st.markdown(f"**[🤖 AlphaMemo](https://www.alphamemo.ai/free-transcripts)** — AI 法說逐字稿")
+            if ticker_in.endswith(('.TW', '.TWO')):
+                st.markdown(f"**[📌 TWSE](https://www.twse.com.tw/zh/trading/historical/stock-day.html)** — 歷史成交")
+            else:
+                st.markdown(f"**[📌 Seeking Alpha](https://seekingalpha.com/symbol/{ticker_in})** — 深度研究報告")
 
-    # ── 戰略工廠 (Strategy Factory) ──
+    # ════════════════════════════════════════════════════
+    # 戰略工廠 V400 — Tribunal Prompt Engine
+    # ════════════════════════════════════════════════════
     st.divider()
-    st.subheader("🏭 戰略工廠 (Strategy Factory)")
-    st.caption("🤖 V90.2 瓦爾基里：自動情報抓取 × 20 條第一性原則 × 9 個快捷連結")
+    st.markdown("""
+    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+    color:rgba(255,215,0,.5);letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;">
+    ◈ 戰略工廠 V400 — Tribunal Prompt Engine
+    </div>
+    <div style="font-size:14px;font-weight:700;color:#FFD700;margin-bottom:6px;">
+    🏭 AI 法庭級分析提示詞生成器
+    </div>
+    <div style="font-size:11px;color:rgba(180,190,210,0.65);line-height:1.7;margin-bottom:14px;">
+    <b>V400 核心升級：</b>從「戲劇化角色扮演」→「專業法庭審訊」格式。<br>
+    每位分析師有<b>強制量化輸出子項目</b>（代碼 [Q1]–[V5]），AI 不得跳過、不得模糊，
+    必須給出具體數字、明確方向判斷，並逐一反駁上一位分析師的論點。<br>
+    裁判官最後輸出的「<b>一句定論</b>」是整份報告的錨點，也是最重要的輸出。
+    </div>""", unsafe_allow_html=True)
+
+    MODE_CONFIGS = {
+        "⚖️ 完整法庭": {
+            "mode": "full_tribunal",
+            "desc": "5 位專家證人完整出庭，量化審訊 + 逐一反駁 + 最終裁決。最深度、最全面。",
+            "icon": "⚖️", "color": "#FFD700",
+        },
+        "🚀 多頭論文": {
+            "mode": "bull_thesis",
+            "desc": "從量化/基本面/創新 3 個維度建構最強多頭投資論文，含 12M 價格目標。",
+            "icon": "🚀", "color": "#00FF7F",
+        },
+        "🐻 空頭論文": {
+            "mode": "bear_thesis",
+            "desc": "從量化/估值/宏觀 3 個維度尋找致命弱點，含做空進場邏輯與目標。",
+            "icon": "🐻", "color": "#FF6B6B",
+        },
+        "💀 極限壓測": {
+            "mode": "stress_test",
+            "desc": "模擬 4 種極端情境（崩盤/升息/顛覆/高管出逃），評估標的生存能力。",
+            "icon": "💀", "color": "#FF9A3C",
+        },
+        "⚡ 快速裁決": {
+            "mode": "quick_verdict",
+            "desc": "Apex 裁判官獨自審閱所有數據，500-800 字直接輸出操作指令。最快速。",
+            "icon": "⚡", "color": "#00BFFF",
+        },
+    }
+
+    st.markdown("**📌 選擇分析模式：**")
+    mode_cols = st.columns(len(MODE_CONFIGS))
+    selected_mode_key = st.session_state.get('s62_mode_key', "⚖️ 完整法庭")
+    for i, (mk, mv) in enumerate(MODE_CONFIGS.items()):
+        with mode_cols[i]:
+            is_sel = (mk == selected_mode_key)
+            bdr = f"border:2px solid {mv['color']};" if is_sel else "border:1px solid rgba(255,255,255,0.08);"
+            bg  = "background:rgba(255,255,255,0.04);" if is_sel else "background:rgba(255,255,255,0.015);"
+            st.markdown(f"""<div style="{bg}{bdr}border-radius:10px;padding:10px 6px;text-align:center;">
+            <div style="font-size:18px;">{mv['icon']}</div>
+            <div style="font-size:10px;font-weight:700;color:{mv['color']};margin-top:4px;">{mk}</div>
+            </div>""", unsafe_allow_html=True)
+            if st.button(mk, key=f"mode_btn_62_{i}", use_container_width=True):
+                st.session_state['s62_mode_key'] = mk
+                st.rerun()
+
+    selected_mode_cfg  = MODE_CONFIGS.get(selected_mode_key, MODE_CONFIGS["⚖️ 完整法庭"])
+    selected_mode_code = selected_mode_cfg["mode"]
+    st.caption(f"🎯 **{selected_mode_key}** — {selected_mode_cfg['desc']}")
+
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
     col_params, col_output = st.columns([1, 2])
 
     with col_params:
-        st.subheader("⚙️ 戰略參數設定")
-        # Valkyrie
-        with st.expander("🕵️ 多源情報注入 + 🤖 瓦爾基里", expanded=True):
-            st.caption("**選項 1**: 點擊瓦爾基里自動抓取 | **選項 2**: 手動貼上/上傳")
-            if st.button("🤖 啟動瓦爾基里 (Auto-Fetch)", type="primary", use_container_width=True, key="btn_valk_v300"):
+        st.markdown("**⚙️ 情報注入與參數**")
+
+        has_valkyrie   = 'valkyrie_report_v300' in st.session_state
+        has_principles = len(st.session_state.get('principles_v300_msel', [])) > 0
+        has_note       = bool(st.session_state.get('note_v300_ta', '').strip())
+        data_score     = sum([bool(geo), has_valkyrie, has_principles, has_note])
+        score_color    = "#00FF7F" if data_score == 4 else ("#FFD700" if data_score >= 2 else "#FF9A3C")
+        score_label    = "資料充足，分析品質最佳 🎯" if data_score == 4 else (
+                         "基本充足" if data_score >= 2 else "建議補充瓦爾基里情報")
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.02);border:1px solid {score_color}33;
+        border-radius:8px;padding:10px 14px;margin-bottom:10px;">
+        <div style="font-size:9px;color:rgba(160,176,208,0.4);letter-spacing:2px;margin-bottom:4px;">📊 提示詞資料品質</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:24px;font-weight:900;color:{score_color};">{data_score}<span style="font-size:12px;opacity:0.5;">/4</span></div>
+        <div style="font-size:10px;color:{score_color};">{score_label}</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:6px;">
+        {''.join([f'<div style="flex:1;height:4px;background:{"#00FF7F" if j<data_score else "rgba(255,255,255,0.1)"};border-radius:2px;"></div>' for j in range(4)])}
+        </div>
+        </div>""", unsafe_allow_html=True)
+
+        with st.expander("🕵️ 瓦爾基里情報注入", expanded=True):
+            st.caption("**Step 1**：自動抓取財務數據與新聞 | **Step 2**：可手動補充")
+            if st.button("🤖 啟動瓦爾基里 Auto-Fetch", type="primary", use_container_width=True, key="btn_valk_v300"):
                 with st.spinner("🤖 瓦爾基里正在抓取情報..."):
                     agency = TitanIntelAgency()
                     st.session_state['valkyrie_report_v300'] = agency.fetch_full_report(ticker_in)
-                st.toast("✅ 瓦爾基里情報抓取完成！", icon="🎯")
+                st.toast("✅ 情報抓取完成！", icon="🎯")
+                st.rerun()
             if 'valkyrie_report_v300' in st.session_state:
-                intel_text = st.text_area("📝 瓦爾基里情報 (可編輯)", value=st.session_state['valkyrie_report_v300'], height=250, key="intel_v300_valk")
+                intel_text = st.text_area(
+                    "📝 瓦爾基里情報（可編輯補充）",
+                    value=st.session_state['valkyrie_report_v300'],
+                    height=220, key="intel_v300_valk"
+                )
             else:
-                intel_text = st.text_area("📝 手動貼上情報", height=150, placeholder="例如：Q3 法說會重點 - AI 伺服器營收 YoY +150%...", key="intel_v300_manual")
-            # [FIX #7] 檔案上傳
-            uploaded = st.file_uploader("📎 上傳文件 (PDF/Excel/Word/Txt)", type=['pdf', 'xlsx', 'xls', 'docx', 'doc', 'txt'], accept_multiple_files=True, key="intel_files_v300")
+                intel_text = st.text_area(
+                    "📝 手動貼上情報（法說摘要/財報數字/新聞）",
+                    height=130,
+                    placeholder="例如：\n- 毛利率 73.5%（YoY +2.1%）\n- Data Center 營收 $18.4B（QoQ +17%）\n- 管理層 2025 指引上調",
+                    key="intel_v300_manual"
+                )
+            uploaded = st.file_uploader(
+                "📎 上傳文件（PDF/xlsx/docx/txt）",
+                type=['pdf', 'xlsx', 'xls', 'docx', 'doc', 'txt'],
+                accept_multiple_files=True, key="intel_files_v300"
+            )
             uploaded_extra = ""
             if uploaded:
-                for f in uploaded:
-                    uploaded_extra += f"\n[上傳檔案: {f.name}]\n"
-                    st.caption(f"✅ 已上傳: {f.name}")
-        st.divider()
-        # [FIX #6] 20 First Principles
-        with st.expander("🎯 統帥第一性原則 (20 條完整清單)", expanded=True):
-            st.caption("選擇需要 AI 參謀團回答的原則 (可多選)")
-            sel_p = st.multiselect("選擇第一性原則 (可多選)", FIRST_PRINCIPLES_20, default=[], key="principles_v300")
-            st.caption(f"✅ 已選擇 {len(sel_p)} 條原則")
-        st.divider()
-        with st.expander("✍️ 統帥自由筆記 (Commander's Note)", expanded=False):
-            st.caption("補充任何額外的分析指令或偏好")
-            commander_note = st.text_area("統帥筆記", height=120, placeholder="例如：重點關注現金流與毛利率趨勢...", key="note_v300")
+                for uf in uploaded:
+                    uploaded_extra += f"\n[上傳檔案: {uf.name}]\n"
+                    st.caption(f"✅ 已附加: {uf.name}")
+
+        with st.expander("🎯 第一性原則（20 條）", expanded=False):
+            st.caption("選後每位分析師都必須回答。建議選 2–4 條。")
+            sel_p = st.multiselect(
+                "選擇第一性原則",
+                FIRST_PRINCIPLES_20, default=[],
+                key="principles_v300_msel"
+            )
+
+        with st.expander("✍️ 統帥特別指令", expanded=False):
+            st.caption("最高優先級指令，裁判官必須遵守。")
+            commander_note = st.text_area(
+                "特別指令",
+                height=100,
+                placeholder="例如：\n- 重點分析 AI 算力的長期護城河\n- 假設 TSMC 限制出貨，影響有多大？\n- 現在離 52 週高點多遠？",
+                key="note_v300_ta"
+            )
 
     with col_output:
-        st.subheader("📋 戰略提示詞輸出")
-        price = 0.0
-        if ticker_in in st.session_state.get('daily_price_data', {}):
-            dp = st.session_state.daily_price_data[ticker_in]
-            if dp is not None and not dp.empty:
-                price = float(dp['Close'].iloc[-1])
-        st.toast(f"ℹ️ 當前標的: {ticker_in} | 現價: ${price:.2f} | 信評: {lvl} - {name} | 已選原則: {len(sel_p)} 條", icon="📡")
-        st.markdown("---")
-        if st.button("🚀 生成戰略提示詞", type="primary", use_container_width=True, key="gen_prompt_v300"):
-            combined = intel_text
-            if uploaded_extra:
-                combined += uploaded_extra
-            council = TitanAgentCouncil()
-            prompt = council.generate_battle_prompt(ticker_in, price, geo or {}, rating, combined, commander_note, sel_p)
-            st.session_state['battle_prompt_v300'] = prompt
-            st.toast("✅ 史詩級戰略提示詞已生成！", icon="🎯")
+        st.markdown("**📋 提示詞生成與輸出**")
+
+        full_intel = intel_text if 'intel_text' in dir() else ""
+        if 'uploaded_extra' in dir() and uploaded_extra:
+            full_intel += uploaded_extra
+        if 'commander_note' not in dir():
+            commander_note = ""
+        if 'sel_p' not in dir():
+            sel_p = []
+
+        gc1, gc2 = st.columns([3, 1])
+        with gc1:
+            gen_btn = st.button(
+                f"🚀 生成 {selected_mode_cfg['icon']} {selected_mode_key} 提示詞",
+                type="primary", use_container_width=True, key="gen_prompt_v300"
+            )
+        with gc2:
+            if 'battle_prompt_v300' in st.session_state:
+                if st.button("🗑️ 清除", use_container_width=True, key="clear_prompt_v300"):
+                    st.session_state.pop('battle_prompt_v300', None)
+                    st.rerun()
+
+        if gen_btn:
+            if not geo:
+                st.error("❌ 請先啟動深鑽分析。")
+            else:
+                council = TitanAgentCouncil()
+                with st.spinner("⚙️ 正在生成法庭級提示詞…"):
+                    prompt = council.generate_battle_prompt(
+                        ticker_in, price_now, geo, rating,
+                        full_intel, commander_note, sel_p,
+                        mode=selected_mode_code
+                    )
+                st.session_state['battle_prompt_v300']  = prompt
+                st.session_state['battle_prompt_mode']  = selected_mode_key
+                st.toast(f"✅ {selected_mode_key} 提示詞已生成！共 {len(prompt):,} 字元", icon="🎯")
+                st.rerun()
+
         if 'battle_prompt_v300' in st.session_state:
-            pt = st.session_state['battle_prompt_v300']
-            st.markdown(f'<div class="terminal-box"><pre style="white-space:pre-wrap;margin:0;color:#c9d1d9;font-size:11px;">{pt[:2000]}{"…" if len(pt) > 2000 else ""}</pre></div>', unsafe_allow_html=True)
-            st.text_area("📋 複製此提示詞 (Ctrl+A, Ctrl+C)", value=pt, height=350, key="prompt_out_v300")
-            st.download_button("💾 下載戰略提示詞 (.txt)", pt, file_name=f"TITAN_VALKYRIE_{ticker_in}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt", mime="text/plain", use_container_width=True)
-            # FEATURE 3: Valkyrie Typewriter for prompt display
-            st.markdown("**📌 使用方法**")
-            st.write_stream(stream_generator("複製提示詞 → 貼到 Gemini/Claude → 獲得五大角鬥士完整辯論"))
-            st.caption(f"📊 提示詞統計：{len(pt)} 字元")
+            pt        = st.session_state['battle_prompt_v300']
+            mode_used = st.session_state.get('battle_prompt_mode', '')
+
+            st.markdown(f"""
+            <div style="background:rgba(0,245,255,0.04);border:1px solid rgba(0,245,255,0.15);
+            border-radius:8px;padding:10px 14px;margin:8px 0;display:flex;gap:20px;flex-wrap:wrap;">
+            <div><span style="font-size:9px;color:rgba(0,245,255,0.4);letter-spacing:2px;">模式</span><br>
+            <span style="font-size:12px;font-weight:700;color:#00F5FF;">{mode_used}</span></div>
+            <div><span style="font-size:9px;color:rgba(0,245,255,0.4);letter-spacing:2px;">字元數</span><br>
+            <span style="font-size:12px;font-weight:700;color:#00F5FF;">{len(pt):,}</span></div>
+            <div><span style="font-size:9px;color:rgba(0,245,255,0.4);letter-spacing:2px;">標的</span><br>
+            <span style="font-size:12px;font-weight:700;color:#00F5FF;">{ticker_in} @ ${price_now:.2f}</span></div>
+            </div>""", unsafe_allow_html=True)
+
+            with st.expander("📌 如何正確使用此提示詞（必讀）", expanded=False):
+                st.markdown(f"""
+**✅ 最佳使用流程：**
+1. 點下方「下載提示詞」按鈕保存文件
+2. 打開 **Claude.ai / Gemini Advanced / ChatGPT-4o**（任一，開**新對話**）
+3. 直接貼上全部文字（Ctrl+A → Ctrl+C → 貼上）
+4. 等待 AI 完整輸出（完整法庭模式約需 3–5 分鐘）
+
+**🔧 如果 AI 輸出不符預期，追加以下指令：**
+- AI 給模糊結論：`「禁止使用迴避性語言，必須選擇一個明確方向並給出具體價位」`
+- AI 跳過某個子項目：`「[Q3] 動能比率分析尚未完成，請補充 300 字以上的分析」`
+- AI 角色流於形式：`「[B2] Burry 的回答過於表面，請針對財務數據進行更深入的均值回歸計算」`
+- 想要補充情報：直接在後面加上 `「以下是新增情報，請裁判官重新裁決：[你的資訊]」`
+
+**🎯 閱讀 AI 輸出時，重點關注順序：**
+1. 裁判官的【一句定論】（最後一句，整份報告的錨點）
+2. 裁判官的【最終操作指令】（進場/停損/停利/倉位）
+3. Burry 的【B4 宏觀死亡威脅】（最客觀的風險評估）
+4. Quant 的【Q2 R² 審計】（趨勢可信度）
+                """)
+
+            st.markdown(f'<div class="terminal-box"><pre style="white-space:pre-wrap;margin:0;color:#c9d1d9;font-size:10.5px;line-height:1.6;">{pt[:3500]}{"\\n\\n⋯⋯（以下內容請下載完整版查看）⋯⋯" if len(pt) > 3500 else ""}</pre></div>', unsafe_allow_html=True)
+
+            c_copy, c_dl = st.columns(2)
+            with c_copy:
+                st.text_area("📋 複製全文（Ctrl+A → Ctrl+C）", value=pt, height=180, key="prompt_out_v300")
+            with c_dl:
+                st.download_button(
+                    f"💾 下載提示詞 (.txt)",
+                    data=pt,
+                    file_name=f"TITAN_V400_{ticker_in}_{selected_mode_code}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                    mime="text/plain", use_container_width=True, key="dl_prompt_v400"
+                )
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.write_stream(stream_generator(
+                    f"提示詞已就緒 ({len(pt):,} 字元)。"
+                    f"開新對話，貼上全文，等待 AI 完整輸出。"
+                    f"如 AI 回答不夠深入，直接點名子項目代碼要求補充。"
+                ))
 
 
-# ═══════════════════════════════════════════════════════════════
 # SECTION 6.3 — 獵殺清單 [FIX #8] st.form + drop_duplicates
 # ═══════════════════════════════════════════════════════════════
 def _s63():
