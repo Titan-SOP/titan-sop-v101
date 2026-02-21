@@ -63,7 +63,7 @@ def show_guide_modal():
     **狀態監控**：隨時留意畫面中的警示訊號 (乖離過大、Phoenix 信號、加速度異常)。
     
     ---
-    *建議：先執行 6.1 全局掃描，再針對目標標的進入 6.2 深度分析*
+    *建議：先執行 6.1 全局掃描，再針對目標標的進入 6.2 深度分析，且6.3有百倍股專區*
     """)
     
     if st.button("✅ Roger that, 收到", type="primary", use_container_width=True):
@@ -843,7 +843,7 @@ FIRST_PRINCIPLES_20 = [
     "[終極] 物理極限：成長是否受缺電/缺地/缺水限制？",
     "[終極] 人才密度：能否吸引全球最聰明工程師？",
     "[終極] 反脆弱性：遇黑天鵝(戰爭/疫情)是受傷還是獲利？",
-    "[終極] 百倍股基因：2033 年若活著，它會變成什麼樣子？",
+    "[終極] 百倍股基因：2033 年之後若活著，它會變成什麼樣子？",
 ]
 
 # ═══════════════════════════════════════════════════════════════
@@ -1158,7 +1158,7 @@ def _render_nav_rail():
         st.session_state.t6_active = "6.1"
     cards = [
         ("6.1", "🌍", "全球視野", "Global View"), ("6.2", "💎", "個股深鑽", "Deep Dive"),
-        ("6.3", "📜", "獵殺清單", "Hunter List"), ("6.4", "⚔️", "全境獵殺", "Full Scan"),
+        ("6.3", "📜", "獵殺百倍股", "Hunter List"), ("6.4", "⚔️", "全境獵殺", "Full Scan"),
         ("6.5", "🛡️", "宏觀對沖", "Hedge"), ("6.6", "🧪", "回測沙盒", "Sandbox"),
     ]
     cols = st.columns(6)
@@ -2505,120 +2505,476 @@ def _s62():
 
 
 # ═══════════════════════════════════════════════════════════════
-# SECTION 6.3 — 百倍股雷達 (100-Bagger Screener)
+# ═══════════════════════════════════════════════════════════════
+# SECTION 6.3 — 百倍股雷達 V2 (100-Bagger · First Principles)
 # ═══════════════════════════════════════════════════════════════
 def _s63():
-    """6.3 百倍股雷達 (100-Bagger Screener)"""
-    st.markdown("### 🚀 尋找百倍股 (100-Bagger Radar)")
-    st.caption("基於第一性原理，結合 Chris Mayer (百倍法則) 與 Baillie Gifford (破壞式創新) 的極端財務特徵掃描器。")
+    """6.3 百倍股雷達 V2 — 捕獲下一個景氣循環的百倍股"""
 
-    st.markdown("##### 🎯 1. 輸入潛力股名單 (Target List)")
-    tickers_input = st.text_input(
-        "輸入股票代號 (台股請加 .TW 或 .TWO，美股直接輸入):",
-        value="3131.TW, 3529.TW, 2382.TW, PLTR, TSLA"
-    )
+    # ── CSS ──
+    st.markdown("""<style>
+    .bg28{font-size:28px!important;font-weight:900;color:#FFD700;letter-spacing:2px;line-height:1.35;margin-bottom:6px;}
+    .bg26{font-size:26px!important;font-weight:700;color:rgba(210,220,235,.88);line-height:1.75;margin-bottom:6px;}
+    .bg26c{font-size:26px!important;font-weight:800;color:#00F5FF;letter-spacing:1px;line-height:1.4;}
+    .bgf{font-size:26px!important;font-weight:800;color:#00FF9D;background:rgba(0,255,157,.06);
+         border-left:4px solid #00FF9D;padding:10px 16px;border-radius:0 8px 8px 0;margin:10px 0;line-height:1.6;}
+    .bgw{font-size:26px!important;color:#FF9A3C;font-weight:700;line-height:1.5;}
+    .bgcard{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:20px 22px;margin-bottom:12px;}
+    .bgml{font-size:22px!important;color:rgba(160,176,208,.5);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
+    .bgmv{font-size:28px!important;font-weight:800;line-height:1.2;}
+    .bgscore{font-size:54px!important;font-weight:900;line-height:1;text-align:center;}
+    .bgrow{display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.04);padding:5px 0;}
+    .bgrl{font-size:21px!important;color:rgba(180,190,210,.55);}
+    .bgrv{font-size:23px!important;font-weight:700;}
+    </style>""", unsafe_allow_html=True)
 
-    if st.button("🧬 啟動基因檢測 (Run Screener)", use_container_width=True):
-        tickers = [t.strip() for t in tickers_input.split(",") if t.strip()]
+    # ── 頁首 ──
+    st.markdown('<div class="t6-sec-head" style="--sa:#FF9A3C"><div class="t6-sec-num">6.3</div><div>'
+                '<div class="t6-sec-title" style="color:#FF9A3C;">百倍股雷達 V2 — 捕獲下一個景氣循環</div>'
+                '<div class="t6-sec-sub">7-Dimension DNA · Cycle Position · 100x Path Engine</div>'
+                '</div></div>', unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════
+    # BLOCK A：第一性原則理論面板
+    # ════════════════════════════════════════════════════
+    with st.expander("📖 第一性原則：百倍股的物理學（必讀，點此展開）", expanded=False):
+
+        st.markdown('<div class="bg28">🔬 百倍股的物理學——從最基本的數學開始</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">一支股票漲 100 倍只有兩條路徑，且必須<b>同時發生</b>才能達到最強爆發力：</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bgf">📐 百倍公式：股價 = EPS（每股盈餘）× PE（市場給的倍數）<br>'
+                    '要漲 100 倍 → EPS 漲 10 倍 × PE 漲 10 倍 = 100x<br>'
+                    '或者 → EPS 漲 50 倍 × PE 擴張 2 倍 = 100x<br>'
+                    '關鍵洞見：<b>只有 EPS 成長是不夠的。PE 擴張才是百倍股的催化劑。</b></div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">PE 擴張發生的條件，正是市場從「不相信」轉為「深信不疑」的那一刻。'
+                    '這意味著你必須在<b>市場還不相信</b>的時候就進場佈局——也就是景氣循環的黎明期。</div>', unsafe_allow_html=True)
+
+        st.divider()
+        st.markdown('<div class="bg28">📅 景氣循環的位置決定命運</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">Chris Mayer 研究 365 支歷史百倍股後發現：大多數百倍股在被發現時，'
+                    '都處於景氣循環的「黎明期」——行業剛剛被市場忽視，或正從谷底反彈，估值極低，機構持倉幾乎為零。</div>', unsafe_allow_html=True)
+
+        col_cyc1, col_cyc2 = st.columns(2)
+        with col_cyc1:
+            st.markdown("""<div class="bgcard" style="border-color:rgba(0,255,157,.25)">
+            <div class="bg26c" style="color:#00FF9D;">🌅 黎明期（最佳買點）</div>
+            <div class="bg26" style="margin-top:8px;">
+            • 行業剛從衰退中復甦，市場仍充滿懷疑<br>
+            • 市值極小，機構尚未關注<br>
+            • 營收開始加速，但市場還不信<br>
+            • PE 處於歷史低位（甚至虧損）<br>
+            • <b style="color:#00FF9D;">→ PE 擴張 + EPS 成長 雙引擎同時啟動</b>
+            </div></div>""", unsafe_allow_html=True)
+        with col_cyc2:
+            st.markdown("""<div class="bgcard" style="border-color:rgba(255,107,107,.25)">
+            <div class="bg26c" style="color:#FF6B6B;">🌇 黃昏期（最危險陷阱）</div>
+            <div class="bg26" style="margin-top:8px;">
+            • 人人都在談論這個行業，雜誌封面效應<br>
+            • 機構持倉已達高峰<br>
+            • PE 處於歷史高位<br>
+            • 營收成長開始放緩，競爭者湧入<br>
+            • <b style="color:#FF6B6B;">→ PE 收縮 + EPS 放緩 = 估值雙殺</b>
+            </div></div>""", unsafe_allow_html=True)
+
+        st.divider()
+        st.markdown('<div class="bg28">🧬 下一個景氣循環的 5 大賽道（2024–2035）</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">基於第一性原則，以下 5 條賽道在未來 10 年最可能誕生下一批百倍股：</div>', unsafe_allow_html=True)
+
+        tracks = [
+            ("⚡ AI 基礎設施（算力 + 散熱 + ASIC）", "#FFD700",
+             "GPU 伺服器、液冷散熱、自研 ASIC 晶片設計。AI 所有應用都依賴這層基礎建設。"
+             "TAM 從 $500B 擴張至 $5T（10 年）。現在仍是早期基礎建設期，大多數贏家尚未誕生。"
+             "第一性原則：算力是 AI 時代的電力，電力公司在工業革命初期都是百倍股。"),
+            ("☢️ 核能復興（SMR 小型模組化反應爐）", "#00FF9D",
+             "碳中和政策 + AI 耗電量爆炸 + 能源安全三重驅動。SMR 市場目前接近於零，"
+             "但 2030 後將爆發。第一性原則：每 AI 訓練中心耗電量等於一個城市，"
+             "可再生能源無法 24/7 供電，核能是唯一的基載零碳能源。"),
+            ("🤖 機器人自動化（具身智能 + 工業 AI）", "#00BFFF",
+             "人力成本上升（全球老齡化）+ AI 感知突破使機器人真正「看得見、想得到」。"
+             "製造業、物流、農業、醫療機器人。TAM 從 $50B → $500B。"
+             "第一性原則：人口老齡化是不可逆的物理事實，機器人是唯一的解藥。"),
+            ("🛡️ 國防科技（無人機 + 太空 + 網路安全）", "#FF9A3C",
+             "地緣政治緊張長期化（烏克蘭、台海）。無人機、衛星通訊、AI 偵測系統。"
+             "各國國防預算 GDP 佔比持續提升，且具有政府長期合約的護城河。"
+             "第一性原則：戰爭改變武器需求，無人化是不可逆的軍事趨勢。"),
+            ("🧬 生物科技（AI 藥物研發 + 精準醫療）", "#FF6B6B",
+             "AI 將藥物研發時間從 12 年壓縮至 3 年，成本下降 80%。RNA 療法、個人化癌症治療、"
+             "長壽科技。第一性原則：人類最大的恐懼是死亡，能延長高質量壽命的技術擁有無限定價權。"),
+        ]
+        for title, color, desc in tracks:
+            st.markdown(f"""<div style="background:rgba(255,255,255,.02);border-left:4px solid {color};
+            border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:10px;">
+            <div class="bg26c" style="color:{color};">{title}</div>
+            <div class="bg26" style="margin-top:6px;">{desc}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.divider()
+        st.markdown('<div class="bg28">📊 7 維度 DNA 評分系統——為什麼是這 7 個指標？</div>', unsafe_allow_html=True)
+        st.markdown('<div class="bg26">本系統整合 Chris Mayer《100-Baggers》、Peter Lynch《One Up on Wall Street》、'
+                    'Baillie Gifford 成長框架三大體系，萃取出預測力最強的 7 個指標，總分 100 分：</div>', unsafe_allow_html=True)
+
+        dna_theory = [
+            ("D1", "ROE / 資本效率引擎", "30 分", "#FFD700",
+             "ROE > 20% 意味著公司每投入 1 元能創造 0.20 元以上回報，並且可以把這個回報繼續再投入，"
+             "形成<b>複利飛輪</b>。巴菲特說：「一家公司的長期股價回報率，長期趨近於它的 ROE。」"
+             "這是百倍股最核心、最持久的驅動力。高 ROE + 高再投資率 = 時間的朋友。",
+             "ROE > 25%: 30分 ｜ ROE > 20%: 22分 ｜ ROE > 15%: 12分 ｜ ROE > 10%: 5分"),
+            ("D2", "營收加速度", "25 分", "#00FF9D",
+             "不只看營收成長率，更看<b>加速度</b>——成長率本身是否在加快？"
+             "從 20% 加速到 40% 的公司，比穩定 30% 的公司更值得關注，因為加速度代表需求正在超越所有人的預期。"
+             "加速成長觸發 PE 擴張——當市場意識到預測模型全都低估了，他們會瘋狂上修。",
+             "成長 > 30%: 25分 ｜ 成長 > 20%: 18分 ｜ 成長 > 10%: 10分 ｜ 成長 > 5%: 4分"),
+            ("D3", "毛利率護城河", "20 分", "#00BFFF",
+             "毛利率是護城河的 X 光片。毛利率 > 60% 說明公司有<b>定價權</b>，競爭對手無法靠打價格戰消滅你。"
+             "軟體、平台、品牌、網路效應是高毛利護城河的典型。"
+             "低毛利行業幾乎不可能出現百倍股——競爭者會把所有超額利潤榨乾至零。",
+             "毛利率 > 60%: 20分 ｜ > 40%: 14分 ｜ > 25%: 7分 ｜ > 10%: 2分"),
+            ("D4", "市值天花板空間", "15 分", "#FF9A3C",
+             "一支 1000 億美元的公司要漲 100 倍，需要市值達到 10 兆——接近全美所有上市公司的總值。"
+             "這在數學上幾乎不可能。因此<b>百倍股只能從小市值開始</b>，"
+             "這是物理定律而非偏好。機構不買小市值是百倍股存在的根本原因——沒有人注意，才有機會。",
+             "台股 < 50億: 15分 ｜ < 200億: 10分 ｜ 美股 < 3億: 15分 ｜ < 15億: 10分"),
+            ("D5", "再投資能力 / 零配息", "5 分", "#B77DFF",
+             "百倍股<b>幾乎不配息</b>。每一分錢都要再投入以創造更高回報。"
+             "高股息等於公司在告訴你：「我找不到比分錢給你更好的用途了。」"
+             "這與百倍股的複利飛輪根本矛盾。Amazon 從不配息，Apple 在成長最快的時期也不配息。",
+             "配息率 < 0.5%: 5分 ｜ < 2%: 3分 ｜ < 4%: 1分"),
+            ("D6", "盈利品質 / FCF", "3 分", "#FF6B6B",
+             "自由現金流（FCF）是盈利真實性的最終測試。公司可以透過調整折舊、攤銷美化淨利，"
+             "但<b>現金不會說謊</b>。FCF Margin > 15% 說明盈利是真實的，公司不是在玩數字遊戲。"
+             "尤其對於高成長公司，FCF 轉正是從「燒錢故事」轉為「真實商業機器」的關鍵拐點。",
+             "FCF Margin > 15%: 3分 ｜ > 5%: 1分"),
+            ("D7", "估值安全邊際 / PEG", "2 分", "#00F5FF",
+             "PEG 比率（PE ÷ 成長率）< 1 是 Peter Lynch 定義的合理買點。"
+             "對於真正的破壞式創新公司，PEG < 0.5 是難得的黃金機會。"
+             "這個指標防止你在頂部追買「已知的好故事」——當所有人都知道這是好公司，PE 已反映了未來 5 年的成長。",
+             "PEG < 0.5: 2分 ｜ PEG < 1.0: 1分"),
+        ]
+
+        for code, name, pts, color, theory, scoring in dna_theory:
+            with st.expander(f"[{code}] {name} — 最高 {pts}", expanded=False):
+                st.markdown(f'<div class="bg26c" style="color:{color};">[{code}] {name} · 最高 {pts}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="bg26" style="margin-top:8px;">{theory}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="bgf" style="border-left-color:{color};">計分規則：{scoring}</div>', unsafe_allow_html=True)
+
+        st.divider()
+        st.markdown('<div class="bgw">⚠️ 重要警告：百倍股需要 7–20 年的持有期。本工具是「識別潛力」的雷達，'
+                    '不是「預測短期漲跌」的工具。找到 DNA ≥ 65 分的公司後，'
+                    '下一步是深度研究其護城河可持續性、創辦人是否仍在主導公司、'
+                    '以及行業景氣循環是否處於黎明期。這三個問題比任何財務指標都重要。</div>', unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════
+    # BLOCK B：景氣循環定位器
+    # ════════════════════════════════════════════════════
+    st.divider()
+    st.markdown('<div class="bg28">🌐 景氣循環定位器——先定位，再選股</div>', unsafe_allow_html=True)
+    st.markdown('<div class="bg26">在啟動掃描前，先確認你聚焦的賽道處於哪個循環位置，以判斷 PE 擴張的可能性大小。</div>', unsafe_allow_html=True)
+
+    cycle_map = [
+        ("⚡ AI 基礎設施", "成長加速期 🚀", "#FF4500", "機構持倉仍低，TAM 剛開始擴張，PE 擴張空間仍存在"),
+        ("☢️ 核能 / SMR",  "黎明早期 🌅",  "#FFD700", "多數機構仍迴避，政策拐點已現，最佳佈局窗口"),
+        ("🤖 機器人 / 具身AI","黎明期 🌅",  "#FFD700", "技術突破剛發生，商業化仍早期，高風險高潛力"),
+        ("🛡️ 國防 / 無人機", "成長早期 📈", "#ADFF2F", "地緣驅動持續，但部分標的估值已反映預期"),
+        ("🧬 AI 生物科技",   "萌芽期 🌱",   "#00BFFF", "技術驗證仍早，需 3–5 年，極高風險極高潛力"),
+        ("🏭 工業自動化",    "成長期 📈",   "#ADFF2F", "政策補貼驅動，但週期性風險存在"),
+        ("💊 傳統製藥 / 高股息","成熟期 ⚠️","#FF9A3C", "百倍股不在此，PE 擴張空間極小"),
+        ("🏦 傳統金融 / 銀行","週期底部 📉", "#FF6B6B", "利率敏感，非破壞式創新，不適合百倍框架"),
+    ]
+    c1c, c2c = st.columns(2)
+    for i, (sec, stage, color, note) in enumerate(cycle_map):
+        col = c1c if i % 2 == 0 else c2c
+        with col:
+            st.markdown(f"""<div style="background:rgba(255,255,255,.02);border:1px solid {color}33;
+            border-left:3px solid {color};border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;">
+            <div class="bgml">{sec}</div>
+            <div class="bgmv" style="color:{color};">{stage}</div>
+            <div style="font-size:22px;color:rgba(180,190,210,.6);margin-top:3px;">{note}</div>
+            </div>""", unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════
+    # BLOCK C：DNA 掃描引擎輸入區
+    # ════════════════════════════════════════════════════
+    st.divider()
+    st.markdown('<div class="bg28">🧬 7D DNA 掃描引擎</div>', unsafe_allow_html=True)
+
+    PRESETS = {
+        "⚡ AI 算力": "NVDA, AMD, AVGO, ARM, SMCI, ALAB",
+        "☢️ 核能/SMR": "CEG, VST, NNE, OKLO, SMR",
+        "🤖 機器人": "TSLA, ISRG, RXRX, ACMR, BDTX",
+        "🛡️ 國防太空": "RKLB, LUNR, PLTR, HII, ACHR",
+        "🇹🇼 台股潛力": "3529.TW, 2382.TW, 6531.TW, 3231.TW, 6550.TW",
+    }
+
+    in_col, pre_col = st.columns([2, 1])
+    with in_col:
+        ticker_val = st.session_state.get('bg_preset_val', "NVDA, PLTR, 3529.TW, 2382.TW, RKLB, IONQ")
+        tickers_input = st.text_input(
+            "🎯 輸入股票代號（逗號分隔，台股加 .TW/.TWO）",
+            value=ticker_val, key="bagger_tickers_in"
+        )
+    with pre_col:
+        st.markdown('<div class="bgml" style="margin-top:10px;">快速賽道範本</div>', unsafe_allow_html=True)
+        preset_sel = st.selectbox("", list(PRESETS.keys()), key="bg_preset_sel", label_visibility="collapsed")
+        if st.button("📥 載入範本", key="bg_load", use_container_width=True):
+            st.session_state['bg_preset_val'] = PRESETS[preset_sel]
+            st.rerun()
+
+    run_scan = st.button("🧬 啟動 7D DNA 基因掃描", type="primary", use_container_width=True, key="run_bg_scan")
+
+    if run_scan:
+        tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
         if not tickers:
             st.warning("⚠️ 請輸入至少一檔股票。")
-            return
+            st.stop()
 
         results = []
-        with st.spinner("🧠 正在掃描企業財務基因..."):
-            for sym in tickers:
+        prog     = st.progress(0)
+        stat_ph  = st.empty()
+
+        import math as _math
+
+        with st.spinner("🧠 正在解碼企業財務 DNA…"):
+            for idx, sym in enumerate(tickers):
+                stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    tk = yf.Ticker(sym)
+                    fetch_sym = sym
+                    bare = sym.replace('.TW','').replace('.TWO','')
+                    if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
+                        fetch_sym = sym + '.TW'
+
+                    tk   = yf.Ticker(fetch_sym)
                     info = tk.info
 
-                    # --- Extract Metrics (with safe fallbacks) ---
-                    # 1. Market Cap (Billion TWD or USD)
-                    mkt_cap = info.get("marketCap", 0)
-                    currency = info.get("currency", "USD")
-                    mkt_cap_b = mkt_cap / 1e9
+                    def _g(k, d=0):
+                        v = info.get(k, d)
+                        return d if v is None else v
 
-                    # 2. Reinvestment (Zero Dividend is good for 100-baggers)
-                    div_yield = info.get("dividendYield", 0)
-                    if div_yield is None: div_yield = 0
+                    currency     = info.get("currency", "USD")
+                    mkt_cap_b    = _g("marketCap", 0) / 1e9
+                    name_s       = info.get("shortName", sym)[:24]
+                    industry_s   = info.get("industry", "N/A")
+                    roe          = _g("returnOnEquity")
+                    rev_growth   = _g("revenueGrowth")
+                    gross_margin = _g("grossMargins")
+                    op_margin    = _g("operatingMargins")
+                    fcf_raw      = _g("freeCashflow", 0)
+                    total_rev    = _g("totalRevenue", 1)
+                    fcf_pct      = (fcf_raw / total_rev) if total_rev > 0 and fcf_raw != 0 else 0
+                    div_yield    = _g("dividendYield")
+                    peg          = _g("pegRatio")
+                    fwd_pe       = _g("forwardPE")
+                    trail_pe     = _g("trailingPE")
+                    price        = _g("currentPrice", _g("regularMarketPrice"))
 
-                    # 3. Capital Efficiency (ROE / ROA as proxy for ROIC)
-                    roe = info.get("returnOnEquity", 0)
-                    if roe is None: roe = 0
+                    # ── D1: ROE 引擎 (30) ──
+                    d1 = 30 if roe > 0.25 else 22 if roe > 0.20 else 12 if roe > 0.15 else 5 if roe > 0.10 else 0
 
-                    # 4. Disruptive Growth (Revenue Growth & Gross Margin)
-                    rev_growth = info.get("revenueGrowth", 0)
-                    if rev_growth is None: rev_growth = 0
+                    # ── D2: 營收加速度 (25) ──
+                    d2 = 25 if rev_growth > 0.30 else 18 if rev_growth > 0.20 else 10 if rev_growth > 0.10 else 4 if rev_growth > 0.05 else 0
 
-                    gross_margin = info.get("grossMargins", 0)
-                    if gross_margin is None: gross_margin = 0
+                    # ── D3: 毛利護城河 (20) ──
+                    d3 = 20 if gross_margin > 0.60 else 14 if gross_margin > 0.40 else 7 if gross_margin > 0.25 else 2 if gross_margin > 0.10 else 0
 
-                    # 5. Valuation (Trailing P/E)
-                    pe = info.get("trailingPE", 0)
-                    if pe is None: pe = 0
+                    # ── D4: 市值空間 (15) ──
+                    d4 = 0
+                    if currency in ("TWD","HKD"):
+                        d4 = 15 if mkt_cap_b < 5 else 10 if mkt_cap_b < 20 else 5 if mkt_cap_b < 100 else 2 if mkt_cap_b < 500 else 0
+                    else:
+                        d4 = 15 if mkt_cap_b < 0.5 else 12 if mkt_cap_b < 3 else 7 if mkt_cap_b < 15 else 3 if mkt_cap_b < 50 else 0
 
-                    # --- Scoring Logic (0 to 100) ---
-                    score = 0
-                    # Capital Efficiency: ROE > 15% is the engine
-                    if roe > 0.20: score += 25
-                    elif roe > 0.15: score += 15
+                    # ── D5: 再投資力 (5) ──
+                    d5 = 5 if div_yield < 0.005 else 3 if div_yield < 0.02 else 1 if div_yield < 0.04 else 0
 
-                    # Reinvestment: Zero dividend gets max points
-                    if div_yield < 0.01: score += 20
-                    elif div_yield < 0.03: score += 10
+                    # ── D6: 盈利品質 (3) ──
+                    d6 = 3 if fcf_pct > 0.15 else 1 if fcf_pct > 0.05 else 0
 
-                    # Disruptive Growth: High Growth + High Margin
-                    if rev_growth > 0.20: score += 20
-                    elif rev_growth > 0.10: score += 10
+                    # ── D7: 安全邊際 (2) ──
+                    d7 = 2 if (peg > 0 and peg < 0.5) else 1 if (peg > 0 and peg < 1.0) else 0
 
-                    if gross_margin > 0.40: score += 20
-                    elif gross_margin > 0.20: score += 10
+                    total = min(d1+d2+d3+d4+d5+d6+d7, 100)
 
-                    # Market Cap Bonus: Small caps have more room to grow 100x
-                    if currency == "TWD" and mkt_cap_b < 50: score += 15
-                    elif currency == "USD" and mkt_cap_b < 5: score += 15
+                    if total >= 80:   grade, gcolor = "🔥 SUPER NOVA",  "#FF4500"
+                    elif total >= 65: grade, gcolor = "⚡ 百倍候選",    "#FFD700"
+                    elif total >= 50: grade, gcolor = "📈 成長潛力",    "#ADFF2F"
+                    elif total >= 35: grade, gcolor = "⚖️ 觀察名單",   "#00BFFF"
+                    else:             grade, gcolor = "❄️ 不符條件",   "#808080"
 
-                    results.append({
-                        "代號": sym,
-                        "百倍基因分數": min(score, 100),
-                        "市值 (10億)": f"{mkt_cap_b:.1f} {currency}",
-                        "ROE (資本效率)": f"{roe:.1%}",
-                        "毛利率 (護城河)": f"{gross_margin:.1%}",
-                        "營收成長 (破壞力)": f"{rev_growth:.1%}",
-                        "殖利率 (越低越好)": f"{div_yield:.1%}",
-                        "本益比": f"{pe:.1f}" if pe > 0 else "N/A"
-                    })
+                    cagr_est = rev_growth * 0.6 + roe * 0.4 if (rev_growth > 0 and roe > 0) else None
+                    yrs100   = _math.log(100) / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
+
+                    results.append(dict(
+                        sym=sym, name=name_s, industry=industry_s, currency=currency,
+                        price=price, mkt_cap_b=mkt_cap_b,
+                        roe=roe, rev_growth=rev_growth, gross_margin=gross_margin,
+                        op_margin=op_margin, fcf_pct=fcf_pct, div_yield=div_yield,
+                        peg=peg, pe=(fwd_pe if fwd_pe > 0 else trail_pe),
+                        d1=d1, d2=d2, d3=d3, d4=d4, d5=d5, d6=d6, d7=d7,
+                        total=total, grade=grade, gcolor=gcolor,
+                        yrs100=yrs100, cagr_est=cagr_est,
+                    ))
                 except Exception as e:
-                    st.toast(f"無法完整讀取 {sym} 的財務數據: {e}")
+                    st.toast(f"⚠️ {sym} 讀取失敗: {e}")
 
-            # --- Render Results ---
-            if results:
-                df_res = pd.DataFrame(results)
-                df_res = df_res.sort_values(by="百倍基因分數", ascending=False).reset_index(drop=True)
+                prog.progress((idx+1) / len(tickers))
 
-                st.markdown("##### 🧬 2. 基因掃描報告 (Screener Results)")
+        prog.empty(); stat_ph.empty()
 
-                def color_score(val):
-                    color = '#00FF9D' if val >= 80 else '#FFB800' if val >= 60 else '#FF4B4B'
-                    return f'color: {color}; font-weight: bold'
+        if not results:
+            st.error("❌ 掃描失敗，請確認代號格式。")
+            st.stop()
 
-                st.dataframe(
-                    df_res.style.map(color_score, subset=['百倍基因分數']),
-                    use_container_width=True
-                )
+        results.sort(key=lambda x: x['total'], reverse=True)
+        st.session_state['bg_results'] = results
 
-                # AI Conclusion
-                st.divider()
-                top_stock = df_res.iloc[0]
-                top_score = top_stock['百倍基因分數']
+    # ════════════════════════════════════════════════════
+    # BLOCK D：結果渲染
+    # ════════════════════════════════════════════════════
+    if 'bg_results' not in st.session_state:
+        st.info("ℹ️ 輸入代號後點擊「啟動 7D DNA 基因掃描」。")
+        return
 
-                if top_score >= 80:
-                    st.success(f"⚡ [Valkyrie AI 判定] 發現極端異常值！**{top_stock['代號']}** 獲得 {top_score} 分。它展現了完美的「高 ROE + 高毛利 + 低配息再投資」特徵，且市值具備極高爆發潛力，強烈建議納入長期追蹤名單！")
-                elif top_score >= 60:
-                    st.warning(f"⚖️ [Valkyrie AI 判定] **{top_stock['代號']}** 獲得 {top_score} 分。具備部分成長股基因，但某些護城河指標 (如毛利率或ROE) 尚未達到破壞式創新的絕對統治標準。")
-                else:
-                    st.error("🔴 [Valkyrie AI 判定] 本次掃描未發現符合「百倍股雙引擎」特徵的標的。請注意，傳統高股息或成熟期大企業，在此模型中得分通常極低。")
+    results = st.session_state['bg_results']
+    st.divider()
+    st.markdown('<div class="bg28">📊 DNA 掃描報告</div>', unsafe_allow_html=True)
+
+    # ── 總排行表 ──
+    rows = []
+    for r in results:
+        cur = r['currency']
+        cap = f"{r['mkt_cap_b']:.1f}B {cur}" if r['mkt_cap_b'] > 0 else "N/A"
+        rows.append({
+            "代號": r['sym'], "公司": r['name'],
+            "DNA 分數": r['total'], "等級": r['grade'],
+            "ROE": f"{r['roe']:.1%}"             if r['roe']         else "N/A",
+            "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth']   else "N/A",
+            "毛利率": f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A",
+            "市值": cap,
+            "PEG": f"{r['peg']:.2f}"              if r['peg'] and r['peg']>0 else "N/A",
+            "100x估算": f"~{r['yrs100']:.0f}年"   if r['yrs100'] and r['yrs100']<50 else "待評估",
+        })
+    df_tbl = pd.DataFrame(rows)
+
+    def _cd(v):
+        if v>=80: return 'color:#FF4500;font-weight:900'
+        if v>=65: return 'color:#FFD700;font-weight:800'
+        if v>=50: return 'color:#ADFF2F;font-weight:700'
+        if v>=35: return 'color:#00BFFF'
+        return 'color:#808080'
+
+    def _cg(v):
+        try:
+            n = float(str(v).replace('%','').replace('+',''))
+            if n>25: return 'color:#00FF9D;font-weight:700'
+            if n>10: return 'color:#ADFF2F'
+            if n<0:  return 'color:#FF6B6B'
+        except: pass
+        return ''
+
+    st.dataframe(
+        df_tbl.style.map(_cd, subset=['DNA 分數']).map(_cg, subset=['營收成長']),
+        use_container_width=True, hide_index=True
+    )
+
+    # ── 個股深度 DNA 卡片 ──
+    st.divider()
+    st.markdown('<div class="bg28">🔬 個股 DNA 深度解剖</div>', unsafe_allow_html=True)
+
+    for r in results:
+        gc   = r['gcolor']
+        sc   = r['total']
+        with st.expander(f"**{r['sym']}** — {r['grade']} ({sc}/100) · {r['name']}", expanded=(sc>=65)):
+
+            ca, cb, cc = st.columns([1,2,2])
+
+            with ca:
+                st.markdown(f"""<div class="bgcard" style="text-align:center;border-color:{gc}44;">
+                <div class="bgml">DNA 分數</div>
+                <div class="bgscore" style="color:{gc};">{sc}</div>
+                <div style="background:rgba(255,255,255,.08);border-radius:4px;height:10px;margin:10px 0 6px;">
+                  <div style="background:{gc};width:{sc}%;height:10px;border-radius:4px;"></div></div>
+                <div style="font-size:22px;font-weight:700;color:{gc};">{r['grade']}</div>
+                </div>""", unsafe_allow_html=True)
+
+            with cb:
+                st.markdown('<div class="bgml">7 維度分解</div>', unsafe_allow_html=True)
+                dims = [
+                    ("D1 ROE 引擎",   r['d1'], 30, "#FFD700"),
+                    ("D2 營收加速",   r['d2'], 25, "#00FF9D"),
+                    ("D3 毛利護城河", r['d3'], 20, "#00BFFF"),
+                    ("D4 市值空間",   r['d4'], 15, "#FF9A3C"),
+                    ("D5 再投資力",   r['d5'],  5, "#B77DFF"),
+                    ("D6 盈利品質",   r['d6'],  3, "#FF6B6B"),
+                    ("D7 安全邊際",   r['d7'],  2, "#00F5FF"),
+                ]
+                for dn, dg, dm, dc in dims:
+                    fp = int((dg/dm)*100) if dm>0 else 0
+                    st.markdown(f"""<div style="margin-bottom:7px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                    <span style="font-size:21px;color:rgba(200,210,220,.75);">{dn}</span>
+                    <span style="font-size:22px;font-weight:800;color:{dc};">{dg}/{dm}</span></div>
+                    <div style="background:rgba(255,255,255,.08);border-radius:3px;height:7px;">
+                    <div style="background:{dc};width:{fp}%;height:7px;border-radius:3px;"></div>
+                    </div></div>""", unsafe_allow_html=True)
+
+            with cc:
+                st.markdown('<div class="bgml">財務快照</div>', unsafe_allow_html=True)
+                snaps = [
+                    ("ROE 資本效率",  f"{r['roe']:.1%}"          if r['roe']          else "N/A", "#FFD700"),
+                    ("營收成長 YoY",  f"{r['rev_growth']:+.1%}"   if r['rev_growth']   else "N/A", "#00FF9D"),
+                    ("毛利率",        f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A", "#00BFFF"),
+                    ("營業利益率",    f"{r['op_margin']:.1%}"     if r['op_margin']    else "N/A", "#ADFF2F"),
+                    ("FCF Margin",    f"{r['fcf_pct']:.1%}"       if r['fcf_pct']      else "N/A", "#FF9A3C"),
+                    ("殖利率",        f"{r['div_yield']:.1%}"     if r['div_yield']    else "0.0%", "#B77DFF"),
+                    ("PEG 比率",      f"{r['peg']:.2f}"           if r['peg'] and r['peg']>0 else "N/A", "#00F5FF"),
+                ]
+                for sl, sv, sc2 in snaps:
+                    st.markdown(f"""<div class="bgrow">
+                    <span class="bgrl">{sl}</span>
+                    <span class="bgrv" style="color:{sc2};">{sv}</span>
+                    </div>""", unsafe_allow_html=True)
+
+            # ── 100x 路徑估算 ──
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            if r['yrs100'] and r['yrs100'] < 60:
+                yc = "#00FF9D" if r['yrs100']<12 else ("#FFD700" if r['yrs100']<20 else "#FF9A3C")
+                st.markdown(f"""<div class="bgf" style="border-left-color:{yc};">
+                📐 100x 路徑估算：若 CAGR 維持 <b>{r['cagr_est']:.1%}</b>，
+                需 <b style="color:{yc};font-size:32px;">~{r['yrs100']:.0f} 年</b> 達到百倍。<br>
+                <span style="font-size:22px;opacity:.7;">（CAGR 估算 = 營收成長×60% + ROE×40%，此為樂觀情境，僅供方向參考）</span>
+                </div>""", unsafe_allow_html=True)
             else:
-                st.error("❌ 掃描失敗，請確認代號是否輸入正確。")
+                st.markdown('<div class="bgw">⚠️ 當前財務數據不足以估算 100x 路徑，需要正向 ROE 與正向營收成長同時存在。</div>', unsafe_allow_html=True)
+
+            # ── Valkyrie 判定 ──
+            if sc >= 80:
+                st.success(f"🔥 **SUPER NOVA！** {r['sym']} 的財務 DNA 極為罕見——高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、以及是否有非線性增長的催化劑。**")
+            elif sc >= 65:
+                st.warning(f"⚡ **百倍候選** — {r['sym']} 具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落至更高安全邊際再加倉。")
+            elif sc >= 50:
+                st.info(f"📈 **成長潛力** — {r['sym']} 有部分優秀指標，但整體 DNA 組合不夠完整。研究其能否在未來 2–3 年提升 ROE 或毛利率，改善後重新掃描。")
+            else:
+                st.markdown(f'<div class="bgw">❄️ {r["sym"]} 目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。建議尋找更早期、更小市值的標的。</div>', unsafe_allow_html=True)
+
+    # ── CSV 下載 ──
+    st.divider()
+    export = []
+    for r in results:
+        export.append({
+            "代號":r['sym'],"公司":r['name'],"產業":r['industry'],
+            "DNA總分":r['total'],"等級":r['grade'],
+            "D1_ROE引擎":r['d1'],"D2_營收加速":r['d2'],"D3_毛利護城河":r['d3'],
+            "D4_市值空間":r['d4'],"D5_再投資":r['d5'],"D6_盈利品質":r['d6'],"D7_安全邊際":r['d7'],
+            "ROE":r['roe'],"營收成長":r['rev_growth'],"毛利率":r['gross_margin'],
+            "FCF_Margin":r['fcf_pct'],"殖利率":r['div_yield'],"PEG":r['peg'],
+            "市值B":r['mkt_cap_b'],"幣別":r['currency'],
+            "100x估算年": round(r['yrs100'],1) if r['yrs100'] else None,
+        })
+    df_exp = pd.DataFrame(export)
+    st.download_button(
+        "📥 下載完整 DNA 掃描報告 (CSV)",
+        df_exp.to_csv(index=False).encode('utf-8-sig'),
+        f"Titan_100Bagger_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        use_container_width=True, key="dl_bg_csv"
+    )
 
 
 
