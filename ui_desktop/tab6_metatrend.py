@@ -2649,26 +2649,26 @@ def _s63():
                     'Baillie Gifford 成長框架三大體系，萃取出預測力最強的 7 個指標，總分 100 分：</div>', unsafe_allow_html=True)
 
         dna_theory = [
-            ("D1", "ROE / 資本效率引擎", "30 分", "#FFD700",
+            ("D1", "ROE / 資本效率引擎", "22 分", "#FFD700",
              "ROE > 20% 意味著公司每投入 1 元能創造 0.20 元以上回報，並且可以把這個回報繼續再投入，"
              "形成<b>複利飛輪</b>。巴菲特說：「一家公司的長期股價回報率，長期趨近於它的 ROE。」"
              "這是百倍股最核心、最持久的驅動力。高 ROE + 高再投資率 = 時間的朋友。",
-             "ROE > 25%: 30分 ｜ ROE > 20%: 22分 ｜ ROE > 15%: 12分 ｜ ROE > 10%: 5分"),
-            ("D2", "營收加速度", "25 分", "#00FF9D",
+             "ROE > 25%: 22分 ｜ ROE > 20%: 17分 ｜ ROE > 15%: 10分 ｜ ROE > 10%: 4分<br><span style=\"font-size:18px;opacity:.55;\">（注：10D 升級後調整，D8+D9+D10=16分，D1-D7合計84分，總分100分）</span>"),
+            ("D2", "營收加速度", "20 分", "#00FF9D",
              "不只看營收成長率，更看<b>加速度</b>——成長率本身是否在加快？"
              "從 20% 加速到 40% 的公司，比穩定 30% 的公司更值得關注，因為加速度代表需求正在超越所有人的預期。"
              "加速成長觸發 PE 擴張——當市場意識到預測模型全都低估了，他們會瘋狂上修。",
-             "成長 > 30%: 25分 ｜ 成長 > 20%: 18分 ｜ 成長 > 10%: 10分 ｜ 成長 > 5%: 4分"),
-            ("D3", "毛利率護城河", "20 分", "#00BFFF",
+             "成長 > 30%: 20分 ｜ 成長 > 20%: 14分 ｜ 成長 > 10%: 8分 ｜ 成長 > 5%: 3分<br><span style=\"font-size:18px;opacity:.55;\">（10D 升級後調整）</span>"),
+            ("D3", "毛利率護城河", "17 分", "#00BFFF",
              "毛利率是護城河的 X 光片。毛利率 > 60% 說明公司有<b>定價權</b>，競爭對手無法靠打價格戰消滅你。"
              "軟體、平台、品牌、網路效應是高毛利護城河的典型。"
              "低毛利行業幾乎不可能出現百倍股——競爭者會把所有超額利潤榨乾至零。",
-             "毛利率 > 60%: 20分 ｜ > 40%: 14分 ｜ > 25%: 7分 ｜ > 10%: 2分"),
+             "毛利率 > 60%: 17分 ｜ > 40%: 12分 ｜ > 25%: 6分 ｜ > 10%: 2分<br><span style=\"font-size:18px;opacity:.55;\">（10D 升級後調整）</span>"),
             ("D4", "市值天花板空間", "15 分", "#FF9A3C",
              "一支 1000 億美元的公司要漲 100 倍，需要市值達到 10 兆——接近全美所有上市公司的總值。"
              "這在數學上幾乎不可能。因此<b>百倍股只能從小市值開始</b>，"
              "這是物理定律而非偏好。機構不買小市值是百倍股存在的根本原因——沒有人注意，才有機會。",
-             "台股 < 50億: 15分 ｜ < 200億: 10分 ｜ 美股 < 3億: 15分 ｜ < 15億: 10分"),
+             "美股 < $5億: 15分 ｜ < $30億: 12分 ｜ < $150億: 7分 ｜ < $500億: 3分 ｜ ≥$500億: 0分<br><span style=\"font-size:18px;opacity:.55;\">（D4=0 不代表不值得投資，代表 100x 需市值達天文數字，但 10-20x 仍可能）</span>"),
             ("D5", "再投資能力 / 零配息", "5 分", "#B77DFF",
              "百倍股<b>幾乎不配息</b>。每一分錢都要再投入以創造更高回報。"
              "高股息等於公司在告訴你：「我找不到比分錢給你更好的用途了。」"
@@ -3516,6 +3516,42 @@ def _s63():
                         cagr_est = rev_growth * 0.6 + roe * 0.4 if (rev_growth > 0 and roe > 0) else None
                     yrs100 = _math.log(100) / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
 
+                    # ════════════════════════════════════════════════════════
+                    # ── 市值現實校驗（Cap Reality Check）──
+                    # 輝達案例（2020→2025 市值 $0.3T→$3.4T 漲11x）告訴我們：
+                    # ① 超大型市值（>$200B）5年內 5-10x 是可能的（NVDA 已驗證）
+                    # ② 但 100x 仍需市值突破 20-30 兆，目前超越人類歷史紀錄
+                    # ③ 景氣週期 + 科技浪潮 + 強基本面 → 10-20x 是更現實的目標
+                    # ════════════════════════════════════════════════════════
+                    if currency in ("TWD", "HKD"):
+                        # 台股/港股（以 USD 換算 B 為單位估算）
+                        if   mkt_cap_b < 5:    cap_tier, realistic_max_x, cap_warn = "🔬 微型",   100, None
+                        elif mkt_cap_b < 20:   cap_tier, realistic_max_x, cap_warn = "🌱 小型",    50, None
+                        elif mkt_cap_b < 100:  cap_tier, realistic_max_x, cap_warn = "📊 中型",    20, None
+                        elif mkt_cap_b < 500:  cap_tier, realistic_max_x, cap_warn = "🏢 大型",    10, "10x"
+                        else:                  cap_tier, realistic_max_x, cap_warn = "🐋 巨型",     5, "5x"
+                    else:
+                        # 美股（USD Billion）
+                        if   mkt_cap_b < 0.5:  cap_tier, realistic_max_x, cap_warn = "🔬 微型",   100, None
+                        elif mkt_cap_b < 3:    cap_tier, realistic_max_x, cap_warn = "🌱 小型",    50, None
+                        elif mkt_cap_b < 15:   cap_tier, realistic_max_x, cap_warn = "📊 中型",    20, None
+                        elif mkt_cap_b < 50:   cap_tier, realistic_max_x, cap_warn = "🏢 大型",    10, "10x"
+                        elif mkt_cap_b < 200:  cap_tier, realistic_max_x, cap_warn = "🚀 超大型",   5, "5x"
+                        else:                  cap_tier, realistic_max_x, cap_warn = "🐋 巨型",     3, "3-5x"
+
+                    # 若市值天花板限制了 100x，在等級後加上校驗標籤
+                    if cap_warn and total >= 65:
+                        if realistic_max_x <= 5:
+                            grade = grade + " ⚠️[市值校驗]"
+                        # grade 本身保留（反映基本面質量），校驗標籤用於提示
+
+                    # 計算多倍股路徑所需年數
+                    yrs10  = _math.log(10)  / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
+                    yrs20  = _math.log(20)  / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
+                    # 100x 需要的目標市值
+                    target_100x_b = mkt_cap_b * 100  # in Billion USD
+                    target_100x_t = target_100x_b / 1000  # in Trillion
+
                     results.append(dict(
                         sym=sym, name=name_s, industry=industry_s, currency=currency,
                         price=price, mkt_cap_b=mkt_cap_b,
@@ -3527,7 +3563,11 @@ def _s63():
                         d1=d1, d2=d2, d3=d3, d4=d4, d5=d5, d6=d6, d7=d7,
                         d8=d8, d9=d9, d10=d10,
                         total=total, grade=grade, gcolor=gcolor,
-                        yrs100=yrs100, cagr_est=cagr_est,
+                        yrs100=yrs100, yrs20=yrs20, yrs10=yrs10,
+                        cagr_est=cagr_est,
+                        cap_tier=cap_tier, realistic_max_x=realistic_max_x,
+                        cap_warn=cap_warn,
+                        target_100x_b=target_100x_b, target_100x_t=target_100x_t,
                     ))
                 except Exception as e:
                     st.toast(f"⚠️ {sym} 讀取失敗: {e}")
@@ -3560,10 +3600,21 @@ def _s63():
         cur = r['currency']
         cap = f"{r['mkt_cap_b']:.1f}B {cur}" if r['mkt_cap_b'] > 0 else "N/A"
         mode_tag = "🔴 燒錢模式" if r.get('is_pre_profit') else "🟢 盈利模式"
+        # 多倍股目標顯示：依市值現實校驗決定顯示哪個目標
+        _rmx = r.get('realistic_max_x', 100)
+        if _rmx >= 100:
+            _xest = f"~{r['yrs100']:.0f}年" if r.get('yrs100') and r['yrs100'] < 50 else "待評估"
+        elif _rmx >= 20:
+            _xest = f"20x:~{r['yrs20']:.0f}yr" if r.get('yrs20') and r['yrs20'] < 50 else "待評估"
+        elif _rmx >= 10:
+            _xest = f"10x:~{r['yrs10']:.0f}yr" if r.get('yrs10') and r['yrs10'] < 30 else "待評估"
+        else:
+            _xest = f"5x以下（市值巨型）"
         rows.append({
             "代號": r['sym'], "公司": r['name'],
             "模式": mode_tag,
             "DNA 分數": r['total'], "等級": r['grade'],
+            "市值級別": r.get('cap_tier', '—'),
             "ROE": f"{r['roe']:.1%}"             if r['roe'] and not r.get('is_pre_profit') else ("虧損" if r.get('is_pre_profit') else "N/A"),
             "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth']   else "N/A",
             "毛利率": f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A",
@@ -3571,7 +3622,7 @@ def _s63():
             "📈 P/E": f"{r['pe']:.1f}x" if r.get('pe', 0) > 0 else "N/A",
             "🛡️ Rule of 40": f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else "N/A",
             "市值": cap,
-            "100x估算": f"~{r['yrs100']:.0f}年"   if r['yrs100'] and r['yrs100']<50 else "待評估",
+            "現實目標": _xest,
         })
     df_tbl = pd.DataFrame(rows)
 
@@ -3689,37 +3740,129 @@ def _s63():
                     <span class="bgrv" style="color:{sc2};">{sv}</span>
                     </div>""", unsafe_allow_html=True)
 
-            # ── 100x 路徑估算 ──
+            # ── 多倍股路徑估算（市值現實校驗版）──
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            if r['yrs100'] and r['yrs100'] < 60:
-                yc = "#00FF9D" if r['yrs100']<12 else ("#FFD700" if r['yrs100']<20 else "#FF9A3C")
-                cagr_note = "（燒錢模式：純用營收 CAGR×0.7，含高不確定折扣，盈利後實際 CAGR 可能更高）" if r.get('is_pre_profit') else "（CAGR = 營收成長×60% + ROE×40%，樂觀情境）"
-                st.markdown(f"""<div class="bgf" style="border-left-color:{yc};">
-                📐 100x 路徑估算：若 CAGR 維持 <b>{r['cagr_est']:.1%}</b>，
-                需 <b style="color:{yc};font-size:32px;">~{r['yrs100']:.0f} 年</b> 達到百倍。<br>
-                <span style="font-size:22px;opacity:.7;">{cagr_note}</span>
-                </div>""", unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="bgw">⚠️ 當前財務數據不足以估算 100x 路徑，需要正向毛利率與正向營收成長同時存在。</div>', unsafe_allow_html=True)
+            _cap_warn  = r.get('cap_warn')
+            _rmx       = r.get('realistic_max_x', 100)
+            _cap_tier  = r.get('cap_tier', '—')
+            _t100b     = r.get('target_100x_b', 0)
+            _t100t     = r.get('target_100x_t', 0)
+            _cagr      = r.get('cagr_est')
+            _cagr_note = "（燒錢模式：CAGR=營收成長×0.7，含不確定折扣）" if r.get('is_pre_profit') else "（CAGR = 營收成長×60% + ROE×40%，樂觀情境）"
 
-            # ── Valkyrie 判定 ──
-            pre_tag = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
+            if _cagr and _cagr > 0.05:
+                # ── 市值現實校驗警告橫幅（僅大市值觸發）──
+                if _cap_warn:
+                    # 判斷輝達式突破的可能性提示
+                    nvda_note = ""
+                    if _rmx <= 5:
+                        nvda_note = "（參考：輝達 2019→2024 市值 $0.1T→$3.4T 為 34x，是近代最強案例之一）"
+                        warn_color = "#FF6B6B"
+                        bar_label  = "🐋 巨型市值警告"
+                    else:
+                        nvda_note = "（參考：輝達 2020→2025 5年漲約 11x，強基本面大市值仍可有驚人表現）"
+                        warn_color = "#FF9A3C"
+                        bar_label  = "🏢 大型市值校驗"
+
+                    st.markdown(f"""<div style="background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.3);
+                    border-left:4px solid {warn_color};border-radius:0 10px 10px 0;
+                    padding:14px 18px;margin-bottom:10px;">
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+                    color:{warn_color};letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;">
+                    {bar_label} · {_cap_tier} · 市值 ${r['mkt_cap_b']:.0f}B {r['currency']}</div>
+                    <div style="font-size:22px;font-weight:700;color:{warn_color};line-height:1.6;">
+                    ⚠️ 100x 需達市值 <b>${_t100b:.0f}B（${_t100t:.1f}兆美元）</b>，
+                    超越人類歷史上任何單一公司。<br>
+                    <span style="font-size:20px;color:rgba(220,160,160,.8);">
+                    → 現實目標：<b style="color:#FFD700;">{_cap_warn}</b> 仍具重大意義 {nvda_note}</span>
+                    </div></div>""", unsafe_allow_html=True)
+
+                # ── 多倍股時間路徑（並排顯示 10x / 20x / 100x）──
+                yrs10  = r.get('yrs10')
+                yrs20  = r.get('yrs20')
+                yrs100 = r.get('yrs100')
+
+                path_cols = st.columns(3)
+                paths = [
+                    ("10x", yrs10,  "#ADFF2F", _rmx >= 10,
+                     f"市值需達 <b>${r['mkt_cap_b']*10:.0f}B</b>"),
+                    ("20x", yrs20,  "#FFD700", _rmx >= 20,
+                     f"市值需達 <b>${r['mkt_cap_b']*20:.0f}B</b>"),
+                    ("100x", yrs100, "#FF4500", _rmx >= 100,
+                     f"市值需達 <b>${_t100b:.0f}B（${_t100t:.1f}兆）</b>"),
+                ]
+                for pc, (label, yrs, pcolor, is_realistic, cap_note) in zip(path_cols, paths):
+                    with pc:
+                        if yrs and yrs < 60:
+                            feasibility = "✅ 現實可行" if is_realistic else ("⚡ 歷史罕見" if label == "20x" else "⚠️ 物理極限")
+                            feas_color  = "#00FF9D" if is_realistic else ("#FF9A3C" if label == "20x" else "#FF6B6B")
+                            st.markdown(f"""<div class="bgcard" style="text-align:center;border-color:{pcolor}44;padding:12px;">
+                            <div style="font-size:28px;font-weight:900;color:{pcolor};">{label}</div>
+                            <div style="font-size:36px;font-weight:900;color:#FFF;">~{yrs:.0f}<span style="font-size:20px;">年</span></div>
+                            <div style="font-size:17px;color:{feas_color};margin:4px 0;">{feasibility}</div>
+                            <div style="font-size:16px;color:rgba(180,190,210,.5);">{cap_note}</div>
+                            </div>""", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""<div class="bgcard" style="text-align:center;border-color:{pcolor}22;padding:12px;opacity:.4;">
+                            <div style="font-size:28px;font-weight:900;color:{pcolor};">{label}</div>
+                            <div style="font-size:20px;color:rgba(180,190,210,.5);">時間過長或<br>數據不足</div>
+                            </div>""", unsafe_allow_html=True)
+
+                st.markdown(f"""<div style="font-size:19px;color:rgba(160,176,208,.5);margin-top:6px;padding:0 4px;">
+                📐 CAGR 假設：<b style="color:rgba(200,210,220,.7);">{_cagr:.1%}</b> · {_cagr_note}
+                </div>""", unsafe_allow_html=True)
+
+            else:
+                st.markdown('''<div class="bgw">⚠️ 當前財務數據不足以估算路徑，需要正向毛利率與正向營收成長同時存在。</div>''', unsafe_allow_html=True)
+
+            # ── Valkyrie 判定（市值現實校驗版）──
+            pre_tag  = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
+            _rmx     = r.get('realistic_max_x', 100)
+            _cap_t   = r.get('cap_tier', '—')
+            _cap_w   = r.get('cap_warn')
+
+            # 市值校驗補充語（依規模差異化）
+            if _cap_w is None:
+                cap_verdict = ""
+            elif _rmx >= 10:
+                cap_verdict = (
+                    f" ｜ 📐 **市值現實校驗**：{_cap_t}（${r['mkt_cap_b']:.0f}B），"
+                    f"100x 需達 ${r.get('target_100x_t',0):.1f} 兆（物理上極難），"
+                    f"但 **{_cap_w} 仍具高度意義**——強基本面大市值公司，輝達式的 10x 級別表現仍是可能的。"
+                )
+            else:
+                cap_verdict = (
+                    f" ｜ 🐋 **市值校驗警告**：{_cap_t}（${r['mkt_cap_b']:.0f}B），"
+                    f"100x 需達 ${r.get('target_100x_t',0):.1f} 兆（超越任何歷史紀錄）。"
+                    f"本標的 DNA 分數反映**基本面質量極強**，但漲幅框架應調整為 **3-5x 預期**，"
+                    f"以此衡量仍是市場領先表現。"
+                )
+
             if sc >= 80:
                 skin_note = f"內部人持股 {r.get('insider_pct',0):.1%}，{'創辦人仍掌舵。' if r.get('insider_pct',0)>=0.10 else '持股偏低，注意代理人風險。'}"
-                r40_note  = f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else 'N/A'
-                pre_body  = ('高毛利商業模式已驗證 + 高速營收加速 + 市值天花板巨大，即使尚未盈利，其燒錢是「規模化投資」而非「商業模式失敗」。'
-                             if r.get('is_pre_profit') else
-                             '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。')
-                st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{pre_body}{skin_note} Rule of 40：{r40_note}。若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、現金跑道還有多久。**")
+                r40_note  = f"{r.get('rule40_val',0):.0f}%" if r.get('rule40_val') is not None else 'N/A'
+                if _cap_w is None:
+                    pre_body = ('高毛利商業模式已驗證 + 高速營收加速，燒錢是「規模化投資」而非「商業模式失敗」。'
+                                if r.get('is_pre_profit') else
+                                '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，市值仍在百倍可行的早期階段。')
+                    st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{pre_body}{skin_note} Rule of 40：{r40_note}。若景氣循環位於「黎明期」，這是教科書級別的百倍股候選。{cap_verdict}")
+                else:
+                    pre_body = ('基本面 DNA 極強，燒錢仍在規模化投資期。' if r.get('is_pre_profit') else
+                                '基本面 DNA 極強，是同類股中的一流標的。')
+                    st.success(f"🔥 **SUPER NOVA 基本面！{pre_tag}** {r['sym']} {pre_body}{skin_note} Rule of 40：{r40_note}。{cap_verdict}")
             elif sc >= 65:
-                pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？管理層是否有明確的盈利時間表？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
-                st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
+                if _cap_w is None:
+                    pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
+                    st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
+                else:
+                    pre_msg = "基本面強勁，市值規模改變漲幅預期框架。" + ("燒錢模式需關注現金跑道。" if r.get('is_pre_profit') else "")
+                    st.warning(f"⚡ **基本面優秀{pre_tag}** — {r['sym']} {pre_msg}{cap_verdict}")
             elif sc >= 50:
-                pre_msg = "燒錢期有部分優秀指標，但整體 DNA 組合不夠完整。研究其毛利率趨勢——若毛利率持續提升，盈利後將快速釋放價值。" if r.get('is_pre_profit') else "有部分優秀指標，但整體 DNA 組合不夠完整。研究其能否在未來 2–3 年提升 ROE 或毛利率。"
-                st.info(f"📈 **成長潛力{pre_tag}** — {r['sym']} {pre_msg}")
+                pre_msg = "燒錢期有部分優秀指標，研究毛利率趨勢——若持續提升，盈利後將快速釋放價值。" if r.get('is_pre_profit') else "有部分優秀指標，但整體 DNA 組合不夠完整。"
+                st.info(f"📈 **成長潛力{pre_tag}** — {r['sym']} {pre_msg}{cap_verdict}")
             else:
-                pre_msg = f"燒錢且財務 DNA 不足，高風險標的。建議尋找毛利率更高、成長加速更明確的燒錢公司。" if r.get('is_pre_profit') else "目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。"
-                st.markdown(f'<div class="bgw">❄️ {r["sym"]} {pre_msg}</div>', unsafe_allow_html=True)
+                pre_msg = f"燒錢且財務 DNA 不足，高風險標的。" if r.get('is_pre_profit') else "目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。"
+                st.markdown(f'<div class="bgw">❄️ {r["sym"]} {pre_msg}{cap_verdict}</div>', unsafe_allow_html=True)
 
     # ── CSV 下載 ──
     st.divider()
@@ -3737,7 +3880,12 @@ def _s63():
             "內部人持股":r.get('insider_pct'),"P/E":r.get('pe'),"PEG":r['peg'],
             "FCF_Margin":r['fcf_pct'],"P/S比率":r.get('ps_ratio'),"殖利率":r['div_yield'],
             "市值B":r['mkt_cap_b'],"幣別":r['currency'],
-            "100x估算年": round(r['yrs100'],1) if r['yrs100'] else None,
+            "市值級別":r.get('cap_tier','—'),
+            "現實最大倍數":r.get('realistic_max_x',100),
+            "10x估算年": round(r['yrs10'],1) if r.get('yrs10') else None,
+            "20x估算年": round(r['yrs20'],1) if r.get('yrs20') else None,
+            "100x估算年": round(r['yrs100'],1) if r.get('yrs100') else None,
+            "100x目標市值B":r.get('target_100x_b',0),
         })
     df_exp = pd.DataFrame(export)
     st.download_button(
