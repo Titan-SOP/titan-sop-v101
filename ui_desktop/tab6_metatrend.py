@@ -3367,54 +3367,35 @@ def _s63():
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    # ══════════════════════════════════════════════════
-                    # 台股 Ticker 解析（支援上市 .TW、上櫃 .TWO、純數字）
-                    # 邏輯：
-                    #   1. 純數字（如 2330、5274）→ 先試 .TW，若無效再試 .TWO
-                    #   2. 已帶 .TW → 直接用；若無效再試 .TWO
-                    #   3. 已帶 .TWO → 直接用（不再試 .TW）
-                    #   4. 英文代號 → 直接用
-                    # ══════════════════════════════════════════════════
-                    bare = sym.replace('.TW','').replace('.TWO','')
-                    is_tw_num = bare.isdigit() and len(bare) >= 4
+                    # ── Ticker 解析（參考 6.1 邏輯，支援上市.TW / 上櫃.TWO / 純數字）──
+                    bare       = sym.replace('.TW','').replace('.TWO','')
+                    is_tw_num  = bare.isdigit() and len(bare) >= 4
+                    fetch_sym  = sym
 
-                    def _try_ticker(s):
-                        """嘗試取得 ticker info，回傳 (tk, info) 或 (None, None)"""
-                        try:
-                            _tk = yf.Ticker(s)
-                            _info = _tk.info
-                            # yfinance 找不到時通常回傳空 dict 或只有 trailingPegRatio
-                            # 用 quoteType 或 shortName 存在來判斷有效性
-                            if _info and (_info.get('quoteType') or _info.get('shortName') or _info.get('marketCap')):
-                                return _tk, _info
-                            return None, None
-                        except Exception:
-                            return None, None
-
-                    tk, info, fetch_sym = None, None, sym
-
+                    # 決定 fetch 順序
                     if sym.endswith('.TWO'):
-                        # 明確指定上櫃，直接用
-                        tk, info = _try_ticker(sym)
-                        fetch_sym = sym
+                        candidates = [sym]
                     elif sym.endswith('.TW') or is_tw_num:
-                        # 先試 .TW
-                        candidate_tw = (bare + '.TW') if is_tw_num else sym
-                        tk, info = _try_ticker(candidate_tw)
-                        fetch_sym = candidate_tw
-                        # 若 .TW 無效，退一步試 .TWO（上櫃）
-                        if tk is None:
-                            candidate_two = bare + '.TWO'
-                            tk, info = _try_ticker(candidate_two)
-                            fetch_sym = candidate_two
+                        base = bare + '.TW'
+                        candidates = [base, bare + '.TWO']
                     else:
-                        # 美股或其他市場，直接用
-                        tk, info = _try_ticker(sym)
-                        fetch_sym = sym
+                        candidates = [sym]
 
-                    # 全部嘗試失敗 → 跳過，不崩潰
-                    if tk is None or info is None:
-                        st.toast(f"⚠️ {sym}：無法取得數據（可能代號錯誤或交易所不支援）", icon="⚠️")
+                    tk, info = None, None
+                    for _cand in candidates:
+                        try:
+                            _tk   = yf.Ticker(_cand)
+                            _info = _tk.info
+                            # 與 6.1 相同判斷：symbol 欄位存在 = 有效 ticker
+                            if _info and 'symbol' in _info:
+                                tk, info, fetch_sym = _tk, _info, _cand
+                                break
+                        except Exception:
+                            continue
+
+                    # 全部候選失敗 → toast 提示後跳過，不崩潰
+                    if info is None:
+                        st.toast(f"⚠️ {sym}：無法取得數據，請確認代號", icon="⚠️")
                         prog.progress((idx+1) / len(tickers))
                         continue
 
