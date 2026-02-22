@@ -3367,20 +3367,64 @@ def _s63():
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    fetch_sym = sym
+                    # ══════════════════════════════════════════════════
+                    # 台股 Ticker 解析（支援上市 .TW、上櫃 .TWO、純數字）
+                    # 邏輯：
+                    #   1. 純數字（如 2330、5274）→ 先試 .TW，若無效再試 .TWO
+                    #   2. 已帶 .TW → 直接用；若無效再試 .TWO
+                    #   3. 已帶 .TWO → 直接用（不再試 .TW）
+                    #   4. 英文代號 → 直接用
+                    # ══════════════════════════════════════════════════
                     bare = sym.replace('.TW','').replace('.TWO','')
-                    if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
-                        fetch_sym = sym + '.TW'
+                    is_tw_num = bare.isdigit() and len(bare) >= 4
 
-                    tk   = yf.Ticker(fetch_sym)
-                    info = tk.info
+                    def _try_ticker(s):
+                        """嘗試取得 ticker info，回傳 (tk, info) 或 (None, None)"""
+                        try:
+                            _tk = yf.Ticker(s)
+                            _info = _tk.info
+                            # yfinance 找不到時通常回傳空 dict 或只有 trailingPegRatio
+                            # 用 quoteType 或 shortName 存在來判斷有效性
+                            if _info and (_info.get('quoteType') or _info.get('shortName') or _info.get('marketCap')):
+                                return _tk, _info
+                            return None, None
+                        except Exception:
+                            return None, None
+
+                    tk, info, fetch_sym = None, None, sym
+
+                    if sym.endswith('.TWO'):
+                        # 明確指定上櫃，直接用
+                        tk, info = _try_ticker(sym)
+                        fetch_sym = sym
+                    elif sym.endswith('.TW') or is_tw_num:
+                        # 先試 .TW
+                        candidate_tw = (bare + '.TW') if is_tw_num else sym
+                        tk, info = _try_ticker(candidate_tw)
+                        fetch_sym = candidate_tw
+                        # 若 .TW 無效，退一步試 .TWO（上櫃）
+                        if tk is None:
+                            candidate_two = bare + '.TWO'
+                            tk, info = _try_ticker(candidate_two)
+                            fetch_sym = candidate_two
+                    else:
+                        # 美股或其他市場，直接用
+                        tk, info = _try_ticker(sym)
+                        fetch_sym = sym
+
+                    # 全部嘗試失敗 → 跳過，不崩潰
+                    if tk is None or info is None:
+                        st.toast(f"⚠️ {sym}：無法取得數據（可能代號錯誤或交易所不支援）", icon="⚠️")
+                        prog.progress((idx+1) / len(tickers))
+                        continue
 
                     def _g(k, d=0):
                         v = info.get(k, d)
                         return d if v is None else v
 
                     currency     = info.get("currency", "USD")
-                    mkt_cap_b    = _g("marketCap", 0) / 1e9
+                    _raw_cap     = _g("marketCap", 0)
+                    mkt_cap_b    = _raw_cap / 1e9 if _raw_cap else 0
                     name_s       = info.get("shortName", sym)[:24]
                     industry_s   = info.get("industry", "N/A")
                     roe          = _g("returnOnEquity")
@@ -3529,17 +3573,21 @@ def _s63():
                         qc = tk.quarterly_cashflow
                         if qi is not None and not qi.empty and qi.shape[1] >= 4:
                             # ── 提取季度營收（由新到舊，反轉為由舊到新）──
+                            # 台股/美股欄位名稱容錯清單
+                            _REV_NAMES = ["Total Revenue", "Revenue", "Net Revenue", "Operating Revenue"]
+                            _GP_NAMES  = ["Gross Profit", "Gross Income"]
                             rev_row = None
-                            for rname in ["Total Revenue", "Revenue"]:
+                            for rname in _REV_NAMES:
                                 if rname in qi.index:
                                     rev_row = qi.loc[rname]
                                     break
                             gm_rev = None
-                            for rname in ["Total Revenue", "Revenue"]:
+                            for rname in _REV_NAMES:
                                 if rname in qi.index:
                                     gm_rev = qi.loc[rname]
+                                    break
                             gp_row = None
-                            for rname in ["Gross Profit"]:
+                            for rname in _GP_NAMES:
                                 if rname in qi.index:
                                     gp_row = qi.loc[rname]
                                     break
@@ -3607,7 +3655,7 @@ def _s63():
                                     # ── FCF 趨勢 ──
                                     if qc is not None and not qc.empty:
                                         fcf_row = None
-                                        for rname in ["Free Cash Flow", "FreeCashFlow"]:
+                                        for rname in ["Free Cash Flow", "FreeCashFlow", "Operating Cash Flow"]:
                                             if rname in qc.index:
                                                 fcf_row = qc.loc[rname]
                                                 break
@@ -3746,7 +3794,7 @@ def _s63():
                         d11=d11_data,
                     ))
                 except Exception as e:
-                    st.toast(f"⚠️ {sym} 讀取失敗: {e}")
+                    st.toast(f"⚠️ {sym} 讀取失敗: {e}", icon="⚠️")
 
                 prog.progress((idx+1) / len(tickers))
 
@@ -3923,7 +3971,7 @@ def _s63():
                     )
 
                 # 季度營收折線圖
-                if len(rev_s) >= 4 and len(qtrs_labels) == len(rev_s):
+                if len(rev_s) >= 4 and len(qtrs_labels) >= len(rev_s):
                     fig_d11 = go.Figure()
                     fig_d11.add_trace(go.Scatter(
                         x=qtrs_labels, y=rev_s,
