@@ -3367,34 +3367,30 @@ def _s63():
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    # ── Ticker 解析（參考 6.1 邏輯，支援上市.TW / 上櫃.TWO / 純數字）──
-                    bare       = sym.replace('.TW','').replace('.TWO','')
-                    is_tw_num  = bare.isdigit() and len(bare) >= 4
-                    fetch_sym  = sym
+                    # ── Ticker 解析：原版邏輯 + 台股 .TWO 退場補強 ──
+                    bare      = sym.replace('.TW','').replace('.TWO','')
+                    is_tw_num = bare.isdigit() and len(bare) >= 4
 
-                    # 決定 fetch 順序
-                    if sym.endswith('.TWO'):
-                        candidates = [sym]
-                    elif sym.endswith('.TW') or is_tw_num:
-                        base = bare + '.TW'
-                        candidates = [base, bare + '.TWO']
+                    # 決定初始 fetch 代號（與原版相同）
+                    if is_tw_num and not sym.endswith(('.TW','.TWO')):
+                        fetch_sym = bare + '.TW'
                     else:
-                        candidates = [sym]
+                        fetch_sym = sym
 
-                    tk, info = None, None
-                    for _cand in candidates:
-                        try:
-                            _tk   = yf.Ticker(_cand)
-                            _info = _tk.info
-                            # 與 6.1 相同判斷：symbol 欄位存在 = 有效 ticker
-                            if _info and 'symbol' in _info:
-                                tk, info, fetch_sym = _tk, _info, _cand
-                                break
-                        except Exception:
-                            continue
+                    tk   = yf.Ticker(fetch_sym)
+                    info = tk.info
 
-                    # 全部候選失敗 → toast 提示後跳過，不崩潰
-                    if info is None:
+                    # 台股：若 .TW 抓不到資料（空dict或無marketCap/shortName），改試 .TWO
+                    if is_tw_num and not sym.endswith('.TWO'):
+                        if not info or (not info.get('marketCap') and not info.get('shortName')):
+                            _sym_two = bare + '.TWO'
+                            _tk2     = yf.Ticker(_sym_two)
+                            _info2   = _tk2.info
+                            if _info2 and (_info2.get('marketCap') or _info2.get('shortName')):
+                                tk, info, fetch_sym = _tk2, _info2, _sym_two
+
+                    # info 完全無效（非台股代號錯誤等）→ 跳過，不崩潰
+                    if not info:
                         st.toast(f"⚠️ {sym}：無法取得數據，請確認代號", icon="⚠️")
                         prog.progress((idx+1) / len(tickers))
                         continue
