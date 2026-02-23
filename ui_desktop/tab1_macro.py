@@ -80,13 +80,13 @@ SIGNAL_PALETTE = {
 
 # (code, emoji, label-zh, label-en)
 SUB_MODULES = [
-    ("1.1", "🚦", "風控儀表",  "MACRO HUD"),
-    ("1.2", "🌡️", "多空溫度",  "THERMO"),
-    ("1.3", "📊", "籌碼分佈",  "PR90"),
-    ("1.4", "🔥", "族群熱度",  "SECTOR MAP"),
-    ("1.5", "💹", "成交重心",  "VOLUME"),
-    ("1.6", "👑", "趨勢雷達",  "RADAR"),
-    ("1.7", "🎯", "台指獵殺",  "PREDATOR"),
+    ("1.1", "🎯", "台指獵殺",  "PREDATOR"),
+    ("1.2", "🚦", "風控儀表",  "MACRO HUD"),
+    ("1.3", "🌡️", "多空溫度",  "THERMO"),
+    ("1.4", "📊", "籌碼分佈",  "PR90"),
+    ("1.5", "🔥", "族群熱度",  "SECTOR MAP"),
+    ("1.6", "💹", "成交重心",  "VOLUME"),
+    ("1.7", "👑", "趨勢雷達",  "RADAR"),
 ]
 
 
@@ -2492,7 +2492,7 @@ def render_1_7_predator():
 <div style="background:rgba(0,0,0,0.32);border:1px solid rgba(255,49,49,0.18);
      border-left:3px solid rgba(255,49,49,0.55);border-radius:14px;
      padding:16px 20px;margin-bottom:20px;font-family:var(--f-mono);
-     font-size:11px;color:rgba(200,215,230,0.7);line-height:1.9;">
+     font-size:26px;color:rgba(200,215,230,0.7);line-height:1.9;">
 
 <span style="color:#FF3131;font-weight:700;letter-spacing:2px;">█ 第一性原則 — 台指期結算不是隨機的，而是「歷史慣性」的再現</span><br><br>
 
@@ -2551,7 +2551,7 @@ def render_1_7_predator():
     st.markdown("""
 <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,49,49,0.1);
      border-radius:16px;padding:20px 24px;margin:16px 0;font-family:var(--f-mono);
-     font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">""", unsafe_allow_html=True)
+     font-size:26px;color:rgba(200,215,230,0.85);line-height:1.9;">""", unsafe_allow_html=True)
 
     # 目標達成判斷
     t1_hit = (is_red and res['price'] >= res['t']['1B']) or (not is_red and res['price'] <= res['t']['1B'])
@@ -2636,7 +2636,7 @@ def render_1_7_predator():
         st.session_state[key_pred] = True
     else:
         st.markdown(
-            f'<pre style="white-space:pre-wrap;font-size:13px;'
+            f'<pre style="white-space:pre-wrap;font-size:26px;'
             f'color:rgba(200,215,230,0.8);line-height:1.85;">{pred_analysis}</pre>',
             unsafe_allow_html=True
         )
@@ -2695,14 +2695,14 @@ def render_1_7_predator():
             base.mark_tick(color='#FFD700', thickness=2, size=86)
             .encode(y=f'Target_{k}')
             + base.mark_text(dx=52, align='left', color='#FFD700',
-                             fontSize=14, fontWeight='bold', font='JetBrains Mono')
+                             fontSize=28, fontWeight='bold', font='JetBrains Mono')
             .encode(y=f'Target_{k}', text=alt.value(f"{k}  {res['t'][k]:,.0f}"))
         )
     chart += (
         base.mark_tick(color='#FF3131', thickness=4, size=100)
         .encode(y='Target_HR')
         + base.mark_text(dx=56, align='left', color='#FF3131',
-                         fontSize=15, fontWeight='bold', font='JetBrains Mono')
+                         fontSize=28, fontWeight='bold', font='JetBrains Mono')
         .encode(y='Target_HR', text=alt.value(f"HR  {res['t']['HR']:,.0f}"))
     )
 
@@ -2729,24 +2729,24 @@ def render_1_7_predator():
 #  RENDER MAP
 # ══════════════════════════════════════════════════════════════════════════════
 RENDER_MAP = {
-    "1.1": render_1_1_hud,
-    "1.2": render_1_2_thermometer,
-    "1.3": render_1_3_pr90,
-    "1.4": render_1_4_heatmap,
-    "1.5": render_1_5_turnover,
-    "1.6": render_1_6_trend_radar,
-    "1.7": render_1_7_predator,
+    "1.1": render_1_7_predator,
+    "1.2": render_1_1_hud,
+    "1.3": render_1_2_thermometer,
+    "1.4": render_1_3_pr90,
+    "1.5": render_1_4_heatmap,
+    "1.6": render_1_5_turnover,
+    "1.7": render_1_6_trend_radar,
 }
 
 # Icon accent per poster card
 _POSTER_ACCENT = {
-    "1.1": "#00F5FF",
-    "1.2": "#FF6B6B",
-    "1.3": "#FFD700",
-    "1.4": "#FF5722",
-    "1.5": "#FFA07A",
-    "1.6": "#9370DB",
-    "1.7": "#FF3131",
+    "1.1": "#FF3131",
+    "1.2": "#00F5FF",
+    "1.3": "#FF6B6B",
+    "1.4": "#FFD700",
+    "1.5": "#FF5722",
+    "1.6": "#FFA07A",
+    "1.7": "#9370DB",
 }
 
 
