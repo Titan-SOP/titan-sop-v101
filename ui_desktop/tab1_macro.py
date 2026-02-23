@@ -930,53 +930,159 @@ def _calculate_futures_targets():
 
 def render_1_1_hud():
     # ══════════════════════════════════════════════════════════════════════
-    # 1.1 宏觀風控儀表 — 第一性原則重建
-    # 核心邏輯：三燈號系統 = VIX × PR90 × PTT 三重交叉驗證
-    #   GREEN：VIX<20 且 PR90<115 且 PTT<50%  → 系統性風險低，積極進攻
-    #   YELLOW：任一指標進入警戒區            → 區間操作，控制倉位
-    #   RED：VIX>30 或 PR90>130 或 PTT>65%   → 極端恐慌/過熱，現金為王
+    # 1.1 宏觀風控儀表 V4.0 — 第一性原則重建
+    # ✅ 完全移除 CB 依賴：VIX / TSE 直接從 yfinance 抓取
+    # ✅ PR90：有 CB 數據則計算，無則顯示 N/A（不阻擋頁面）
+    # ✅ PTT：透過 MacroRiskEngine 獨立抓取
+    # ✅ 一鍵啟動：session state 控制，按鈕觸發數據抓取
     # ══════════════════════════════════════════════════════════════════════
-    _sec_header("🚦", "宏觀風控儀表 · 三重驗證戰情系統", "MACRO HUD v3.0")
-    macro, _, _ = _load_engines()
-    df      = st.session_state.get('df', pd.DataFrame())
-    df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
+    _sec_header("🚦", "宏觀風控儀表 · 三重驗證戰情系統", "MACRO HUD v4.0")
 
-    if df.empty:
+    # ── 獨立數據抓取函式（不依賴 CB）─────────────────────────────────────
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _fetch_vix_data():
+        """直接從 yfinance 抓 VIX"""
+        try:
+            tk  = yf.Ticker("^VIX")
+            inf = tk.info
+            vix = (inf.get("regularMarketPrice")
+                   or inf.get("previousClose")
+                   or inf.get("ask", 20.0))
+            hist = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
+            return float(vix), hist
+        except Exception:
+            return 20.0, pd.DataFrame()
+
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _fetch_tse_data():
+        """直接從 yfinance 抓 ^TWII 並計算 87MA / 格蘭碧 / 扣抵"""
+        try:
+            hist = yf.download("^TWII", period="18mo", progress=False, auto_adjust=True)
+            if isinstance(hist.columns, pd.MultiIndex):
+                hist.columns = hist.columns.get_level_values(0)
+            if hist.empty:
+                return {"price": 0, "momentum": "N/A", "granville": "N/A",
+                        "magic_ma": "N/A", "deduct_slope": ["計算失敗"]}
+            close = hist["Close"].dropna()
+            price = float(close.iloc[-1])
+            ma87  = close.rolling(87).mean()
+            ma87v = float(ma87.iloc[-1]) if not pd.isna(ma87.iloc[-1]) else None
+            # 動能方向
+            if len(ma87.dropna()) >= 5:
+                tail5 = ma87.dropna().tail(5)
+                slope = (tail5.iloc[-1] - tail5.iloc[0]) / tail5.iloc[0]
+                momentum = "📈 上升" if slope > 0.001 else "📉 下降" if slope < -0.001 else "➡️ 盤整"
+            else:
+                momentum = "計算中"
+            # 格蘭碧
+            if ma87v:
+                granville = ("🟢 多頭排列（現值>87MA）" if price > ma87v
+                             else "🔴 空頭排列（現值<87MA）")
+                magic_ma  = f"87MA = {ma87v:,.0f}"
+            else:
+                granville = "N/A"; magic_ma = "N/A"
+            # 扣抵斜率（未來1/2/4週）
+            deducts = []
+            for w in [1, 2, 4]:
+                idx = -(87 - w)
+                if abs(idx) <= len(close):
+                    old = float(close.iloc[idx])
+                    arrow = "↑扣高→MA向下" if old > price else "↓扣低→MA向上"
+                    deducts.append(f"{w}週後 扣{old:,.0f} ({arrow})")
+            if not deducts:
+                deducts = ["扣抵計算中…"]
+            return {"price": price, "momentum": momentum,
+                    "granville": granville, "magic_ma": magic_ma,
+                    "deduct_slope": deducts, "_close": close.tolist(),
+                    "_ma87": ma87.tolist()}
+        except Exception as _e:
+            return {"price": 0, "momentum": "N/A", "granville": "N/A",
+                    "magic_ma": "N/A", "deduct_slope": [f"計算失敗: {_e}"]}
+
+    @st.cache_data(ttl=600, show_spinner=False)
+    def _fetch_ptt_data(_macro_id):
+        """透過 MacroRiskEngine 獨立抓 PTT 情緒"""
+        try:
+            macro, _, _ = _load_engines()
+            # 嘗試不帶 CB 呼叫，只取 PTT 部分
+            empty_df = pd.DataFrame()
+            result   = macro.check_market_status(cb_df=empty_df)
+            return result.get("ptt_ratio", -1.0)
+        except Exception:
+            return -1.0
+
+    @st.cache_data(ttl=600, show_spinner=False)
+    def _fetch_pr90_data(_df_hash):
+        """PR90：有 CB 才算，否則回傳 None"""
+        df = st.session_state.get("df", pd.DataFrame())
+        if df.empty:
+            return None
+        try:
+            macro, _, _ = _load_engines()
+            result = macro.check_market_status(cb_df=df)
+            return result.get("price_distribution", {}).get("pr90", None)
+        except Exception:
+            return None
+
+    # ── 一鍵啟動邏輯 ───────────────────────────────────────────────────────
+    if not st.session_state.get("hud_v4_launched", False):
         st.markdown("""
-<div class="hero-container">
-  <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
-  <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
+<div class="hero-container" style="--hero-color:#00F5FF;--hero-glow:rgba(0,245,255,0.10);--hero-rgb:0,245,255;">
+  <div style="display:inline-flex;align-items:center;margin-bottom:10px;">
+    <span class="hero-pulse" style="--hero-color:#00F5FF;--hero-rgb:0,245,255;"></span>
+    <span style="font-family:var(--f-mono);font-size:11px;color:rgba(0,245,255,0.6);letter-spacing:3px;">
+      TITAN SOP V300 · MACRO HUD v4.0 · STANDBY
+    </span>
+  </div>
+  <div class="hero-title" style="--hero-color:#00F5FF;font-size:52px!important;">⚡ 戰情室待機中</div>
+  <div class="hero-subtitle" style="margin-top:10px;">
+    VIX · TSE · PTT · PR90 四大指標 — 一鍵全數啟動<br>
+    <span style="font-size:13px;opacity:0.5;">無需 CB 數據 · PR90 有CB則自動計算</span>
+  </div>
+  <div class="hero-badge" style="margin-top:16px;">READY TO LAUNCH · AWAITING COMMAND</div>
 </div>""", unsafe_allow_html=True)
+
+        col_l, col_btn, col_r = st.columns([2, 3, 2])
+        with col_btn:
+            if st.button("🚀 一鍵啟動戰情室", type="primary",
+                         use_container_width=True, key="hud_launch_btn"):
+                st.session_state["hud_v4_launched"]  = True
+                # 清除舊 cache 強制重抓
+                st.session_state.pop("hud_v4_analysis_streamed", None)
+                st.rerun()
         return
 
-    md  = _get_macro_data(macro, df_hash)
-    sig = md['signal']
-    col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
-    sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
-    parts    = sig_text.split("：")
-    sig_main = parts[0] if parts else sig_text
-    sig_desc = parts[1] if len(parts) > 1 else ""
+    # ── 已啟動：抓取所有數據 ────────────────────────────────────────────────
+    with st.spinner("📡 正在同步四大指標…"):
+        vix, vix_hist        = _fetch_vix_data()
+        tse                  = _fetch_tse_data()
+        ptt                  = _fetch_ptt_data(id(_load_engines))
+        df_cb                = st.session_state.get("df", pd.DataFrame())
+        df_hash              = f"{len(df_cb)}_{list(df_cb.columns)}" if not df_cb.empty else "empty"
+        pr90_val             = _fetch_pr90_data(df_hash)
 
-    vix     = md['vix']
-    pr90    = md['price_distribution']['pr90']
-    ptt     = md['ptt_ratio']
-    ptt_txt = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
-    tse     = md['tse_analysis']
+    tse_price = tse.get("price", 0)
+    tse_mom   = tse.get("momentum", "N/A")
+    tse_gran  = tse.get("granville", "N/A")
+    tse_ma    = tse.get("magic_ma", "N/A")
+    deducts   = " | ".join(tse.get("deduct_slope", ["計算中…"]))
+    ptt_txt   = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
+    has_pr90  = pr90_val is not None
+    pr90      = pr90_val if has_pr90 else 100.0  # 無CB時用中性值計算燈號
 
     # ── 指標評級 ───────────────────────────────────────────────────────────
-    # VIX 評級
     if vix > 35:   vix_lv, vix_col = "💀 極端恐慌", "#FF3131"
     elif vix > 25: vix_lv, vix_col = "🔴 高度警戒", "#FF3131"
     elif vix > 20: vix_lv, vix_col = "🟡 溫和警戒", "#FFD700"
     else:          vix_lv, vix_col = "🟢 市場平靜", "#00FF7F"
 
-    # PR90 評級（CB籌碼壓力）
-    if pr90 > 135:   pr90_lv, pr90_col = "🔴 嚴重過熱 — 獲利了結", "#FF3131"
-    elif pr90 > 120: pr90_lv, pr90_col = "🟡 籌碼偏高 — 謹慎追高", "#FFD700"
-    elif pr90 > 100: pr90_lv, pr90_col = "🟢 健康區間 — 正常操作", "#00FF7F"
-    else:            pr90_lv, pr90_col = "🔵 籌碼偏低 — 可積極佈局", "#00F5FF"
+    if not has_pr90:
+        pr90_lv, pr90_col = "⚪ 需CB數據", "#667788"
+    elif pr90 > 135:  pr90_lv, pr90_col = "🔴 嚴重過熱 — 獲利了結", "#FF3131"
+    elif pr90 > 120:  pr90_lv, pr90_col = "🟡 籌碼偏高 — 謹慎追高", "#FFD700"
+    elif pr90 > 100:  pr90_lv, pr90_col = "🟢 健康區間 — 正常操作", "#00FF7F"
+    else:             pr90_lv, pr90_col = "🔵 籌碼偏低 — 可積極佈局", "#00F5FF"
 
-    # PTT 評級（散戶情緒反向指標）
     if ptt != -1.0:
         if ptt > 65:   ptt_lv, ptt_col = "🔴 散戶過度悲觀 → 反向看多訊號", "#FF3131"
         elif ptt > 50: ptt_lv, ptt_col = "🟡 散戶偏空 → 市場謹慎", "#FFD700"
@@ -985,72 +1091,99 @@ def render_1_1_hud():
     else:
         ptt_lv, ptt_col = "⚪ 數據無法取得", "#667788"
 
-    # TSE 技術面
-    tse_price = tse.get('price', 0)
-    tse_mom   = tse.get('momentum', 'N/A')
-    tse_gran  = tse.get('granville', 'N/A')
-    tse_ma    = tse.get('magic_ma', 'N/A')
-    deducts   = " | ".join(tse.get('deduct_slope', ["計算中…"]))
-
-    # 三重驗證總評分（0~3，判定燈號合理性）
+    # ── 三重驗證評分 & 燈號 ─────────────────────────────────────────────────
     score = 0
-    if vix <= 20:             score += 1
-    if pr90 <= 115:           score += 1
-    if ptt != -1.0 and ptt <= 50: score += 1
+    if vix <= 20:                      score += 1
+    if has_pr90 and pr90 <= 115:       score += 1
+    elif not has_pr90:                 score += 1  # 無CB時不扣分，等CB再驗證
+    if ptt != -1.0 and ptt <= 50:      score += 1
+
+    # 燈號判定
+    vix_red  = vix > 30
+    pr90_red = has_pr90 and pr90 > 130
+    ptt_red  = ptt != -1.0 and ptt > 65
+    if vix_red or pr90_red:
+        sig = "RED_LIGHT"
+    elif vix > 20 or (has_pr90 and pr90 > 115) or (ptt != -1.0 and ptt > 50):
+        sig = "YELLOW_LIGHT"
+    else:
+        sig = "GREEN_LIGHT"
+
+    col_hex, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
+    sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
+    parts    = sig_text.split("：")
+    sig_main = parts[0] if parts else sig_text
+    sig_desc = parts[1] if len(parts) > 1 else ""
     score_txt   = "三重確認 ✅" if score == 3 else f"{score}/3 訊號確認"
     score_color = "#00FF7F" if score == 3 else "#FFD700" if score == 2 else "#FF3131"
 
-    # VIX 歷史情境對照
     vix_context = (
-        "歷史對照：VIX>40 對應金融危機（2008/2020）極端底部，通常為千載難逢買點。"
-        if vix > 40 else
-        "歷史對照：VIX 25~35 對應修正行情，波動劇烈，需降低倉位等待企穩。"
-        if vix > 25 else
-        "歷史對照：VIX 20~25 為市場轉折敏感區，宜縮減高風險部位。"
-        if vix > 20 else
+        "歷史對照：VIX>40 對應金融危機（2008/2020）極端底部，通常為千載難逢買點。" if vix > 40 else
+        "歷史對照：VIX 25~35 對應修正行情，波動劇烈，需降低倉位等待企穩。" if vix > 25 else
+        "歷史對照：VIX 20~25 為市場轉折敏感區，宜縮減高風險部位。" if vix > 20 else
         "歷史對照：VIX<20 為牛市常態，市場波動可控，可正常佈局。"
     )
 
     # ── 英雄告示牌 ──────────────────────────────────────────────────────────
     st.markdown(f"""
-<div class="hero-container" style="--hero-color:{col};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
+<div class="hero-container" style="--hero-color:{col_hex};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
   <div style="display:inline-flex;align-items:center;margin-bottom:6px;">
-    <span class="hero-pulse" style="--hero-color:{col};--hero-rgb:{rgb};"></span>
-    <span style="font-family:var(--f-mono);font-size:11px;color:rgba({rgb},0.6);letter-spacing:3px;">TITAN SOP V300 · 三重驗證</span>
+    <span class="hero-pulse" style="--hero-color:{col_hex};--hero-rgb:{rgb};"></span>
+    <span style="font-family:var(--f-mono);font-size:11px;color:rgba({rgb},0.6);letter-spacing:3px;">
+      TITAN SOP V300 · 三重驗證{"（PR90 待CB數據）" if not has_pr90 else ""}
+    </span>
   </div>
-  <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
+  <div class="hero-title" style="--hero-color:{col_hex};">{sig_main}</div>
   <div class="hero-subtitle" style="margin-top:8px;">{sig_desc}</div>
   <div style="display:flex;justify-content:center;gap:16px;margin-top:16px;flex-wrap:wrap;">
-    <div style="font-family:var(--f-mono);font-size:12px;color:{vix_col};border:1px solid {vix_col};border-radius:20px;padding:5px 16px;">VIX {vix:.1f} — {vix_lv}</div>
-    <div style="font-family:var(--f-mono);font-size:12px;color:{pr90_col};border:1px solid {pr90_col};border-radius:20px;padding:5px 16px;">PR90 {pr90:.1f} — {pr90_lv[:4]}</div>
-    <div style="font-family:var(--f-mono);font-size:12px;color:{score_color};border:1px solid {score_color};border-radius:20px;padding:5px 16px;">{score_txt}</div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{vix_col};border:1px solid {vix_col};border-radius:20px;padding:5px 16px;">
+      VIX {vix:.1f} — {vix_lv}
+    </div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{pr90_col};border:1px solid {pr90_col};border-radius:20px;padding:5px 16px;">
+      PR90 {"N/A (無CB)" if not has_pr90 else f"{pr90:.1f}"} — {pr90_lv[:8]}
+    </div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{score_color};border:1px solid {score_color};border-radius:20px;padding:5px 16px;">
+      {score_txt}
+    </div>
   </div>
   <div class="hero-badge" style="margin-top:14px;">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
 </div>""", unsafe_allow_html=True)
 
     st.toast(f"{sig_main} — {sig_desc}  |  三重驗證 {score}/3", icon="🚦")
 
-    # ── KPI 儀表板（8格）──────────────────────────────────────────────────
+    # ── 重新啟動按鈕（小型）──────────────────────────────────────────────
+    c_ref, c_sp = st.columns([1, 5])
+    with c_ref:
+        if st.button("🔄 重新整合", key="hud_refresh_btn", help="清除快取重新抓取最新數據"):
+            for k in ["hud_v4_launched", "hud_v4_analysis_streamed"]:
+                st.session_state.pop(k, None)
+            _fetch_vix_data.clear()
+            _fetch_tse_data.clear()
+            _fetch_ptt_data.clear()
+            _fetch_pr90_data.clear()
+            st.rerun()
+
+    # ── KPI 儀表板（8格，完全保留原版）──────────────────────────────────
     _kpi_row(
-        ("VIX 恐慌指數",    f"{vix:.2f}",  vix_lv,   vix_col),
-        ("PR90 籌碼壓力",   f"{pr90:.1f}", pr90_lv[:8], pr90_col),
-        ("PTT 散戶看空比",  ptt_txt,       ptt_lv[:10], ptt_col),
-        ("訊號驗證強度",    f"{score}/3",  score_txt, score_color),
+        ("VIX 恐慌指數",   f"{vix:.2f}",                          vix_lv,       vix_col),
+        ("PR90 籌碼壓力",  f"{pr90:.1f}" if has_pr90 else "N/A",  pr90_lv[:8],  pr90_col),
+        ("PTT 散戶看空比", ptt_txt,                                ptt_lv[:10],  ptt_col),
+        ("訊號驗證強度",   f"{score}/3",                           score_txt,    score_color),
     )
     _kpi_row(
-        ("加權指數",     f"{tse_price:,.0f}", "TSE 即時點位",  "#00F5FF"),
-        ("動能方向",     tse_mom,             "MA 斜率判定",   "#FFD700"),
-        ("格蘭碧法則",   tse_gran,            "生命線關係",    "#FF9A3C"),
-        ("神奇均線",     tse_ma,              "87MA 狀態",     "#FF6BFF"),
+        ("加權指數",   f"{tse_price:,.0f}", "TSE 即時點位", "#00F5FF"),
+        ("動能方向",   tse_mom,             "MA 斜率判定",  "#FFD700"),
+        ("格蘭碧法則", tse_gran,            "生命線關係",   "#FF9A3C"),
+        ("神奇均線",   tse_ma,             "87MA 狀態",    "#FF6BFF"),
     )
 
-    # ── AI 戰術分析（Typewriter）────────────────────────────────────────────
-    st.markdown("### 🧠 三重驗證 · 第一性原則戰術推演")
+    # ── 🧠 AI 戰術分析（完整版）──────────────────────────────────────────
+    st.markdown("### 🧠 三重驗證 · 第一性原則戰術推演（完整分析）")
     st.markdown('<div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,245,255,0.1);border-radius:16px;padding:20px 24px;margin:12px 0;font-family:var(--f-mono);font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">', unsafe_allow_html=True)
 
     analysis = f"""
 ═══════════════════════════════════════════════════════════
-🚦 MACRO HUD v3.0 — 三重驗證戰情推演
+🚦 MACRO HUD v4.0 — 三重驗證完整戰情推演
    信號燈：{sig_text}  |  驗證強度：{score}/3
 ═══════════════════════════════════════════════════════════
 
@@ -1059,54 +1192,90 @@ def render_1_1_hud():
   ① VIX（恐慌指數）：衡量選擇權市場對未來波動的預期
   ② PR90（籌碼分佈）：CB籌碼分佈的第90百分位，反映市場超漲程度
   ③ PTT 散戶情緒：散戶看空比例，作為反向指標使用
-  
+
   當前燈號：{sig_text}
-  觸發依據：VIX {vix:.1f} ({vix_lv}) | PR90 {pr90:.1f} ({pr90_lv[:8]}) | PTT {ptt_txt} ({ptt_lv[:10]})
+  觸發依據：VIX {vix:.1f} ({vix_lv}) | PR90 {"N/A（需CB）" if not has_pr90 else f"{pr90:.1f} ({pr90_lv[:8]})"} | PTT {ptt_txt} ({ptt_lv[:10]})
+  {"⚠️ 注意：PR90 尚無CB數據，燈號以VIX+PTT雙重驗證為主，精度略低。" if not has_pr90 else "✅ 三重驗證完整運作（VIX+PR90+PTT）。"}
 
 【二、VIX 深度解讀（現值：{vix:.2f}）】
-  VIX 的本質：S&P 500選擇權隱含波動率指數，代表市場對未來30天波動的「恐懼定價」。
-  
+  VIX 的本質：S&P 500選擇權隱含波動率指數，衡量市場對未來30天波動的「恐懼定價」。
+  定義：VIX = 未來30天年化波動率預期（%），越高代表市場越恐慌。
+
   當前評級：{vix_lv}
   {vix_context}
-  
-  操作含義：{'VIX 高位通常是買點，但需等待VIX從峰值回落後才進場（峰值買 = 接飛刀）。' if vix > 25 else 'VIX 低位市場自滿，代表系統性風險被忽視，適合持股但需設好停損。' if vix < 15 else 'VIX 中性區間，跟著技術面操作即可，無特殊系統性風險。'}
 
-【三、PR90 籌碼壓力解讀（現值：{pr90:.1f}）】
-  PR90 的本質：CB 可轉換公司債的第90百分位價格，反映市場「過熱籌碼」的集中程度。
-  
-  當前評級：{pr90_lv}
-  解讀：PR90 > 130 代表高價籌碼已嚴重堆積，若遭主力出貨，市場將面臨籌碼崩塌式下跌。
-  {'⚠️ 目前籌碼壓力嚴重偏高，持股風險升高，建議降低高PR值個股的倉位。' if pr90 > 130 else '✅ 籌碼分佈尚在合理範圍，無立即性崩盤風險。' if pr90 <= 115 else '🟡 籌碼分佈偏高，注意高位個股的獲利了結壓力。'}
+  ▸ 操作策略：
+  {"  VIX 高位通常是買點，但需等VIX從峰值回落後才進場（峰值買=接飛刀）。建議等VIX開始下降且連續3日收低，才確認恐慌消退。" if vix > 25 else "  VIX 低位市場自滿，代表系統性風險被忽視，適合持股但需設好停損，防範黑天鵝。" if vix < 15 else "  VIX 中性區間，跟著技術面操作即可，無特殊系統性風險，正常倉位。"}
+  ▸ 交易員實戰口訣：「VIX 尖叫，你買進；VIX 哈欠，你減碼。」
+
+【三、PR90 籌碼壓力解讀（現值：{"N/A（需上傳CB數據）" if not has_pr90 else f"{pr90:.1f}"}）】
+  PR90 的本質：CB 可轉換公司債的第90百分位價格，反映高位「熱錢籌碼」的集中程度。
+  邏輯鏈：CB價格 → 轉換套利壓力 → 股市隱性拋壓 → 未來修正風險。
+
+  {"▸ 目前無CB數據，PR90 無法計算。建議上傳CB清單以獲得完整三重驗證。" if not has_pr90 else f"""  當前評級：{pr90_lv}
+  ▸ 解讀：PR90 > 130 代表高價籌碼已嚴重堆積，若主力開始出貨將引發籌碼崩塌式下跌。
+  {"  ⚠️ 目前籌碼壓力嚴重偏高，持股風險升高，建議降低高PR值個股的倉位，優先保留現金。" if pr90 > 130 else "  ✅ 籌碼分佈尚在合理範圍，無立即性崩盤風險，可正常操作。" if pr90 <= 115 else "  🟡 籌碼分佈偏高，注意高位個股的獲利了結壓力，謹慎追高。"}"""}
+  ▸ 關鍵閾值：健康(≤115) → 警戒(116~130) → 危險(>130) → 崩盤警報(>140)
 
 【四、PTT 散戶情緒（反向指標）解讀（現值：{ptt_txt}）】
   PTT 的本質：散戶情緒是最佳反向指標——散戶最悲觀時，往往是市場底部。
-  
-  當前評級：{ptt_lv}
-  {'逆向邏輯：散戶>65%看空 = 空方能量基本耗盡，主力有機會在此區間吸籌，歷史上是強買點。' if ptt != -1.0 and ptt > 65 else '逆向邏輯：散戶<35%看空 = 全員樂觀，歷史上反而是市場頂部前兆，需謹慎。' if ptt != -1.0 and ptt < 35 else '逆向邏輯：散戶情緒中性，無強烈反向訊號，跟隨技術面操作。' if ptt != -1.0 else 'PTT 數據暫無法取得，僅憑 VIX + PR90 兩重驗證。'}
+  機制：散戶追漲殺跌 → 極度悲觀=低點，極度樂觀=高點。
 
-【五、加權指數技術面（TSE 精讀）】
+  當前評級：{ptt_lv}
+  {"▸ 逆向邏輯：散戶>65%看空=空方能量基本耗盡，主力有機會在此區間吸籌，歷史上是強買點。需配合VIX確認恐慌情緒同步高峰。" if ptt != -1.0 and ptt > 65 else "▸ 逆向邏輯：散戶<35%看空=全員樂觀，歷史上反而是市場頂部前兆，需謹慎，降低倉位鎖利。" if ptt != -1.0 and ptt < 35 else "▸ 逆向邏輯：散戶情緒中性，無強烈反向訊號，跟隨技術面操作即可。" if ptt != -1.0 else "▸ PTT 數據暫無法取得，僅憑 VIX 單重驗證，判斷精度降低，操作需更保守。"}
+
+【五、加權指數技術面精讀（TSE 即時）】
   現值：{tse_price:,.0f}  │  動能：{tse_mom}
   格蘭碧法則：{tse_gran}
   神奇均線(87MA)：{tse_ma}
-  扣抵斜率：{deducts}
-  解讀：格蘭碧法則判定生命線關係，當現值{'高於' if '多頭' in str(tse_gran) else '低於'}87MA，{'趨勢偏多，回測均線為買點。' if '多頭' in str(tse_gran) else '趨勢偏空，反彈均線為賣點。'}
+  扣抵斜率（未來4週預判）：{deducts}
 
-【六、綜合戰術推演】
-  {'🟢 積極進攻：三重驗證全數通過（VIX低+PR90健康+PTT中性），系統性風險極低。策略：正常倉位佈局，以格蘭碧法則選股，優先布局動能強的族群。' if score == 3 else '🟡 區間操作：三重驗證部分警示，市場存在局部風險。策略：精選強勢股，倉位控制在60%以下，避開高PR90個股，設好停損。' if score == 2 else '🔴 防守模式：三重驗證多數警示，系統性風險上升。策略：降低整體倉位至30%以下，持有現金等待訊號轉為中性後再積極操作。'}
+  ▸ 87MA（神奇均線）原理：
+    台灣市場特有的「87交易日均線」，對應約4個月的多空分水嶺。
+    現值{"高於" if "多頭" in str(tse_gran) else "低於"} 87MA → 趨勢偏{"多，回測均線為買點。" if "多頭" in str(tse_gran) else "空，反彈均線為賣點。"}
+
+  ▸ 格蘭碧八大法則應用：
+    {'法則一（黃金交叉買進）：均線由下彎轉為走平或上揚，股價從下方突破均線，為強力買進訊號。' if "多頭" in str(tse_gran) else '法則五（死亡交叉賣出）：均線由上彎轉為走平或下彎，股價從上方跌破均線，為強力賣出訊號。'}
+
+  ▸ 扣抵斜率解讀：
+    扣抵斜率決定87MA未來走向。扣除舊高點→MA向下彎，扣除舊低點→MA向上揚。
+    {deducts}
+
+【六、跨市場關聯分析（情境矩陣）】
+  ┌─────────────────────────────────────────────────────┐
+  │  VIX {vix:.1f} × PR90 {"N/A" if not has_pr90 else f"{pr90:.0f}"} × PTT {ptt_txt}           │
+  │  → 當前市場情境：                                    │
+  │  {"🟢 低恐慌 × 低籌碼壓力 × 中性情緒 = 牛市標準形態，可積極佈局高動能股" if sig=="GREEN_LIGHT" and has_pr90 else "🟡 部分指標亮警示，市場進入震盪整理期，精選個股、控制倉位" if sig=="YELLOW_LIGHT" else "🔴 多重警示同時觸發，系統性風險上升，建議降倉觀望，等待訊號收斂" if sig=="RED_LIGHT" else "⚪ VIX+PTT 雙重驗證（等待CB數據完成三重確認）"}  │
+  └─────────────────────────────────────────────────────┘
+
+  ▸ 歷史情境對照：
+    · 2020/03 COVID崩盤：VIX>80, PTT>80% → 史詩級買點（反向操作）
+    · 2022 升息循環：VIX持續>25 → 持股風險高，應保留現金
+    · 2023 AI牛市：VIX<15, PTT<30% → 動能強勁，可積極持股
+    · 當前：VIX {vix:.1f} → {"與牛市常態一致" if vix < 20 else "進入警戒區間" if vix < 30 else "接近恐慌高位"}
+
+【七、綜合戰術推演與操作建議】
+  {"🟢 積極進攻模式：" if sig=="GREEN_LIGHT" else "🟡 謹慎區間模式：" if sig=="YELLOW_LIGHT" else "🔴 防守保本模式："}
+  {"三重驗證全數通過（VIX低+PR90健康+PTT中性），系統性風險極低。策略：正常倉位佈局(80~100%)，以格蘭碧法則選股，優先布局動能強+87MA站穩的族群。止損設在87MA下方3%。" if score == 3 and sig=="GREEN_LIGHT" else "三重驗證部分警示，市場存在局部風險。策略：精選強勢股，倉位控制在50~70%，避開高PR90個股，每筆部位嚴設停損8%，等待全數通過再加碼。" if sig=="YELLOW_LIGHT" else "三重驗證多數警示，系統性風險上升。策略：降低整體倉位至20~30%，持有現金等待VIX回落至25以下+PR90回到健康區間+PTT回中性，三者同時收斂後再重新佈局。切忌在此環境追高。"}
+
+  ▸ 核心原則（第一性原理）：
+    市場的本質是「折現未來現金流」。當恐慌（VIX高）、籌碼過熱（PR90高）、情緒極端（PTT偏）
+    三者同時出現，市場定價機制失真——這正是最大的套利機會。
+    {"但當下「順勢操作」勝過「逆向抄底」，等訊號收斂再出手。" if sig != "GREEN_LIGHT" else "當三者均在健康區間，市場定價有效，趨勢交易策略效果最佳。"}
 
 ═══════════════════════════════════════════════════════════
 """
-    key_hud = 'hud_streamed_v3'
+    key_hud = "hud_v4_analysis_streamed"
     if key_hud not in st.session_state:
         st.write_stream(_stream_text(analysis, speed=0.008))
         st.session_state[key_hud] = True
     else:
         st.markdown(f'<pre style="white-space:pre-wrap;font-size:13px;color:rgba(200,215,230,0.8);line-height:1.85;">{analysis}</pre>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── TSE 深度面板 ────────────────────────────────────────────────────────
-    st.markdown('<div style="margin-top:16px;">', unsafe_allow_html=True)
-    deducts_full = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
+    # ── TSE 深度面板（完整保留原版）───────────────────────────────────────
+    st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
+    deducts_full = " &nbsp;|&nbsp; ".join(tse.get("deduct_slope", ["計算中…"]))
     st.markdown(f"""
 <div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:20px 22px 18px;margin-top:8px;">
   <div style="font-family:var(--f-mono);font-size:9px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:16px;">
@@ -1116,58 +1285,62 @@ def render_1_1_hud():
     <div class="tse-chip">
       <div class="tsc-lbl">目前點位</div>
       <div class="tsc-val" style="font-family:var(--f-display);font-size:24px;color:#FFF;margin-top:4px;">
-        {tse.get('price', 0):,.0f}
+        {tse_price:,.0f}
       </div>
     </div>
     <div class="tse-chip">
       <div class="tsc-lbl">動能方向</div>
-      <div class="tsc-val" style="margin-top:4px;">{tse.get('momentum', 'N/A')}</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse_mom}</div>
     </div>
     <div class="tse-chip">
       <div class="tsc-lbl">神奇均線(87MA)</div>
-      <div class="tsc-val" style="margin-top:4px;">{tse.get('magic_ma', 'N/A')}</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse_ma}</div>
     </div>
     <div class="tse-chip">
       <div class="tsc-lbl">格蘭碧法則</div>
-      <div class="tsc-val" style="margin-top:4px;">{tse.get('granville', 'N/A')}</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse_gran}</div>
     </div>
   </div>
   <div class="tse-deduct" style="margin-top:12px;font-size:12px;line-height:1.7;">
     扣抵斜率預判 — {deducts_full}
   </div>
 </div>""", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # ── VIX × PR90 對照圖（近期趨勢）──────────────────────────────────────
+    # ── VIX 近60日走勢圖（完整保留原版邏輯）──────────────────────────────
     try:
-        vix_df = macro.get_single_stock_data("^VIX", period="3mo")
-        if not vix_df.empty:
-            vix_plot = vix_df[['Close']].tail(60).reset_index()
-            vix_plot.columns = ['Date', 'VIX']
-            vix_plot['Date'] = pd.to_datetime(vix_plot['Date'])
-            ax_v = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+        vix_plot_df = vix_hist
+        if vix_plot_df.empty:
+            vix_plot_df = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
+        if isinstance(vix_plot_df.columns, pd.MultiIndex):
+            vix_plot_df.columns = vix_plot_df.columns.get_level_values(0)
+        if not vix_plot_df.empty:
+            vix_plot = vix_plot_df[["Close"]].tail(60).reset_index()
+            vix_plot.columns = ["Date", "VIX"]
+            vix_plot["Date"] = pd.to_datetime(vix_plot["Date"])
+            ax_v = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor="#aaa")
             vix_line = alt.Chart(vix_plot).mark_area(
-                line={'color': '#FF3131', 'strokeWidth': 2},
-                color=alt.Gradient(gradient='linear', stops=[
-                    alt.GradientStop(color='rgba(255,49,49,0.3)', offset=0),
-                    alt.GradientStop(color='rgba(255,49,49,0.02)', offset=1)
+                line={"color": "#FF3131", "strokeWidth": 2},
+                color=alt.Gradient(gradient="linear", stops=[
+                    alt.GradientStop(color="rgba(255,49,49,0.3)", offset=0),
+                    alt.GradientStop(color="rgba(255,49,49,0.02)", offset=1)
                 ], x1=1, x2=1, y1=1, y2=0)
             ).encode(
-                x=alt.X('Date:T', axis=ax_v, title='日期'),
-                y=alt.Y('VIX:Q', axis=ax_v, title='VIX', scale=alt.Scale(zero=False)),
-                tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('VIX:Q', format='.2f')]
+                x=alt.X("Date:T", axis=ax_v, title="日期"),
+                y=alt.Y("VIX:Q", axis=ax_v, title="VIX", scale=alt.Scale(zero=False)),
+                tooltip=[alt.Tooltip("Date:T"), alt.Tooltip("VIX:Q", format=".2f")]
             )
-            r20 = alt.Chart(pd.DataFrame({'y': [20]})).mark_rule(color='#FFD700', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
-            r30 = alt.Chart(pd.DataFrame({'y': [30]})).mark_rule(color='#FF3131', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+            r20 = alt.Chart(pd.DataFrame({"y": [20]})).mark_rule(color="#FFD700", strokeDash=[5, 3], strokeWidth=2).encode(y="y:Q")
+            r30 = alt.Chart(pd.DataFrame({"y": [30]})).mark_rule(color="#FF3131", strokeDash=[5, 3], strokeWidth=2).encode(y="y:Q")
             vix_chart = alt.layer(vix_line, r20, r30).properties(
                 height=200,
-                title=alt.TitleParams('VIX 近60日走勢  金虛=警戒(20)  紅虛=危險(30)',
-                                      color='#aaa', fontSize=18, font='JetBrains Mono')
-            ).configure_view(strokeOpacity=0, fill='rgba(0,0,0,0)'
-            ).configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#aaa', titleColor='#aaa')
+                title=alt.TitleParams("VIX 近60日走勢  金虛=警戒(20)  紅虛=危險(30)",
+                                      color="#aaa", fontSize=18, font="JetBrains Mono")
+            ).configure_view(strokeOpacity=0, fill="rgba(0,0,0,0)"
+            ).configure_axis(gridColor="rgba(0,245,255,0.07)", labelColor="#aaa", titleColor="#aaa")
             st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
             st.altair_chart(vix_chart, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
     except Exception:
         pass  # VIX chart is bonus — don't crash if unavailable
 
