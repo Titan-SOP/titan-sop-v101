@@ -2649,26 +2649,26 @@ def _s63():
                     'Baillie Gifford 成長框架三大體系，萃取出預測力最強的 7 個指標，總分 100 分：</div>', unsafe_allow_html=True)
 
         dna_theory = [
-            ("D1", "ROE / 資本效率引擎", "22 分", "#FFD700",
+            ("D1", "ROE / 資本效率引擎", "30 分", "#FFD700",
              "ROE > 20% 意味著公司每投入 1 元能創造 0.20 元以上回報，並且可以把這個回報繼續再投入，"
              "形成<b>複利飛輪</b>。巴菲特說：「一家公司的長期股價回報率，長期趨近於它的 ROE。」"
              "這是百倍股最核心、最持久的驅動力。高 ROE + 高再投資率 = 時間的朋友。",
-             "ROE > 25%: 22分 ｜ ROE > 20%: 17分 ｜ ROE > 15%: 10分 ｜ ROE > 10%: 4分<br><span style=\"font-size:18px;opacity:.55;\">（注：10D 升級後調整，D8+D9+D10=16分，D1-D7合計84分，總分100分）</span>"),
-            ("D2", "營收加速度", "20 分", "#00FF9D",
+             "ROE > 25%: 30分 ｜ ROE > 20%: 22分 ｜ ROE > 15%: 12分 ｜ ROE > 10%: 5分"),
+            ("D2", "營收加速度", "25 分", "#00FF9D",
              "不只看營收成長率，更看<b>加速度</b>——成長率本身是否在加快？"
              "從 20% 加速到 40% 的公司，比穩定 30% 的公司更值得關注，因為加速度代表需求正在超越所有人的預期。"
              "加速成長觸發 PE 擴張——當市場意識到預測模型全都低估了，他們會瘋狂上修。",
-             "成長 > 30%: 20分 ｜ 成長 > 20%: 14分 ｜ 成長 > 10%: 8分 ｜ 成長 > 5%: 3分<br><span style=\"font-size:18px;opacity:.55;\">（10D 升級後調整）</span>"),
-            ("D3", "毛利率護城河", "17 分", "#00BFFF",
+             "成長 > 30%: 25分 ｜ 成長 > 20%: 18分 ｜ 成長 > 10%: 10分 ｜ 成長 > 5%: 4分"),
+            ("D3", "毛利率護城河", "20 分", "#00BFFF",
              "毛利率是護城河的 X 光片。毛利率 > 60% 說明公司有<b>定價權</b>，競爭對手無法靠打價格戰消滅你。"
              "軟體、平台、品牌、網路效應是高毛利護城河的典型。"
              "低毛利行業幾乎不可能出現百倍股——競爭者會把所有超額利潤榨乾至零。",
-             "毛利率 > 60%: 17分 ｜ > 40%: 12分 ｜ > 25%: 6分 ｜ > 10%: 2分<br><span style=\"font-size:18px;opacity:.55;\">（10D 升級後調整）</span>"),
+             "毛利率 > 60%: 20分 ｜ > 40%: 14分 ｜ > 25%: 7分 ｜ > 10%: 2分"),
             ("D4", "市值天花板空間", "15 分", "#FF9A3C",
              "一支 1000 億美元的公司要漲 100 倍，需要市值達到 10 兆——接近全美所有上市公司的總值。"
              "這在數學上幾乎不可能。因此<b>百倍股只能從小市值開始</b>，"
              "這是物理定律而非偏好。機構不買小市值是百倍股存在的根本原因——沒有人注意，才有機會。",
-             "美股 < $5億: 15分 ｜ < $30億: 12分 ｜ < $150億: 7分 ｜ < $500億: 3分 ｜ ≥$500億: 0分<br><span style=\"font-size:18px;opacity:.55;\">（D4=0 不代表不值得投資，代表 100x 需市值達天文數字，但 10-20x 仍可能）</span>"),
+             "台股 < 50億: 15分 ｜ < 200億: 10分 ｜ 美股 < 3億: 15分 ｜ < 15億: 10分"),
             ("D5", "再投資能力 / 零配息", "5 分", "#B77DFF",
              "百倍股<b>幾乎不配息</b>。每一分錢都要再投入以創造更高回報。"
              "高股息等於公司在告訴你：「我找不到比分錢給你更好的用途了。」"
@@ -3367,41 +3367,29 @@ def _s63():
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    # ── Ticker 解析：原版邏輯 + 台股 .TWO 退場補強 ──
-                    bare      = sym.replace('.TW','').replace('.TWO','')
-                    is_tw_num = bare.isdigit() and len(bare) >= 4
-
-                    # 決定初始 fetch 代號（與原版相同）
-                    if is_tw_num and not sym.endswith(('.TW','.TWO')):
-                        fetch_sym = bare + '.TW'
-                    else:
-                        fetch_sym = sym
+                    fetch_sym = sym
+                    bare = sym.replace('.TW','').replace('.TWO','')
+                    if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
+                        fetch_sym = sym + '.TW'
 
                     tk   = yf.Ticker(fetch_sym)
                     info = tk.info
 
-                    # 台股：若 .TW 抓不到資料（空dict或無marketCap/shortName），改試 .TWO
-                    if is_tw_num and not sym.endswith('.TWO'):
-                        if not info or (not info.get('marketCap') and not info.get('shortName')):
-                            _sym_two = bare + '.TWO'
-                            _tk2     = yf.Ticker(_sym_two)
-                            _info2   = _tk2.info
-                            if _info2 and (_info2.get('marketCap') or _info2.get('shortName')):
-                                tk, info, fetch_sym = _tk2, _info2, _sym_two
-
-                    # info 完全無效（非台股代號錯誤等）→ 跳過，不崩潰
-                    if not info:
-                        st.toast(f"⚠️ {sym}：無法取得數據，請確認代號", icon="⚠️")
-                        prog.progress((idx+1) / len(tickers))
-                        continue
+                    # .TWO fallback：上櫃股（純數字且 .TW 抓不到）
+                    if (bare.isdigit() and len(bare) >= 4
+                            and not sym.endswith('.TWO')
+                            and not info.get('marketCap') and not info.get('shortName')):
+                        _tk2 = yf.Ticker(bare + '.TWO')
+                        _i2  = _tk2.info
+                        if _i2.get('marketCap') or _i2.get('shortName'):
+                            tk, info, fetch_sym = _tk2, _i2, bare + '.TWO'
 
                     def _g(k, d=0):
                         v = info.get(k, d)
                         return d if v is None else v
 
                     currency     = info.get("currency", "USD")
-                    _raw_cap     = _g("marketCap", 0)
-                    mkt_cap_b    = _raw_cap / 1e9 if _raw_cap else 0
+                    mkt_cap_b    = _g("marketCap", 0) / 1e9
                     name_s       = info.get("shortName", sym)[:24]
                     industry_s   = info.get("industry", "N/A")
                     roe          = _g("returnOnEquity")
@@ -3521,172 +3509,83 @@ def _s63():
                     else:
                         d10 = 1 if rev_growth and rev_growth > 0.20 else 0  # 數據不足但高成長時保守給分
 
-                    # ════════════════════════════════════════════════════════
-                    # ── D11: 🔄 季度轉折訊號雷達（Quarterly Inflection Radar）──
-                    # 百倍股大漲前的核心特徵：
-                    #   ① 連續 2-3 季 QoQ 營收加速（不只是成長，而是加速）
-                    #   ② 毛利率方向向上（規模效應啟動）
-                    #   ③ FCF 從深度虧損開始收窄（燒錢拐點）
-                    # 資料來源：quarterly_income_stmt + quarterly_cashflow（8 季）
-                    # ════════════════════════════════════════════════════════
-                    d11_data = {
-                        "available": False,
-                        "rev_series": [],        # 8季營收（億美元）
-                        "gm_series":  [],        # 8季毛利率
-                        "fcf_series": [],        # 8季FCF
-                        "rev_accel":  None,      # 營收加速度：近2季YoY增速差
-                        "gm_slope":  None,       # 毛利率趨勢斜率（線性回歸/季）
-                        "fcf_slope": None,       # FCF收窄速度（億美元/季）
-                        "inflection_signal": False,  # 轉折訊號是否觸發
-                        "inflection_label": "",      # 訊號描述
-                        "trend_cagr": None,          # 趨勢推算的CAGR（更精準）
-                        "qtrs_to_fcf_positive": None,# 按現在改善速度幾季後FCF轉正
-                        "rev_qoq_list": [],          # 各季QoQ增速
-                        "quarters": [],              # 季度標籤
-                    }
+                    # ── D11: 季度轉折訊號雷達 ──
+                    d11_data = {"available":False,"rev_series":[],"gm_series":[],
+                                "fcf_series":[],"rev_accel":None,"gm_slope":None,
+                                "fcf_slope":None,"inflection_signal":False,
+                                "inflection_label":"","trend_cagr":None,
+                                "qtrs_to_fcf_positive":None,"rev_qoq_list":[],"quarters":[]}
                     try:
                         import numpy as _np
                         qi = tk.quarterly_income_stmt
                         qc = tk.quarterly_cashflow
                         if qi is not None and not qi.empty and qi.shape[1] >= 4:
-                            # ── 提取季度營收（由新到舊，反轉為由舊到新）──
-                            # 台股/美股欄位名稱容錯清單
-                            _REV_NAMES = ["Total Revenue", "Revenue", "Net Revenue", "Operating Revenue"]
-                            _GP_NAMES  = ["Gross Profit", "Gross Income"]
-                            rev_row = None
-                            for rname in _REV_NAMES:
-                                if rname in qi.index:
-                                    rev_row = qi.loc[rname]
-                                    break
-                            gm_rev = None
-                            for rname in _REV_NAMES:
-                                if rname in qi.index:
-                                    gm_rev = qi.loc[rname]
-                                    break
-                            gp_row = None
-                            for rname in _GP_NAMES:
-                                if rname in qi.index:
-                                    gp_row = qi.loc[rname]
-                                    break
-
-                            if rev_row is not None:
-                                rev_vals = rev_row.dropna()
-                                rev_vals = rev_vals.iloc[:8][::-1]  # 最多8季，由舊到新
-                                n = len(rev_vals)
-
+                            _RN = ["Total Revenue","Revenue","Net Revenue","Operating Revenue"]
+                            _GN = ["Gross Profit","Gross Income"]
+                            rv  = next((qi.loc[n] for n in _RN if n in qi.index), None)
+                            gv  = next((qi.loc[n] for n in _RN if n in qi.index), None)
+                            gp  = next((qi.loc[n] for n in _GN if n in qi.index), None)
+                            if rv is not None:
+                                rvv = rv.dropna().iloc[:8][::-1]
+                                n   = len(rvv)
                                 if n >= 4:
                                     d11_data["available"] = True
-                                    d11_data["quarters"] = [str(c)[:7] for c in rev_vals.index]
-                                    rev_b = [float(v)/1e9 for v in rev_vals.values]  # 億美元
-                                    d11_data["rev_series"] = [round(v, 3) for v in rev_b]
-
-                                    # ── QoQ 增速（季環比）──
-                                    qoq_list = []
-                                    for i in range(1, n):
-                                        if rev_b[i-1] > 0:
-                                            qoq = (rev_b[i] - rev_b[i-1]) / abs(rev_b[i-1])
-                                            qoq_list.append(round(qoq, 4))
-                                        else:
-                                            qoq_list.append(None)
-                                    d11_data["rev_qoq_list"] = qoq_list
-
-                                    # ── YoY 增速（年同比，需要至少5季）──
-                                    yoy_list = []
-                                    if n >= 5:
-                                        for i in range(4, n):
-                                            if rev_b[i-4] > 0:
-                                                yoy = (rev_b[i] - rev_b[i-4]) / abs(rev_b[i-4])
-                                                yoy_list.append(yoy)
-                                    # 加速度 = 最近YoY - 前一季YoY
-                                    if len(yoy_list) >= 2:
-                                        d11_data["rev_accel"] = round(yoy_list[-1] - yoy_list[-2], 4)
-
-                                    # ── 趨勢CAGR（用對數回歸，比靜態快照更穩健）──
-                                    if n >= 4 and all(v > 0 for v in rev_b):
-                                        x = _np.arange(n)
-                                        log_rev = _np.log(rev_b)
-                                        slope, _ = _np.polyfit(x, log_rev, 1)
-                                        # 季斜率→年化
-                                        trend_cagr_annual = _math.exp(slope * 4) - 1
-                                        if trend_cagr_annual > 0:
-                                            d11_data["trend_cagr"] = round(trend_cagr_annual, 4)
-
-                                    # ── 毛利率趨勢 ──
-                                    if gp_row is not None and gm_rev is not None:
-                                        gp_vals = gp_row.dropna().iloc[:8][::-1]
-                                        rv_vals2 = gm_rev.dropna().iloc[:8][::-1]
-                                        min_len = min(len(gp_vals), len(rv_vals2))
-                                        if min_len >= 4:
-                                            gm_list = []
-                                            for i in range(min_len):
-                                                rv = float(rv_vals2.iloc[i])
-                                                gp = float(gp_vals.iloc[i])
-                                                if rv > 0:
-                                                    gm_list.append(round(gp/rv, 4))
-                                            if len(gm_list) >= 4:
-                                                d11_data["gm_series"] = gm_list
-                                                x = _np.arange(len(gm_list))
-                                                slope_gm, _ = _np.polyfit(x, gm_list, 1)
-                                                d11_data["gm_slope"] = round(float(slope_gm), 5)
-
-                                    # ── FCF 趨勢 ──
+                                    d11_data["quarters"]  = [str(x)[:7] for x in rvv.index]
+                                    rb = [float(v)/1e9 for v in rvv.values]
+                                    d11_data["rev_series"] = [round(v,3) for v in rb]
+                                    ql = []
+                                    for i in range(1,n):
+                                        ql.append(round((rb[i]-rb[i-1])/abs(rb[i-1]),4) if rb[i-1]>0 else None)
+                                    d11_data["rev_qoq_list"] = ql
+                                    yl = []
+                                    if n>=5:
+                                        for i in range(4,n):
+                                            if rb[i-4]>0: yl.append((rb[i]-rb[i-4])/abs(rb[i-4]))
+                                    if len(yl)>=2: d11_data["rev_accel"] = round(yl[-1]-yl[-2],4)
+                                    if n>=4 and all(v>0 for v in rb):
+                                        _sl,_ = _np.polyfit(_np.arange(n),_np.log(rb),1)
+                                        _tc = _math.exp(_sl*4)-1
+                                        if _tc>0: d11_data["trend_cagr"] = round(_tc,4)
+                                    if gp is not None and gv is not None:
+                                        gpv = gp.dropna().iloc[:8][::-1]
+                                        gvv = gv.dropna().iloc[:8][::-1]
+                                        ml  = min(len(gpv),len(gvv))
+                                        if ml>=4:
+                                            gml = [float(gpv.iloc[i])/float(gvv.iloc[i])
+                                                   for i in range(ml) if float(gvv.iloc[i])>0]
+                                            if len(gml)>=4:
+                                                d11_data["gm_series"] = [round(v,4) for v in gml]
+                                                _s,_ = _np.polyfit(_np.arange(len(gml)),gml,1)
+                                                d11_data["gm_slope"] = round(float(_s),5)
                                     if qc is not None and not qc.empty:
-                                        fcf_row = None
-                                        for rname in ["Free Cash Flow", "FreeCashFlow", "Operating Cash Flow"]:
-                                            if rname in qc.index:
-                                                fcf_row = qc.loc[rname]
-                                                break
-                                        if fcf_row is not None:
-                                            fcf_vals = fcf_row.dropna().iloc[:8][::-1]
-                                            nf = len(fcf_vals)
-                                            if nf >= 4:
-                                                fcf_b = [float(v)/1e9 for v in fcf_vals.values]
-                                                d11_data["fcf_series"] = [round(v,3) for v in fcf_b]
-                                                x = _np.arange(nf)
-                                                slope_fcf, intercept_fcf = _np.polyfit(x, fcf_b, 1)
-                                                d11_data["fcf_slope"] = round(float(slope_fcf), 4)
-                                                # 如果FCF目前為負且趨勢向上，預估幾季後轉正
-                                                if fcf_b[-1] < 0 and slope_fcf > 0:
-                                                    # 用線性外推：0 = intercept + slope*(x)
-                                                    # x = -intercept/slope，但要從當前點算
-                                                    cur_fcf = fcf_b[-1]
-                                                    qtrs = -cur_fcf / slope_fcf
-                                                    if 0 < qtrs < 20:
-                                                        d11_data["qtrs_to_fcf_positive"] = round(qtrs, 1)
-
-                                    # ════════════════════════════════════════════
-                                    # ── 綜合轉折訊號判定 ──
-                                    # 觸發條件（任 2 項成立即為轉折中）：
-                                    #   A. 連續 2 季 QoQ > 0 且最近 QoQ 加速
-                                    #   B. 毛利率趨勢斜率 > 0.005/季（方向向上）
-                                    #   C. FCF 負值收窄中（slope > 0.05 億/季）
-                                    # ════════════════════════════════════════════
-                                    signals = []
-                                    qoq_valid = [q for q in qoq_list[-3:] if q is not None]
-                                    if len(qoq_valid) >= 2 and all(q > 0 for q in qoq_valid[-2:]):
-                                        if len(qoq_valid) >= 3 and qoq_valid[-1] > qoq_valid[-3]:
-                                            signals.append("🚀 營收連續加速")
-                                        else:
-                                            signals.append("📈 營收連續正成長")
-                                    if d11_data["gm_slope"] and d11_data["gm_slope"] > 0.005:
-                                        signals.append("📊 毛利率方向向上")
-                                    if d11_data["fcf_slope"] and d11_data["fcf_slope"] > 0.05:
-                                        if d11_data["fcf_series"] and d11_data["fcf_series"][-1] < 0:
-                                            signals.append("💰 FCF 快速收窄中")
-                                        else:
-                                            signals.append("💰 FCF 持續改善")
-                                    if d11_data["rev_accel"] and d11_data["rev_accel"] > 0.05:
-                                        signals.append("⚡ YoY 加速成長")
-
-                                    if len(signals) >= 2:
-                                        d11_data["inflection_signal"] = True
-                                        d11_data["inflection_label"] = " · ".join(signals)
-                                    elif len(signals) == 1:
-                                        d11_data["inflection_label"] = signals[0] + "（單訊號，繼續觀察）"
-                                    else:
-                                        d11_data["inflection_label"] = "暫無明確轉折訊號"
+                                        _FN  = ["Free Cash Flow","FreeCashFlow","Operating Cash Flow"]
+                                        fcfr = next((qc.loc[n] for n in _FN if n in qc.index), None)
+                                        if fcfr is not None:
+                                            fv = fcfr.dropna().iloc[:8][::-1]
+                                            nf = len(fv)
+                                            if nf>=4:
+                                                fb = [float(v)/1e9 for v in fv.values]
+                                                d11_data["fcf_series"] = [round(v,3) for v in fb]
+                                                _sf,_ = _np.polyfit(_np.arange(nf),fb,1)
+                                                d11_data["fcf_slope"] = round(float(_sf),4)
+                                                if fb[-1]<0 and _sf>0:
+                                                    _q = -fb[-1]/_sf
+                                                    if 0<_q<20: d11_data["qtrs_to_fcf_positive"]=round(_q,1)
+                                    sigs = []
+                                    qv3  = [q for q in ql[-3:] if q is not None]
+                                    if len(qv3)>=2 and all(q>0 for q in qv3[-2:]):
+                                        sigs.append("🚀 營收連續加速" if (len(qv3)>=3 and qv3[-1]>qv3[-3]) else "📈 營收連續正成長")
+                                    if d11_data["gm_slope"] and d11_data["gm_slope"]>0.005: sigs.append("📊 毛利率向上")
+                                    if d11_data["fcf_slope"] and d11_data["fcf_slope"]>0.05:
+                                        sigs.append("💰 FCF快速收窄" if (d11_data["fcf_series"] and d11_data["fcf_series"][-1]<0) else "💰 FCF持續改善")
+                                    if d11_data["rev_accel"] and d11_data["rev_accel"]>0.05: sigs.append("⚡ YoY加速")
+                                    if len(sigs)>=2:
+                                        d11_data["inflection_signal"]=True
+                                        d11_data["inflection_label"]=" · ".join(sigs)
+                                    elif len(sigs)==1: d11_data["inflection_label"]=sigs[0]+"（單訊號，觀察）"
+                                    else:              d11_data["inflection_label"]="暫無明確轉折訊號"
                     except Exception as _e11:
-                        d11_data["inflection_label"] = f"季度資料讀取失敗"
+                        d11_data["inflection_label"] = "季度資料讀取失敗"
 
                     total = min(d1+d2+d3+d4+d5+d6+d7+d8+d9+d10, 100)
 
@@ -3696,61 +3595,34 @@ def _s63():
                     elif total >= 35: grade, gcolor = "⚖️ 觀察名單",   "#00BFFF"
                     else:             grade, gcolor = "❄️ 不符條件",   "#808080"
 
-                    # ── CAGR 估算升級版：優先用季度趨勢CAGR，退化用靜態快照 ──
-                    trend_cagr = d11_data.get("trend_cagr")
+                    # ── 市值現實校驗 ──
+                    if currency in ("TWD","HKD"):
+                        if   mkt_cap_b<5:   cap_tier,realistic_max_x,cap_warn="🔬 微型",  100,None
+                        elif mkt_cap_b<20:  cap_tier,realistic_max_x,cap_warn="🌱 小型",   50,None
+                        elif mkt_cap_b<100: cap_tier,realistic_max_x,cap_warn="📊 中型",   20,None
+                        elif mkt_cap_b<500: cap_tier,realistic_max_x,cap_warn="🏢 大型",   10,"10x"
+                        else:               cap_tier,realistic_max_x,cap_warn="🐋 巨型",    5,"5x"
+                    else:
+                        if   mkt_cap_b<0.5: cap_tier,realistic_max_x,cap_warn="🔬 微型",  100,None
+                        elif mkt_cap_b<3:   cap_tier,realistic_max_x,cap_warn="🌱 小型",   50,None
+                        elif mkt_cap_b<15:  cap_tier,realistic_max_x,cap_warn="📊 中型",   20,None
+                        elif mkt_cap_b<50:  cap_tier,realistic_max_x,cap_warn="🏢 大型",   10,"10x"
+                        elif mkt_cap_b<200: cap_tier,realistic_max_x,cap_warn="🚀 超大型",  5,"5x"
+                        else:               cap_tier,realistic_max_x,cap_warn="🐋 巨型",    3,"3-5x"
+                    target_100x_b = mkt_cap_b * 100
+                    target_100x_t = target_100x_b / 1000
+
+                    # ── CAGR（優先趨勢回歸，退化年度快照）──
+                    _tc = d11_data.get("trend_cagr")
+                    cagr_source = "趨勢回歸" if _tc and _tc>0.05 else "年度快照"
                     if is_pre_profit:
-                        if trend_cagr and trend_cagr > 0.05:
-                            # 季度趨勢推算，加入不確定折扣 0.8（比純靜態快照 0.7 更可信）
-                            cagr_est = trend_cagr * 0.8
-                            cagr_source = "趨勢回歸"
-                        else:
-                            cagr_est = rev_growth * 0.7 if rev_growth > 0 else None
-                            cagr_source = "年度快照"
+                        cagr_est = (_tc*0.8 if _tc and _tc>0.05 else (rev_growth*0.7 if rev_growth and rev_growth>0 else None))
                     else:
-                        if trend_cagr and trend_cagr > 0.05:
-                            # 趨勢CAGR 60% + ROE 40%，與靜態版相同結構但CAGR更精準
-                            cagr_est = trend_cagr * 0.6 + roe * 0.4 if roe and roe > 0 else trend_cagr * 0.8
-                            cagr_source = "趨勢回歸"
-                        else:
-                            cagr_est = rev_growth * 0.6 + roe * 0.4 if (rev_growth > 0 and roe > 0) else None
-                            cagr_source = "年度快照"
-                    yrs100 = _math.log(100) / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
-
-                    # ════════════════════════════════════════════════════════
-                    # ── 市值現實校驗（Cap Reality Check）──
-                    # 輝達案例（2020→2025 市值 $0.3T→$3.4T 漲11x）告訴我們：
-                    # ① 超大型市值（>$200B）5年內 5-10x 是可能的（NVDA 已驗證）
-                    # ② 但 100x 仍需市值突破 20-30 兆，目前超越人類歷史紀錄
-                    # ③ 景氣週期 + 科技浪潮 + 強基本面 → 10-20x 是更現實的目標
-                    # ════════════════════════════════════════════════════════
-                    if currency in ("TWD", "HKD"):
-                        # 台股/港股（以 USD 換算 B 為單位估算）
-                        if   mkt_cap_b < 5:    cap_tier, realistic_max_x, cap_warn = "🔬 微型",   100, None
-                        elif mkt_cap_b < 20:   cap_tier, realistic_max_x, cap_warn = "🌱 小型",    50, None
-                        elif mkt_cap_b < 100:  cap_tier, realistic_max_x, cap_warn = "📊 中型",    20, None
-                        elif mkt_cap_b < 500:  cap_tier, realistic_max_x, cap_warn = "🏢 大型",    10, "10x"
-                        else:                  cap_tier, realistic_max_x, cap_warn = "🐋 巨型",     5, "5x"
-                    else:
-                        # 美股（USD Billion）
-                        if   mkt_cap_b < 0.5:  cap_tier, realistic_max_x, cap_warn = "🔬 微型",   100, None
-                        elif mkt_cap_b < 3:    cap_tier, realistic_max_x, cap_warn = "🌱 小型",    50, None
-                        elif mkt_cap_b < 15:   cap_tier, realistic_max_x, cap_warn = "📊 中型",    20, None
-                        elif mkt_cap_b < 50:   cap_tier, realistic_max_x, cap_warn = "🏢 大型",    10, "10x"
-                        elif mkt_cap_b < 200:  cap_tier, realistic_max_x, cap_warn = "🚀 超大型",   5, "5x"
-                        else:                  cap_tier, realistic_max_x, cap_warn = "🐋 巨型",     3, "3-5x"
-
-                    # 若市值天花板限制了 100x，在等級後加上校驗標籤
-                    if cap_warn and total >= 65:
-                        if realistic_max_x <= 5:
-                            grade = grade + " ⚠️[市值校驗]"
-                        # grade 本身保留（反映基本面質量），校驗標籤用於提示
-
-                    # 計算多倍股路徑所需年數
-                    yrs10  = _math.log(10)  / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
-                    yrs20  = _math.log(20)  / _math.log(1 + cagr_est) if cagr_est and cagr_est > 0.05 else None
-                    # 100x 需要的目標市值
-                    target_100x_b = mkt_cap_b * 100  # in Billion USD
-                    target_100x_t = target_100x_b / 1000  # in Trillion
+                        _b = _tc if _tc and _tc>0.05 else (rev_growth or 0)
+                        cagr_est = (_b*0.6+roe*0.4) if (_b>0 and roe and roe>0) else None
+                    yrs100 = _math.log(100)/_math.log(1+cagr_est) if cagr_est and cagr_est>0.05 else None
+                    yrs20  = _math.log(20) /_math.log(1+cagr_est) if cagr_est and cagr_est>0.05 else None
+                    yrs10  = _math.log(10) /_math.log(1+cagr_est) if cagr_est and cagr_est>0.05 else None
 
                     results.append(dict(
                         sym=sym, name=name_s, industry=industry_s, currency=currency,
@@ -3766,12 +3638,11 @@ def _s63():
                         yrs100=yrs100, yrs20=yrs20, yrs10=yrs10,
                         cagr_est=cagr_est, cagr_source=cagr_source,
                         cap_tier=cap_tier, realistic_max_x=realistic_max_x,
-                        cap_warn=cap_warn,
-                        target_100x_b=target_100x_b, target_100x_t=target_100x_t,
+                        cap_warn=cap_warn, target_100x_b=target_100x_b, target_100x_t=target_100x_t,
                         d11=d11_data,
                     ))
                 except Exception as e:
-                    st.toast(f"⚠️ {sym} 讀取失敗: {e}", icon="⚠️")
+                    st.toast(f"⚠️ {sym} 讀取失敗: {e}")
 
                 prog.progress((idx+1) / len(tickers))
 
@@ -3798,32 +3669,27 @@ def _s63():
     # ── 總排行表 ──
     rows = []
     for r in results:
-        cur = r['currency']
-        cap = f"{r['mkt_cap_b']:.1f}B {cur}" if r['mkt_cap_b'] > 0 else "N/A"
+        cur  = r['currency']
+        cap  = f"{r['mkt_cap_b']:.1f}B {cur}" if r['mkt_cap_b'] > 0 else "N/A"
         mode_tag = "🔴 燒錢模式" if r.get('is_pre_profit') else "🟢 盈利模式"
-        # 多倍股目標顯示：依市值現實校驗決定顯示哪個目標
         _rmx = r.get('realistic_max_x', 100)
-        if _rmx >= 100:
-            _xest = f"~{r['yrs100']:.0f}年" if r.get('yrs100') and r['yrs100'] < 50 else "待評估"
-        elif _rmx >= 20:
-            _xest = f"20x:~{r['yrs20']:.0f}yr" if r.get('yrs20') and r['yrs20'] < 50 else "待評估"
-        elif _rmx >= 10:
-            _xest = f"10x:~{r['yrs10']:.0f}yr" if r.get('yrs10') and r['yrs10'] < 30 else "待評估"
-        else:
-            _xest = f"5x以下（市值巨型）"
+        if   _rmx>=100 and r.get('yrs100') and r['yrs100']<50: _xe=f"100x:~{r['yrs100']:.0f}年"
+        elif _rmx>=20  and r.get('yrs20')  and r['yrs20'] <50: _xe=f"20x:~{r['yrs20']:.0f}年"
+        elif _rmx>=10  and r.get('yrs10')  and r['yrs10'] <30: _xe=f"10x:~{r['yrs10']:.0f}年"
+        else: _xe="市值過大/待評估"
         rows.append({
             "代號": r['sym'], "公司": r['name'],
             "模式": mode_tag,
             "DNA 分數": r['total'], "等級": r['grade'],
-            "市值級別": r.get('cap_tier', '—'),
-            "ROE": f"{r['roe']:.1%}"             if r['roe'] and not r.get('is_pre_profit') else ("虧損" if r.get('is_pre_profit') else "N/A"),
-            "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth']   else "N/A",
+            "市值級別": r.get('cap_tier','—'),
+            "ROE": f"{r['roe']:.1%}" if r['roe'] and not r.get('is_pre_profit') else ("虧損" if r.get('is_pre_profit') else "N/A"),
+            "營收成長": f"{r['rev_growth']:+.1%}" if r['rev_growth'] else "N/A",
             "毛利率": f"{r['gross_margin']:.1%}"  if r['gross_margin'] else "N/A",
             "🩸 內部人持股": f"{r['insider_pct']:.1%}" if r.get('insider_pct', 0) > 0 else "N/A",
             "📈 P/E": f"{r['pe']:.1f}x" if r.get('pe', 0) > 0 else "N/A",
             "🛡️ Rule of 40": f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else "N/A",
             "市值": cap,
-            "現實目標": _xest,
+            "現實目標": _xe,
         })
     df_tbl = pd.DataFrame(rows)
 
@@ -3873,137 +3739,82 @@ def _s63():
             # ── D11 季度轉折訊號面板 ──
             d11 = r.get('d11', {})
             if d11.get('available'):
-                infl_signal = d11.get('inflection_signal', False)
-                infl_label  = d11.get('inflection_label', '')
-                trend_cagr  = d11.get('trend_cagr')
-                rev_accel   = d11.get('rev_accel')
-                gm_slope    = d11.get('gm_slope')
-                fcf_slope   = d11.get('fcf_slope')
-                qtrs_fcf    = d11.get('qtrs_to_fcf_positive')
-                rev_s       = d11.get('rev_series', [])
-                gm_s        = d11.get('gm_series', [])
-                fcf_s       = d11.get('fcf_series', [])
-                qtrs_labels = d11.get('quarters', [])
-                qoq_list    = d11.get('rev_qoq_list', [])
-                cagr_src    = r.get('cagr_source', '年度快照')
-
-                panel_color = "#00FF9D" if infl_signal else "#FF9A3C"
-                panel_icon  = "🔄" if infl_signal else "📊"
+                _il  = d11.get('inflection_label','')
+                _is  = d11.get('inflection_signal', False)
+                _src = r.get('cagr_source','年度快照')
+                _pc  = "#00FF9D" if _is else "#FF9A3C"
                 st.markdown(
-                    f'<div style="background:rgba(0,0,0,.25);border:1px solid {panel_color}44;'
-                    f'border-left:4px solid {panel_color};border-radius:0 10px 10px 0;'
-                    f'padding:12px 18px;margin-bottom:10px;">'
-                    f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-                    f'color:{panel_color}88;letter-spacing:3px;text-transform:uppercase;margin-bottom:5px;">'
-                    f'{panel_icon} D11 季度轉折訊號雷達 · CAGR來源：{cagr_src}</div>'
-                    f'<div style="font-size:20px;font-weight:700;color:{panel_color};">{infl_label}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-
-                # 三個趨勢指標橫排
-                d11c1, d11c2, d11c3 = st.columns(3)
-                with d11c1:
-                    accel_str = f"+{rev_accel:.1%}" if rev_accel and rev_accel > 0 else (f"{rev_accel:.1%}" if rev_accel else "N/A")
-                    accel_color = "#00FF9D" if rev_accel and rev_accel > 0 else "#FF6B6B"
-                    trend_str = f"{trend_cagr:.1%}/年" if trend_cagr else "N/A"
-                    st.markdown(
-                        f'<div class="bgcard" style="padding:10px;border-color:#00FF9D33;">'
-                        f'<div class="bgml">營收加速度（YoY差）</div>'
-                        f'<div class="bgmv" style="color:{accel_color};">{accel_str}</div>'
-                        f'<div style="font-size:17px;color:rgba(160,176,208,.5);margin-top:4px;">'
-                        f'趨勢CAGR：{trend_str}</div></div>',
-                        unsafe_allow_html=True
-                    )
-                with d11c2:
-                    gm_slope_str = f"+{gm_slope*100:.2f}%/季" if gm_slope and gm_slope > 0 else (f"{gm_slope*100:.2f}%/季" if gm_slope else "N/A")
-                    gm_color = "#00FF9D" if gm_slope and gm_slope > 0.003 else ("#FF9A3C" if gm_slope and gm_slope > 0 else "#FF6B6B")
-                    latest_gm = f"{gm_s[-1]:.1%}" if gm_s else "N/A"
-                    st.markdown(
-                        f'<div class="bgcard" style="padding:10px;border-color:#00BFFF33;">'
-                        f'<div class="bgml">毛利率趨勢（季斜率）</div>'
-                        f'<div class="bgmv" style="color:{gm_color};">{gm_slope_str}</div>'
-                        f'<div style="font-size:17px;color:rgba(160,176,208,.5);margin-top:4px;">'
-                        f'最新季毛利率：{latest_gm}</div></div>',
-                        unsafe_allow_html=True
-                    )
-                with d11c3:
-                    if fcf_s and fcf_s[-1] < 0 and qtrs_fcf:
-                        fcf_str = f"約 {qtrs_fcf:.0f} 季後轉正"
-                        fcf_color = "#FFD700"
-                    elif fcf_s and fcf_s[-1] >= 0:
-                        fcf_str = "✅ 已轉正"
-                        fcf_color = "#00FF9D"
-                    else:
-                        fcf_str = "N/A"
-                        fcf_color = "#808080"
-                    latest_fcf = f"${fcf_s[-1]:.2f}B" if fcf_s else "N/A"
-                    st.markdown(
-                        f'<div class="bgcard" style="padding:10px;border-color:#B77DFF33;">'
-                        f'<div class="bgml">FCF 拐點預估</div>'
-                        f'<div class="bgmv" style="color:{fcf_color};">{fcf_str}</div>'
-                        f'<div style="font-size:17px;color:rgba(160,176,208,.5);margin-top:4px;">'
-                        f'最新季FCF：{latest_fcf}</div></div>',
-                        unsafe_allow_html=True
-                    )
-
-                # 季度營收折線圖
-                if len(rev_s) >= 4 and len(qtrs_labels) >= len(rev_s):
-                    fig_d11 = go.Figure()
-                    fig_d11.add_trace(go.Scatter(
-                        x=qtrs_labels, y=rev_s,
-                        name="季度營收 ($B)", mode="lines+markers",
-                        line=dict(color="#00FF9D", width=2.5),
-                        marker=dict(size=7, color="#00FF9D"),
-                    ))
-                    if gm_s and len(gm_s) == len(rev_s):
-                        fig_d11.add_trace(go.Scatter(
-                            x=qtrs_labels, y=[v*100 for v in gm_s],
-                            name="毛利率 (%)", mode="lines+markers",
-                            line=dict(color="#00BFFF", width=2, dash="dot"),
-                            marker=dict(size=6),
-                            yaxis="y2",
-                        ))
-                    if fcf_s and len(fcf_s) == len(rev_s):
-                        fig_d11.add_trace(go.Scatter(
-                            x=qtrs_labels, y=fcf_s,
-                            name="FCF ($B)", mode="lines+markers",
-                            line=dict(color="#B77DFF", width=2, dash="dash"),
-                            marker=dict(size=6),
-                        ))
-                        # FCF=0 基準線
-                        fig_d11.add_hline(y=0, line_dash="dot",
-                                          line_color="rgba(255,255,255,.2)", line_width=1)
-                    # QoQ 標籤
-                    for i, (qt, rv) in enumerate(zip(qtrs_labels, rev_s)):
-                        if i < len(qoq_list) and qoq_list[i] is not None:
-                            qval = qoq_list[i]
-                            color_q = "#00FF9D" if qval > 0 else "#FF6B6B"
-                            fig_d11.add_annotation(
-                                x=qt, y=rv,
-                                text=f"QoQ {qval:+.0%}",
-                                showarrow=False, yshift=14,
-                                font=dict(size=10, color=color_q),
-                            )
-                    fig_d11.update_layout(
-                        template="plotly_dark",
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        height=280, margin=dict(t=20, b=30, l=55, r=55),
-                        legend=dict(orientation="h", y=-0.25, font=dict(size=11)),
-                        hovermode="x unified",
-                        yaxis=dict(title="營收($B)", ticksuffix="B"),
-                        yaxis2=dict(title="毛利率(%)", overlaying="y", side="right",
-                                    ticksuffix="%"),
-                    )
-                    st.plotly_chart(fig_d11, use_container_width=True)
-
+                    f'<div style="background:rgba(0,0,0,.25);border:1px solid {_pc}44;'
+                    f'border-left:4px solid {_pc};border-radius:0 10px 10px 0;'
+                    f'padding:10px 16px;margin-bottom:10px;">'
+                    f'<div style="font-family:monospace;font-size:9px;color:{_pc}88;'
+                    f'letter-spacing:3px;text-transform:uppercase;margin-bottom:4px;">'
+                    f'🔄 D11 季度轉折雷達 · CAGR來源：{_src}</div>'
+                    f'<div style="font-size:19px;font-weight:700;color:{_pc};">{_il}</div>'
+                    f'</div>', unsafe_allow_html=True)
+                _c1,_c2,_c3 = st.columns(3)
+                with _c1:
+                    _ac = d11.get('rev_accel')
+                    _as = f"+{_ac:.1%}" if _ac and _ac>0 else (f"{_ac:.1%}" if _ac else "N/A")
+                    _tc = d11.get('trend_cagr')
+                    st.markdown(f'''<div class="bgcard" style="padding:10px;">
+                    <div class="bgml">營收加速度(YoY差)</div>
+                    <div class="bgmv" style="color:{"#00FF9D" if _ac and _ac>0 else "#FF6B6B"};">{_as}</div>
+                    <div style="font-size:16px;color:rgba(160,176,208,.5);">趨勢CAGR：{"N/A" if not _tc else f"{_tc:.1%}/年"}</div>
+                    </div>''', unsafe_allow_html=True)
+                with _c2:
+                    _gs  = d11.get('gm_slope')
+                    _gss = f"+{_gs*100:.2f}%/季" if _gs and _gs>0 else (f"{_gs*100:.2f}%/季" if _gs else "N/A")
+                    _lgm = f"{d11['gm_series'][-1]:.1%}" if d11.get('gm_series') else "N/A"
+                    _gc  = "#00FF9D" if _gs and _gs>0.003 else ("#FF9A3C" if _gs and _gs>0 else "#FF6B6B")
+                    st.markdown(f'''<div class="bgcard" style="padding:10px;">
+                    <div class="bgml">毛利率趨勢(季斜率)</div>
+                    <div class="bgmv" style="color:{_gc};">{_gss}</div>
+                    <div style="font-size:16px;color:rgba(160,176,208,.5);">最新季：{_lgm}</div>
+                    </div>''', unsafe_allow_html=True)
+                with _c3:
+                    _fs  = d11.get('fcf_series',[])
+                    _qf  = d11.get('qtrs_to_fcf_positive')
+                    _fcs = ("✅ 已轉正" if _fs and _fs[-1]>=0 else
+                            (f"約{_qf:.0f}季後轉正" if _fs and _fs[-1]<0 and _qf else "N/A"))
+                    _fcc = "#00FF9D" if _fs and _fs[-1]>=0 else ("#FFD700" if _qf else "#808080")
+                    _lfcf= f"${_fs[-1]:.2f}B" if _fs else "N/A"
+                    st.markdown(f'''<div class="bgcard" style="padding:10px;">
+                    <div class="bgml">FCF拐點預估</div>
+                    <div class="bgmv" style="color:{_fcc};">{_fcs}</div>
+                    <div style="font-size:16px;color:rgba(160,176,208,.5);">最新季FCF：{_lfcf}</div>
+                    </div>''', unsafe_allow_html=True)
+                _rs = d11.get('rev_series',[])
+                _qs = d11.get('quarters',[])
+                if len(_rs)>=4 and len(_qs)>=len(_rs):
+                    _fig = go.Figure()
+                    _fig.add_trace(go.Scatter(x=_qs,y=_rs,name="季度營收($B)",
+                        mode="lines+markers",line=dict(color="#00FF9D",width=2.5),marker=dict(size=7)))
+                    _gms = d11.get('gm_series',[])
+                    if _gms and len(_gms)==len(_rs):
+                        _fig.add_trace(go.Scatter(x=_qs,y=[v*100 for v in _gms],name="毛利率(%)",
+                            mode="lines+markers",line=dict(color="#00BFFF",width=2,dash="dot"),
+                            marker=dict(size=6),yaxis="y2"))
+                    if _fs and len(_fs)==len(_rs):
+                        _fig.add_trace(go.Scatter(x=_qs,y=_fs,name="FCF($B)",
+                            mode="lines+markers",line=dict(color="#B77DFF",width=2,dash="dash"),marker=dict(size=6)))
+                        _fig.add_hline(y=0,line_dash="dot",line_color="rgba(255,255,255,.2)")
+                    _ql = d11.get('rev_qoq_list',[])
+                    for _i,(_qt,_rv) in enumerate(zip(_qs,_rs)):
+                        if _i<len(_ql) and _ql[_i] is not None:
+                            _fig.add_annotation(x=_qt,y=_rv,text=f"QoQ {_ql[_i]:+.0%}",
+                                showarrow=False,yshift=14,
+                                font=dict(size=10,color="#00FF9D" if _ql[_i]>0 else "#FF6B6B"))
+                    _fig.update_layout(template="plotly_dark",
+                        paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                        height=260,margin=dict(t=15,b=30,l=55,r=55),hovermode="x unified",
+                        legend=dict(orientation="h",y=-0.28,font=dict(size=11)),
+                        yaxis=dict(title="營收($B)"),
+                        yaxis2=dict(title="毛利率(%)",overlaying="y",side="right"))
+                    st.plotly_chart(_fig,use_container_width=True)
             elif d11.get('inflection_label'):
-                st.markdown(
-                    f'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);'
-                    f'border-radius:8px;padding:8px 14px;margin-bottom:8px;font-size:19px;'
-                    f'color:rgba(160,176,208,.5);">📊 D11：{d11.get("inflection_label")}</div>',
-                    unsafe_allow_html=True
-                )
+                st.markdown(f'''<div style="font-size:17px;color:rgba(160,176,208,.45);padding:6px 12px;margin-bottom:8px;">
+                📊 D11：{d11["inflection_label"]}</div>''', unsafe_allow_html=True)
 
             ca, cb, cc = st.columns([1,2,2])
 
@@ -4076,129 +3887,37 @@ def _s63():
                     <span class="bgrv" style="color:{sc2};">{sv}</span>
                     </div>""", unsafe_allow_html=True)
 
-            # ── 多倍股路徑估算（市值現實校驗版）──
+            # ── 100x 路徑估算 ──
             st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-            _cap_warn  = r.get('cap_warn')
-            _rmx       = r.get('realistic_max_x', 100)
-            _cap_tier  = r.get('cap_tier', '—')
-            _t100b     = r.get('target_100x_b', 0)
-            _t100t     = r.get('target_100x_t', 0)
-            _cagr      = r.get('cagr_est')
-            _cagr_note = "（燒錢模式：CAGR=營收成長×0.7，含不確定折扣）" if r.get('is_pre_profit') else "（CAGR = 營收成長×60% + ROE×40%，樂觀情境）"
-
-            if _cagr and _cagr > 0.05:
-                # ── 市值現實校驗警告橫幅（僅大市值觸發）──
-                if _cap_warn:
-                    # 判斷輝達式突破的可能性提示
-                    nvda_note = ""
-                    if _rmx <= 5:
-                        nvda_note = "（參考：輝達 2019→2024 市值 $0.1T→$3.4T 為 34x，是近代最強案例之一）"
-                        warn_color = "#FF6B6B"
-                        bar_label  = "🐋 巨型市值警告"
-                    else:
-                        nvda_note = "（參考：輝達 2020→2025 5年漲約 11x，強基本面大市值仍可有驚人表現）"
-                        warn_color = "#FF9A3C"
-                        bar_label  = "🏢 大型市值校驗"
-
-                    st.markdown(f"""<div style="background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.3);
-                    border-left:4px solid {warn_color};border-radius:0 10px 10px 0;
-                    padding:14px 18px;margin-bottom:10px;">
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
-                    color:{warn_color};letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;">
-                    {bar_label} · {_cap_tier} · 市值 ${r['mkt_cap_b']:.0f}B {r['currency']}</div>
-                    <div style="font-size:22px;font-weight:700;color:{warn_color};line-height:1.6;">
-                    ⚠️ 100x 需達市值 <b>${_t100b:.0f}B（${_t100t:.1f}兆美元）</b>，
-                    超越人類歷史上任何單一公司。<br>
-                    <span style="font-size:20px;color:rgba(220,160,160,.8);">
-                    → 現實目標：<b style="color:#FFD700;">{_cap_warn}</b> 仍具重大意義 {nvda_note}</span>
-                    </div></div>""", unsafe_allow_html=True)
-
-                # ── 多倍股時間路徑（並排顯示 10x / 20x / 100x）──
-                yrs10  = r.get('yrs10')
-                yrs20  = r.get('yrs20')
-                yrs100 = r.get('yrs100')
-
-                path_cols = st.columns(3)
-                paths = [
-                    ("10x", yrs10,  "#ADFF2F", _rmx >= 10,
-                     f"市值需達 <b>${r['mkt_cap_b']*10:.0f}B</b>"),
-                    ("20x", yrs20,  "#FFD700", _rmx >= 20,
-                     f"市值需達 <b>${r['mkt_cap_b']*20:.0f}B</b>"),
-                    ("100x", yrs100, "#FF4500", _rmx >= 100,
-                     f"市值需達 <b>${_t100b:.0f}B（${_t100t:.1f}兆）</b>"),
-                ]
-                for pc, (label, yrs, pcolor, is_realistic, cap_note) in zip(path_cols, paths):
-                    with pc:
-                        if yrs and yrs < 60:
-                            feasibility = "✅ 現實可行" if is_realistic else ("⚡ 歷史罕見" if label == "20x" else "⚠️ 物理極限")
-                            feas_color  = "#00FF9D" if is_realistic else ("#FF9A3C" if label == "20x" else "#FF6B6B")
-                            st.markdown(f"""<div class="bgcard" style="text-align:center;border-color:{pcolor}44;padding:12px;">
-                            <div style="font-size:28px;font-weight:900;color:{pcolor};">{label}</div>
-                            <div style="font-size:36px;font-weight:900;color:#FFF;">~{yrs:.0f}<span style="font-size:20px;">年</span></div>
-                            <div style="font-size:17px;color:{feas_color};margin:4px 0;">{feasibility}</div>
-                            <div style="font-size:16px;color:rgba(180,190,210,.5);">{cap_note}</div>
-                            </div>""", unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""<div class="bgcard" style="text-align:center;border-color:{pcolor}22;padding:12px;opacity:.4;">
-                            <div style="font-size:28px;font-weight:900;color:{pcolor};">{label}</div>
-                            <div style="font-size:20px;color:rgba(180,190,210,.5);">時間過長或<br>數據不足</div>
-                            </div>""", unsafe_allow_html=True)
-
-                st.markdown(f"""<div style="font-size:19px;color:rgba(160,176,208,.5);margin-top:6px;padding:0 4px;">
-                📐 CAGR 假設：<b style="color:rgba(200,210,220,.7);">{_cagr:.1%}</b> · {_cagr_note}
+            if r['yrs100'] and r['yrs100'] < 60:
+                yc = "#00FF9D" if r['yrs100']<12 else ("#FFD700" if r['yrs100']<20 else "#FF9A3C")
+                cagr_note = "（燒錢模式：純用營收 CAGR×0.7，含高不確定折扣，盈利後實際 CAGR 可能更高）" if r.get('is_pre_profit') else "（CAGR = 營收成長×60% + ROE×40%，樂觀情境）"
+                st.markdown(f"""<div class="bgf" style="border-left-color:{yc};">
+                📐 100x 路徑估算：若 CAGR 維持 <b>{r['cagr_est']:.1%}</b>，
+                需 <b style="color:{yc};font-size:32px;">~{r['yrs100']:.0f} 年</b> 達到百倍。<br>
+                <span style="font-size:22px;opacity:.7;">{cagr_note}</span>
                 </div>""", unsafe_allow_html=True)
-
             else:
-                st.markdown('''<div class="bgw">⚠️ 當前財務數據不足以估算路徑，需要正向毛利率與正向營收成長同時存在。</div>''', unsafe_allow_html=True)
+                st.markdown('<div class="bgw">⚠️ 當前財務數據不足以估算 100x 路徑，需要正向毛利率與正向營收成長同時存在。</div>', unsafe_allow_html=True)
 
-            # ── Valkyrie 判定（市值現實校驗版）──
-            pre_tag  = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
-            _rmx     = r.get('realistic_max_x', 100)
-            _cap_t   = r.get('cap_tier', '—')
-            _cap_w   = r.get('cap_warn')
-
-            # 市值校驗補充語（依規模差異化）
-            if _cap_w is None:
-                cap_verdict = ""
-            elif _rmx >= 10:
-                cap_verdict = (
-                    f" ｜ 📐 **市值現實校驗**：{_cap_t}（${r['mkt_cap_b']:.0f}B），"
-                    f"100x 需達 ${r.get('target_100x_t',0):.1f} 兆（物理上極難），"
-                    f"但 **{_cap_w} 仍具高度意義**——強基本面大市值公司，輝達式的 10x 級別表現仍是可能的。"
-                )
-            else:
-                cap_verdict = (
-                    f" ｜ 🐋 **市值校驗警告**：{_cap_t}（${r['mkt_cap_b']:.0f}B），"
-                    f"100x 需達 ${r.get('target_100x_t',0):.1f} 兆（超越任何歷史紀錄）。"
-                    f"本標的 DNA 分數反映**基本面質量極強**，但漲幅框架應調整為 **3-5x 預期**，"
-                    f"以此衡量仍是市場領先表現。"
-                )
-
+            # ── Valkyrie 判定 ──
+            pre_tag = "（燒錢模式，Tesla/PLTR 型）" if r.get('is_pre_profit') else ""
             if sc >= 80:
                 skin_note = f"內部人持股 {r.get('insider_pct',0):.1%}，{'創辦人仍掌舵。' if r.get('insider_pct',0)>=0.10 else '持股偏低，注意代理人風險。'}"
-                r40_note  = f"{r.get('rule40_val',0):.0f}%" if r.get('rule40_val') is not None else 'N/A'
-                if _cap_w is None:
-                    pre_body = ('高毛利商業模式已驗證 + 高速營收加速，燒錢是「規模化投資」而非「商業模式失敗」。'
-                                if r.get('is_pre_profit') else
-                                '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，市值仍在百倍可行的早期階段。')
-                    st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{pre_body}{skin_note} Rule of 40：{r40_note}。若景氣循環位於「黎明期」，這是教科書級別的百倍股候選。{cap_verdict}")
-                else:
-                    pre_body = ('基本面 DNA 極強，燒錢仍在規模化投資期。' if r.get('is_pre_profit') else
-                                '基本面 DNA 極強，是同類股中的一流標的。')
-                    st.success(f"🔥 **SUPER NOVA 基本面！{pre_tag}** {r['sym']} {pre_body}{skin_note} Rule of 40：{r40_note}。{cap_verdict}")
+                r40_note  = f"{r['rule40_val']:.0f}%" if r.get('rule40_val') is not None else 'N/A'
+                pre_body  = ('高毛利商業模式已驗證 + 高速營收加速 + 市值天花板巨大，即使尚未盈利，其燒錢是「規模化投資」而非「商業模式失敗」。'
+                             if r.get('is_pre_profit') else
+                             '高 ROE 複利引擎 + 高速營收加速 + 高毛利護城河三者兼備，且市值仍在百倍可行的早期階段。')
+                st.success(f"🔥 **SUPER NOVA！{pre_tag}** {r['sym']} 的財務 DNA 極為罕見——{pre_body}{skin_note} Rule of 40：{r40_note}。若產業景氣循環位於「黎明期」，這正是教科書級別的百倍股候選。**下一步：深研護城河可持續性、創辦人是否仍在主導、現金跑道還有多久。**")
             elif sc >= 65:
-                if _cap_w is None:
-                    pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
-                    st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
-                else:
-                    pre_msg = "基本面強勁，市值規模改變漲幅預期框架。" + ("燒錢模式需關注現金跑道。" if r.get('is_pre_profit') else "")
-                    st.warning(f"⚡ **基本面優秀{pre_tag}** — {r['sym']} {pre_msg}{cap_verdict}")
+                pre_msg = "燒錢期具備部分核心成長基因，毛利率顯示商業模式可行。關鍵問題：現金跑道是否足夠撐到盈利？管理層是否有明確的盈利時間表？" if r.get('is_pre_profit') else "具備核心成長基因，但部分維度尚未達最高標準。建議持續追蹤，等待財務數據改善或估值回落。"
+                st.warning(f"⚡ **百倍候選{pre_tag}** — {r['sym']} {pre_msg}")
             elif sc >= 50:
-                pre_msg = "燒錢期有部分優秀指標，研究毛利率趨勢——若持續提升，盈利後將快速釋放價值。" if r.get('is_pre_profit') else "有部分優秀指標，但整體 DNA 組合不夠完整。"
-                st.info(f"📈 **成長潛力{pre_tag}** — {r['sym']} {pre_msg}{cap_verdict}")
+                pre_msg = "燒錢期有部分優秀指標，但整體 DNA 組合不夠完整。研究其毛利率趨勢——若毛利率持續提升，盈利後將快速釋放價值。" if r.get('is_pre_profit') else "有部分優秀指標，但整體 DNA 組合不夠完整。研究其能否在未來 2–3 年提升 ROE 或毛利率。"
+                st.info(f"📈 **成長潛力{pre_tag}** — {r['sym']} {pre_msg}")
             else:
-                pre_msg = f"燒錢且財務 DNA 不足，高風險標的。" if r.get('is_pre_profit') else "目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。"
-                st.markdown(f'<div class="bgw">❄️ {r["sym"]} {pre_msg}{cap_verdict}</div>', unsafe_allow_html=True)
+                pre_msg = f"燒錢且財務 DNA 不足，高風險標的。建議尋找毛利率更高、成長加速更明確的燒錢公司。" if r.get('is_pre_profit') else "目前不符合百倍股 DNA 特徵。可能是成熟企業、高配息或成長動能不足。"
+                st.markdown(f'<div class="bgw">❄️ {r["sym"]} {pre_msg}</div>', unsafe_allow_html=True)
 
     # ── CSV 下載 ──
     st.divider()
@@ -4216,12 +3935,7 @@ def _s63():
             "內部人持股":r.get('insider_pct'),"P/E":r.get('pe'),"PEG":r['peg'],
             "FCF_Margin":r['fcf_pct'],"P/S比率":r.get('ps_ratio'),"殖利率":r['div_yield'],
             "市值B":r['mkt_cap_b'],"幣別":r['currency'],
-            "市值級別":r.get('cap_tier','—'),
-            "現實最大倍數":r.get('realistic_max_x',100),
-            "10x估算年": round(r['yrs10'],1) if r.get('yrs10') else None,
-            "20x估算年": round(r['yrs20'],1) if r.get('yrs20') else None,
-            "100x估算年": round(r['yrs100'],1) if r.get('yrs100') else None,
-            "100x目標市值B":r.get('target_100x_b',0),
+            "100x估算年": round(r['yrs100'],1) if r['yrs100'] else None,
         })
     df_exp = pd.DataFrame(export)
     st.download_button(
