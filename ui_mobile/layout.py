@@ -324,8 +324,13 @@ html, body, .stApp {
     letter-spacing: 1px;
 }
 
-/* ── Streamlit 按鈕全域金色 ───────────────── */
-div.stButton > button {
+/* ── 所有 Streamlit 按鈕 → 金色（覆蓋 primary / secondary / tertiary）── */
+div.stButton > button,
+div.stButton > button[kind="primary"],
+div.stButton > button[kind="secondary"],
+[data-testid="baseButton-primary"],
+[data-testid="baseButton-secondary"],
+[data-testid="baseButton-secondaryFormSubmit"] {
     background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
     color: #000 !important;
     font-family: 'Rajdhani', sans-serif !important;
@@ -338,9 +343,43 @@ div.stButton > button {
     transition: all 0.2s !important;
     min-height: 48px !important;
 }
-div.stButton > button:hover {
+div.stButton > button:hover,
+[data-testid="baseButton-primary"]:hover,
+[data-testid="baseButton-secondary"]:hover {
     transform: scale(1.03) !important;
     box-shadow: 0 6px 20px rgba(255,215,0,0.4) !important;
+    color: #000 !important;
+}
+
+/* ── 返回按鈕：小一點，深色背景 ─────────── */
+.mob-back-wrap div.stButton > button {
+    background: rgba(255,255,255,0.07) !important;
+    color: #FFD700 !important;
+    border: 1px solid rgba(255,215,0,0.3) !important;
+    font-size: 20px !important;
+    padding: 10px 14px !important;
+    box-shadow: none !important;
+    min-height: 44px !important;
+}
+.mob-back-wrap div.stButton > button:hover {
+    background: rgba(255,215,0,0.12) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* ── 底部 nav 按鈕：完全透明，只當點擊層 ── */
+.mob-navbar div.stButton > button {
+    background: transparent !important;
+    color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-height: 72px !important;
+    position: absolute !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0 !important;
 }
 
 /* ── 讓 Streamlit 容器寬度最大化 ─────────── */
@@ -491,13 +530,7 @@ def _render_home():
     st.markdown(cards_html + "</div>", unsafe_allow_html=True)
 
     # 實際可點擊按鈕（2列排版）
-    st.markdown("---")
-    st.markdown(
-        '<div style="padding:0 14px 8px;font-family:JetBrains Mono,monospace;'
-        'font-size:11px;color:rgba(160,180,220,0.35);letter-spacing:2px;'
-        'text-transform:uppercase;">▸ 點選進入戰區</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown('<div style="margin:8px 0;"></div>', unsafe_allow_html=True)
 
     row1 = st.columns(3)
     row2 = st.columns(3)
@@ -506,9 +539,10 @@ def _render_home():
     for col, tab in zip(all_cols, TABS):
         with col:
             if st.button(
-                f"{tab['icon']} {tab['label']}",
+                f"{tab['icon']}  {tab['label']}",
                 key=f"mob_home_{tab['id']}",
                 use_container_width=True,
+                type="primary",
                 help=tab["desc"],
             ):
                 st.session_state.mob_active_tab = tab["id"]
@@ -521,9 +555,11 @@ def _render_home():
 def _render_topbar_back(tab_info: dict):
     c1, c2 = st.columns([1, 5])
     with c1:
-        if st.button("◀", key="mob_back_btn", use_container_width=True, help="返回首頁"):
+        st.markdown('<div class="mob-back-wrap">', unsafe_allow_html=True)
+        if st.button("◀ 返回", key="mob_back_btn", use_container_width=True):
             st.session_state.mob_active_tab = None
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
     with c2:
         st.markdown(
             f'<div class="mob-topbar">'
@@ -537,6 +573,28 @@ def _render_topbar_back(tab_info: dict):
 # ══════════════════════════════════════════════════════════════
 #  主入口
 # ══════════════════════════════════════════════════════════════
+def _render_sidebar_switcher():
+    """側邊欄：切換到桌面版"""
+    with st.sidebar:
+        st.markdown(
+            '<div style="font-family:JetBrains Mono,monospace;font-size:10px;' 
+            'color:rgba(160,180,220,0.4);letter-spacing:2px;text-transform:uppercase;' 
+            'margin-bottom:8px;">⬡ 切換模式</div>',
+            unsafe_allow_html=True
+        )
+        if st.button("🖥️  切換到桌面版", use_container_width=True, key="mob_switch_desktop"):
+            st.session_state.device_mode     = "desktop"
+            st.session_state.choice_confirmed = True
+            st.session_state.mob_active_tab  = None
+            st.rerun()
+        st.markdown(
+            '<div style="font-family:JetBrains Mono,monospace;font-size:9px;' 
+            'color:rgba(160,180,220,0.2);margin-top:6px;letter-spacing:1px;">' 
+            '目前：📱 Mobile Mode</div>',
+            unsafe_allow_html=True
+        )
+
+
 def render():
     """Mobile Command Post 主入口"""
 
@@ -548,6 +606,9 @@ def render():
 
     # ── CSS 注入 ─────────────────────────────────────────────
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
+
+    # ── 側邊欄切換 ───────────────────────────────────────────
+    _render_sidebar_switcher()
 
     # ── 頂部狀態列 ───────────────────────────────────────────
     _render_statusbar(active_id)
