@@ -367,19 +367,38 @@ div.stButton > button:hover,
     box-shadow: none !important;
 }
 
-/* ── 底部 nav 按鈕：完全透明，只當點擊層 ── */
-.mob-navbar div.stButton > button {
+/* ── 底部導航列容器 ──────────────────────── */
+[data-testid="stBottom"] {
+    background: rgba(10,14,22,0.97) !important;
+    border-top: 1px solid rgba(255,255,255,0.06) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+}
+
+/* ── 底部 nav 按鈕：圖示導航樣式 ─────────── */
+.mob-bottom-nav div.stButton > button {
     background: transparent !important;
-    color: transparent !important;
+    color: rgba(160,180,220,0.45) !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    min-height: 72px !important;
-    position: absolute !important;
-    top: 0 !important; left: 0 !important;
+    padding: 6px 4px 10px !important;
+    min-height: 64px !important;
+    font-size: 22px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    line-height: 1.3 !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2px !important;
     width: 100% !important;
-    height: 100% !important;
-    opacity: 0 !important;
+    letter-spacing: 0 !important;
+}
+.mob-bottom-nav div.stButton > button:hover {
+    background: rgba(255,255,255,0.04) !important;
+    transform: none !important;
+    box-shadow: none !important;
+    color: rgba(220,230,245,0.7) !important;
 }
 
 /* ── 讓 Streamlit 容器寬度最大化 ─────────── */
@@ -467,39 +486,33 @@ def _render_statusbar(active_tab_id: str | None = None):
 #  底部導航列
 # ══════════════════════════════════════════════════════════════
 def _render_bottom_nav(active_tab_id: str | None):
-    """用 st.columns 實作底部 Tab Bar（繞過 HTML 互動限制）"""
-    st.markdown('<div class="mob-navbar">', unsafe_allow_html=True)
-
+    """底部導航列 — 純 Streamlit 按鈕，CSS 做成 app 底部 tab bar 樣式"""
+    st.markdown('<div class="mob-bottom-nav">', unsafe_allow_html=True)
     cols = st.columns(len(TABS))
     for col, tab in zip(cols, TABS):
         is_active = (tab["id"] == active_tab_id)
-        color = tab["color"] if is_active else "rgba(160,180,220,0.35)"
-
-        # 視覺 HTML（只顯示，不互動）
-        col.markdown(f"""
-<div class="mob-nav-item {'active' if is_active else ''}"
-     style="color:{color};">
-  <div class="mob-nav-icon">{tab['icon']}</div>
-  <div class="mob-nav-label" style="color:{color};">{tab['label']}</div>
-  <div class="mob-nav-dot" style="background:{color};"></div>
-</div>
-""", unsafe_allow_html=True)
-
-        # 實際互動按鈕（透明覆蓋）
-        if col.button(
-            tab["icon"],
-            key=f"mob_nav_{tab['id']}",
-            use_container_width=True,
-            help=tab["desc"],
-            type="primary" if is_active else "secondary",
-        ):
-            if is_active and active_tab_id is not None:
-                # 再次點選同一個 → 回首頁
-                st.session_state.mob_active_tab = None
-            else:
-                st.session_state.mob_active_tab = tab["id"]
-            st.rerun()
-
+        color     = tab["color"] if is_active else "rgba(160,180,220,0.4)"
+        dot       = "●" if is_active else ""
+        # 按鈕文字：icon + 換行 + label（用 Unicode 空白控制間距）
+        btn_label = f"{tab['icon']}\n{tab['label']}{dot}"
+        # 用 markdown 注入當前 tab 的顏色
+        col.markdown(
+            f'<style>#mob_nav_{tab["id"]} button {{color:{color} !important;' 
+            f'{"font-weight:900!important;" if is_active else ""}}}</style>',
+            unsafe_allow_html=True
+        )
+        with col:
+            if st.button(
+                btn_label,
+                key=f"mob_nav_{tab['id']}",
+                use_container_width=True,
+                help=tab["desc"],
+            ):
+                if is_active:
+                    st.session_state.mob_active_tab = None
+                else:
+                    st.session_state.mob_active_tab = tab["id"]
+                st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 
