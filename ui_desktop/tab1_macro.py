@@ -1060,7 +1060,9 @@ def render_1_1_hud():
             v   = (inf.get("regularMarketPrice") or inf.get("previousClose") or 20.0)
             h   = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
             return float(v), h
-        except Exception:
+        except Exception as _e1v:
+            if any(k in str(_e1v).lower() for k in ["429","too many requests","rate limit"]):
+                st.toast("⏳ VIX 資料 Yahoo 限速，使用預設值 20.0。請稍後點「🔄 重新整合」。", icon="⏳")
             return 20.0, pd.DataFrame()
 
     @st.cache_data(ttl=300, show_spinner=False)
@@ -1138,7 +1140,9 @@ def render_1_1_hud():
                 result["tnx_hist"] = tnx_h
             else:
                 result["tnx"] = None
-        except Exception:
+        except Exception as _e1t:
+            if any(k in str(_e1t).lower() for k in ["429","too many requests","rate limit"]):
+                st.toast("⏳ 10Y殖利率資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
             result["tnx"] = None
 
         # ② 美元指數
@@ -1158,7 +1162,9 @@ def render_1_1_hud():
                 result["dxy_hist"] = dxy_h
             else:
                 result["dxy"] = None
-        except Exception:
+        except Exception as _e1d:
+            if any(k in str(_e1d).lower() for k in ["429","too many requests","rate limit"]):
+                st.toast("⏳ DXY資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
             result["dxy"] = None
 
         # ③ HYG 高收益債（信用利差代理）
@@ -1178,7 +1184,9 @@ def render_1_1_hud():
                 result["hyg_hist"] = hyg_h
             else:
                 result["hyg"] = None
-        except Exception:
+        except Exception as _e1h:
+            if any(k in str(_e1h).lower() for k in ["429","too many requests","rate limit"]):
+                st.toast("⏳ HYG資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
             result["hyg"] = None
 
         return result
