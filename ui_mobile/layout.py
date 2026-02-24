@@ -14,10 +14,14 @@ import os
 import traceback
 from datetime import datetime
 
-# ── 根目錄加入 sys.path，確保可 import 所有引擎 ────────────────
-_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
+# ── sys.path 設定：根目錄 + ui_desktop 都加入 ─────────────────
+# layout_mobile.py 在 ui_mobile/ 裡，往上兩層才是專案根目錄
+_root        = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ui_desktop  = os.path.join(_root, "ui_desktop")
+
+for _p in [_root, _ui_desktop]:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -359,15 +363,20 @@ div.stButton > button:hover {
 def _load_module(module_id: str):
     """
     動態載入 tab 模組。
-    先嘗試 ui_desktop.{module_id}，再嘗試根目錄 {module_id}。
+    嘗試順序：
+      1. tab1_macro          （ui_desktop/ 已加入 sys.path，直接 import）
+      2. ui_desktop.tab1_macro（有 __init__.py 時的 package 方式）
     """
-    for path in [f"ui_desktop.{module_id}", module_id]:
+    for path in [module_id, f"ui_desktop.{module_id}"]:
         try:
             if path in sys.modules:
                 return importlib.reload(sys.modules[path])
             return importlib.import_module(path)
         except ImportError:
             continue
+        except Exception as _e:
+            # import 成功但模組本身有錯 → 不繼續嘗試，直接回傳 None 讓外層報錯
+            raise _e
     return None
 
 
