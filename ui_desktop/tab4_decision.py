@@ -23,12 +23,6 @@ import time
 # ══════════════════════════════════════════════════════════════════
 # 🎯 FEATURE 3: VALKYRIE AI TYPEWRITER
 # ══════════════════════════════════════════════════════════════════
-def _is_rl(e) -> bool:
-    """Yahoo Finance Rate Limit 偵測（tab4）"""
-    msg = str(e).lower()
-    return any(k in msg for k in ["429","too many requests","rate limit","ratelimit","rate limited"])
-
-
 def stream_generator(text):
     """
     Valkyrie AI Typewriter: Stream text word-by-word
@@ -83,9 +77,7 @@ def _fetch_latest_prices(orig_tickers: list) -> dict:
                 # 多 ticker → DataFrame，欄名即 query ticker
                 last = close.dropna(how='all').iloc[-1]
                 return {k: float(v) for k, v in last.items() if pd.notna(v)}
-        except Exception as _e4dl:
-            if _is_rl(_e4dl):
-                st.toast("⏳ Yahoo Finance 限速，最新價格暫時無法取得，請稍後重試。", icon="⏳")
+        except Exception:
             return {}
 
     # ── 台股：先試 .TW，失敗的 fallback .TWO ──
@@ -203,9 +195,7 @@ def _run_fast_backtest(ticker, start_date="2023-01-01", initial_capital=1_000_00
                 "win_rate": win_rate, "profit_factor": pf, "kelly": kelly,
                 "equity_curve": df['Equity'], "drawdown_series": df['Drawdown'],
                 "latest_price": float(df['Close'].iloc[-1])}
-    except Exception as _e4x:
-        if _is_rl(_e4x):
-            st.toast("⏳ Yahoo Finance 限速，資料暫時無法取得。", icon="⏳")
+    except Exception:
         return None
 
 
@@ -340,9 +330,7 @@ def _run_ma_strategy_backtest(ticker, strategy_name, start_date="2015-01-01",
             "bh_equity_curve":    df['BH_Equity'],
             "actual_start":       actual_start,
         }
-    except Exception as _e4x:
-        if _is_rl(_e4x):
-            st.toast("⏳ Yahoo Finance 限速，資料暫時無法取得。", icon="⏳")
+    except Exception:
         return None
 
 
@@ -412,7 +400,6 @@ def _run_stress_test(portfolio_text):
         is_tw  = bool(re.match(r'^[0-9]', orig)) and 4 <= len(orig) <= 6
         if is_tw: ticker = f"{orig}.TW"
         try:
-            time.sleep(0.3)  # ⚡ rate limit 防護
             data = yf.download(ticker, period="1mo", progress=False)
             if data.empty and is_tw:
                 data = yf.download(f"{orig}.TWO", period="1mo", progress=False)

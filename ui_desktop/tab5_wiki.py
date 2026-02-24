@@ -171,13 +171,8 @@ def _fetch(symbol: str):
                         resolved = sym_upper + suffix
                         found = True
                         break
-                except Exception as _e:
-                    # ⚡ Rate limit 不能被靜默 continue — 必須回傳真正原因
-                    if _is_rate_limit_error(_e):
-                        return (pd.DataFrame(), pd.DataFrame(), {},
-                                pd.DataFrame(), pd.DataFrame(),
-                                "⏳ yfinance 請求過於頻繁（HTTP 429）。"                                "請稍候 30 秒後點擊「🔍 鎖定」重試。")
-                    continue  # 非 rate limit 才跳下一個後綴
+                except Exception:
+                    continue
             if not found:
                 return (pd.DataFrame(), pd.DataFrame(), {},
                         pd.DataFrame(), pd.DataFrame(),
@@ -210,22 +205,10 @@ def _fetch(symbol: str):
         info: dict = {}
         try:
             _raw_info = tk.info or {}
-            # 殼字典判定：len>5 不夠嚴格，Yahoo 有時只回傳 quoteType/symbol/currency
-            # 必須確認至少有一個財務欄位才算真正有效
-            _fin_keys = ["trailingEps", "forwardEps", "trailingPE", "forwardPE",
-                         "bookValue", "debtToEquity", "returnOnEquity", "freeCashflow",
-                         "regularMarketPrice", "currentPrice"]
-            _has_fin = any(_raw_info.get(k) is not None for k in _fin_keys)
-            if len(_raw_info) > 5 and _has_fin:
+            # yfinance 有時回傳 {'trailingPegRatio': None, ...} 等殼字典
+            if len(_raw_info) > 5:
                 info = _raw_info
-            elif len(_raw_info) > 5:
-                # 殼字典：保留基本欄位，財務欄位後面用 fast_info + 計算補齊
-                info = _raw_info
-        except Exception as _e:
-            if _is_rate_limit_error(_e):
-                return (pd.DataFrame(), pd.DataFrame(), {},
-                        pd.DataFrame(), pd.DataFrame(),
-                        "⏳ yfinance info 請求過於頻繁（HTTP 429）。"                        "請稍候 30 秒後重試。")
+        except Exception:
             pass
 
         # fast_info 保底（幾乎不限速）— 只「補缺」，絕不覆蓋 tk.info 已有的財務資料
@@ -248,17 +231,6 @@ def _fetch(symbol: str):
                     info[_k] = _v
         except Exception:
             pass
-
-        # ── trailingEps 補算：fast_info 沒有此欄位，但可從 price/PE 反推 ──
-        # 艾蜜莉 5.4 PE河流圖核心依賴 trailingEps，必須補齊
-        if not info.get("trailingEps"):
-            _cp  = info.get("currentPrice") or info.get("regularMarketPrice")
-            _pe  = info.get("trailingPE")
-            if _cp and _pe and float(_pe) > 0:
-                info["trailingEps"] = float(_cp) / float(_pe)
-            elif not raw.empty:
-                # 最後手段：用近1年平均收盤 / PE 估算（hist3y_local 尚未定義時跳過）
-                pass
 
         # ── Step 4: holders — 非關鍵，失敗優雅降級（原有邏輯不變） ──
         try:
@@ -294,36 +266,16 @@ def _hero(symbol: str):
 
 def _search() -> str:
     st.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(0,245,255,.28);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px;">⬡ TARGET ACQUISITION</div>', unsafe_allow_html=True)
-    ca, cb, cc, cd = st.columns([3, 1, 1, 3])
+    ca, cb, cc = st.columns([3, 1, 4])
     with ca:
         sym = st.text_input("Symbol", value=st.session_state.get("t5_symbol", "SPY"),
                             placeholder="AAPL · NVDA · 2330 · 00675L · 5274",
                             label_visibility="collapsed", key="t5_sym_inp")
     with cb:
-        if st.button("🔍 鎖定", use_container_width=True, type="primary", key="t5_lock_btn"):
-            sym_clean = sym.strip().upper()
-            st.session_state["t5_symbol"] = sym_clean
-            # ⚡ 按下鎖定才 fetch，清除舊快取強制重抓
-            _fetch.clear()
-            for _k in list(st.session_state.keys()):
-                if _k.startswith("_t5_loaded_"):
-                    del st.session_state[_k]
-            with st.spinner(f"⬡ 鎖定目標: {sym_clean}…"):
-                _result = _fetch(sym_clean)
-            st.session_state[f"_t5_loaded_{sym_clean}"] = _result
+        if st.button("🔍 鎖定", use_container_width=True, type="primary"):
+            st.session_state["t5_symbol"] = sym.strip().upper()
             st.rerun()
     with cc:
-        # 🔄 清除快取重試按鈕（rate limit 解除後使用）
-        cur_sym = st.session_state.get("t5_symbol", "SPY")
-        if st.button("🔄", use_container_width=True, key="t5_clear_btn",
-                     help="清除快取並重新抓取（rate limit 解除後使用）"):
-            _fetch.clear()
-            st.session_state.pop(f"_t5_loaded_{cur_sym}", None)
-            with st.spinner(f"⬡ 重新整合: {cur_sym}…"):
-                _result = _fetch(cur_sym)
-            st.session_state[f"_t5_loaded_{cur_sym}"] = _result
-            st.rerun()
-    with cd:
         st.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(160,176,208,.28);padding:8px 0;line-height:1.7;">美股: AAPL · NVDA · TSLA &nbsp;|&nbsp; 台股: 2330 · 2454 · 5274 &nbsp;|&nbsp; ETF: SPY · 0050 · 00675L</div>', unsafe_allow_html=True)
     return st.session_state.get("t5_symbol", sym.strip().upper() if sym else "SPY")
 
@@ -3156,27 +3108,8 @@ def render():
     symbol = _search()
     _hero(symbol)
 
-    # ── 從 session_state 讀資料（只有按「🔍鎖定」才會重新 fetch）─────
-    _loaded_key = f"_t5_loaded_{symbol}"
-    if _loaded_key not in st.session_state:
-        # 尚未鎖定：顯示提示，等待使用者按鎖定
-        st.markdown("""
-<div style="text-align:center;padding:48px 24px;background:rgba(0,245,255,.03);
-     border:1px dashed rgba(0,245,255,.15);border-radius:16px;margin:24px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:28px;color:rgba(0,245,255,.5);
-       letter-spacing:4px;margin-bottom:12px;">⬡ 待機中</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:20px;color:rgba(200,215,230,.5);">
-    輸入代號後點擊「🔍 鎖定」以載入分析資料<br>
-    <span style="font-size:16px;color:rgba(160,176,208,.35);">
-      按下鎖定才會抓取資料，切換子頁面不會重複請求 Yahoo Finance</span>
-  </div>
-</div>""", unsafe_allow_html=True)
-        _nav()
-        active_pre = st.session_state.get("t5_active", "5.1")
-        if active_pre == "5.7":
-            _s57()
-        return
-    h1, h3, info, holders, mf_holders, err = st.session_state[_loaded_key]
+    with st.spinner(f"⬡ 鎖定目標: {symbol}…"):
+        h1, h3, info, holders, mf_holders, err = _fetch(symbol)
 
     if err:
         is_rl = _is_rate_limit_error(Exception(err))
