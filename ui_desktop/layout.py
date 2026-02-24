@@ -77,7 +77,7 @@ def render_launcher():
         if st.button("進入 Tab 4", key="btn_t4", use_container_width=True):
             st.session_state.active_tab = "tab4_decision"; st.rerun()
     with c5:
-        st.markdown("### 🔍 Cmoney")
+        st.markdown("### 🔍 通用分析")
         if st.button("進入 Tab 5", key="btn_t5", use_container_width=True):
             st.session_state.active_tab = "tab5_wiki"; st.rerun()
     with c6:

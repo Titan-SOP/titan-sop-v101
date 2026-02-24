@@ -37,27 +37,23 @@ def stream_generator(text: str):
 @st.dialog("🔰 戰術指導 Mode — Titan V800")
 def show_guide_modal():
     st.markdown("""
-### 指揮官，歡迎進入 Titan 市場情報戰區 V900
+### 指揮官，歡迎進入 Titan 市場情報戰區 V800
 
 **7大分析模組（Niche Market Fusion）**：
 - 🕵️ **5.1 籌碼K線** — VWAP / OBV / CMF / 當沖雷達 · 主力能量匿藏偵測
 - 🚀 **5.2 起漲偵測** — Squeeze Momentum + 營收噴射引擎 · 雙引擎點火
 - ⚡ **5.3 權證小哥** — ATR波幅 + 凱利公式 · 最大化風報比（原版保留）
-- 🌸 **5.4 艾蜜莉定存股** — 台美股通用 · 艾蜜莉合理價 · PE河流 · 股息護城河 · 八大地雷掃除
+- 🚦 **5.4 艾蜜莉** — PE河流圖 + 掃雷大隊 · 內在價值+財務健康雙保險
 - 🛡️ **5.5 ETF戰情室** — 殖利率/費用比/Beta/X光透視 · 取代不穩定13F
 - 🌌 **5.6 量子預測** — Monte Carlo GBM · 1,000條平行宇宙 · 30天機率分佈
 - 📜 **5.7 戰略百科** — CB四大套利窗口 · 進出場SOP · CBAS引擎
 
-**操作方式**：點擊上方板塊切換模組。每個模組均有**第一性原理解析**。
+**操作方式**：點擊上方 6 個板塊切換模組。每個模組均有**第一性原理解析**。
 
-**5.4 艾蜜莉重點**：輸入任何台股（2330 · 00878）或美股（AAPL · NVDA），
-系統自動計算「艾蜜莉合理價」= 歷史平均EPS × 歷史平均PE，
-並以PE河流圖、股息護城河、八大財務地雷三道防線交叉驗證。
-
-**狀態燈號**：🟢 買入區 / 🟡 觀望區 / 🔴 昂貴區 — 低於合理價10%以上才是甜蜜點。
+**狀態燈號**：🟢 買入 / 🟡 觀望 / 🔴 警戒 — 隨時留意各模組動能方向。
 
 ---
-*建議：從 5.1 籌碼K線 入手熟悉介面，定存股研究請使用 5.4 艾蜜莉。*
+*建議：從 5.1 籌碼K線 入手熟悉介面，ETF分析請使用 5.5 ETF戰情室。*
 """)
     if st.button("✅ Roger that，出發！", type="primary", use_container_width=True):
         st.session_state["t5_guide_shown"] = True
@@ -1251,844 +1247,284 @@ def _s53(hist: pd.DataFrame, symbol: str):
 
 
 # ════════════════════════════════════════════════════════════════════
-# 5.4  艾蜜莉定存股 V900 — Emily Value Analysis Engine
-# 第一性原則：股價長期圍繞內在價值波動，持續獲利的企業終將均值回歸。
-# 台美股通用 | .TW/.TWO 自動識別 | 三道防線：價值評估 + PE河流 + 財務掃雷
+# 5.4  艾蜜莉定存 + PE River Chart + Mine Sweeper
+# First Principle: Price reverts to mean. Avoid bankruptcy risks.
 # ════════════════════════════════════════════════════════════════════
 def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     """
-    艾蜜莉定存股分析引擎 V900
-    台美股通用，三道防線交叉驗證：
-    1. 艾蜜莉合理價 + 紅綠燈
-    2. PE河流圖（8x/12x/16x/20x）+ 歷史百分位
-    3. 股息護城河 + 八大財務地雷掃除
+    Fusion: Value Traffic Light + PE River Chart (8x/12x/16x/20x) + Mine Sweeper.
+    Public-facing function name per spec.
     """
-    _hd("5.4", "🌸 艾蜜莉定存股分析儀 V900",
-        "艾蜜莉合理價 · PE河流 8×/12×/16×/20× · 股息護城河 · 八大財務地雷 · 台美股通用", "#FF9A3C")
+    _hd("5.4", "🚦 價值紅綠燈 + PE河流圖 + 掃雷大隊",
+        "PE河流 8×/12×/16×/20× · 財務地雷掃除 · DDM · Graham · 安全邊際", "#FF9A3C")
 
-    # ── 第一性原理完整解說 ──────────────────────────────────────
     _explain(
-        "第一性原理：股價長期圍繞內在價值波動",
-        "艾蜜莉策略源自台灣部落客「艾蜜莉」的選股邏輯，核心只有一句話：「好公司，等便宜」。"
-        "她的方法論建立在三個不可辯駁的事實上：\n\n"
-        "① 長期獲利能力才是公司真實價值的基礎（EPS）\n"
-        "② 市場會週期性地高估或低估股票（PE偏離均值）\n"
-        "③ 配息紀錄是最誠實的財務健康指標（現金不會說謊）\n\n"
-        "因此「艾蜜莉合理價」= 歷史平均EPS × 歷史合理PE。"
-        "當股價低於合理價85%時進場，高於合理價115%時出場，"
-        "中間持有等待均值回歸，搭配每年穩定股息收益。",
-        "▸ 合理價 × 85% = 便宜買入區  "
-        "▸ 合理價 = 歷史均PE × 正常EPS  "
-        "▸ 合理價 × 115% = 昂貴賣出區  "
-        "▸ 連續配息 10年+ = 護城河認證  "
-        "▸ D/E < 100% + FCF > 0 = 財務安全",
+        "第一性原理：均值回歸 + 財務健康雙重保險",
+        "PE河流圖是價值投資最直觀的視覺工具：用歷史EPS乘以不同PE倍數（8x/12x/16x/20x），"
+        "畫出四條「價值河岸」。股價落在哪條河道，一眼判斷估值高低。"
+        "掃雷大隊檢查兩個最危險的財務地雷：負債股權比>200%代表高槓桿風險，"
+        "自由現金流<0代表公司正在燒錢。排雷後的低PE股票，才是真正的安全邊際。",
+        "▸ 股價 < PE 8x帶 = 極度低估  ▸ 股價 > PE 20x帶 = 昂貴  ▸ 負債>200% + FCF<0 = 💣 財務地雷",
         "#FF9A3C"
     )
 
-    # ── 資料萃取（台股/美股通用，含 fallback）──────────────────
-    cp       = float(info.get("currentPrice") or info.get("regularMarketPrice") or
-                     (hist3y["Close"].iloc[-1] if not hist3y.empty else 0) or 0)
-    eps_ttm  = info.get("trailingEps")
-    eps_fwd  = info.get("forwardEps")
+    cp      = info.get("currentPrice") or info.get("regularMarketPrice") or \
+              (float(hist3y["Close"].iloc[-1]) if not hist3y.empty else 0)
+    eps     = info.get("trailingEps") or info.get("forwardEps")
     pe_trail = info.get("trailingPE")
     pe_fwd   = info.get("forwardPE")
-    pb       = info.get("priceToBook")
-    ps       = info.get("priceToSalesTrailing12Months")
-    div_y    = float(info.get("dividendYield") or 0)
-    div_rate = float(info.get("dividendRate") or 0)          # 每股股息
-    roe      = float(info.get("returnOnEquity") or 0)
-    bvps     = float(info.get("bookValue") or 0)
-    payout   = float(info.get("payoutRatio") or 0)
-    curr_r   = float(info.get("currentRatio") or 0)
-    d_e      = info.get("debtToEquity")                       # yf 回傳 0-100 scale
-    fcf      = info.get("freeCashflow")
-    rev_g    = float(info.get("revenueGrowth") or 0)
-    op_mar   = float(info.get("operatingMargins") or 0)
-    gross_m  = float(info.get("grossMargins") or 0)
-    int_cov  = info.get("ebitda")                             # 用 EBITDA 估利息保障
-    int_exp  = info.get("interestExpense") or info.get("totalDebt")
-    mktcap   = info.get("marketCap") or 0
-    currency = info.get("currency", "USD")
-    is_tw    = currency in ["TWD", "TWD TWD"] or (ticker.endswith(".TW") or ticker.endswith(".TWO"))
+    pb      = info.get("priceToBook")
+    ps      = info.get("priceToSalesTrailing12Months")
+    div_y   = info.get("dividendYield", 0) or 0
+    roe     = info.get("returnOnEquity", 0) or 0
+    bvps    = info.get("bookValue", 0) or 0
 
-    # 貨幣符號
-    cur_sym  = "NT$" if is_tw else "$"
+    # ── Mine Sweeper ──────────────────────────────────────────────────
+    debt_to_equity = info.get("debtToEquity")       # 0–100 scale typically
+    free_cashflow  = info.get("freeCashflow")        # raw value in currency
 
-    # EPS：台股優先 trailingEps，fallback forwardEps
-    eps_use  = eps_ttm if (eps_ttm and float(eps_ttm) > 0) else (eps_fwd if eps_fwd else None)
-    eps_val  = float(eps_use) if eps_use else None
+    has_debt_mine = debt_to_equity is not None and float(debt_to_equity) > 200
+    has_fcf_mine  = free_cashflow is not None  and float(free_cashflow)  < 0
 
-    # PE：trailing 優先，fallback forward；台股有時只有 forward
-    pe_use   = pe_trail if (pe_trail and float(pe_trail) > 0) else (pe_fwd if pe_fwd else None)
-    pe_val   = float(pe_use) if pe_use else None
+    # ── Historical PE percentiles ─────────────────────────────────────
+    pe_25 = pe_50 = pe_75 = hist_pe = None
+    if not hist3y.empty and eps and float(eps) > 0:
+        pe_ser = (hist3y["Close"] / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
+        pe_ser = pe_ser[pe_ser > 0]
+        if len(pe_ser) > 20:
+            pe_25 = float(np.percentile(pe_ser, 25))
+            pe_50 = float(np.percentile(pe_ser, 50))
+            pe_75 = float(np.percentile(pe_ser, 75))
+            hist_pe = float(pe_ser.iloc[-1])
 
-    # ── 歷史PE分佈（3年日K）──────────────────────────────────
-    pe_hist_series = None
-    pe_med = pe_25 = pe_75 = hist_avg_pe = None
-    if not hist3y.empty and eps_val and eps_val > 0:
-        close_ser  = hist3y["Close"].squeeze() if hasattr(hist3y["Close"], "squeeze") else hist3y["Close"]
-        pe_ser = (close_ser / eps_val).replace([np.inf, -np.inf], np.nan).dropna()
-        pe_ser = pe_ser[(pe_ser > 0) & (pe_ser < 200)]
-        if len(pe_ser) >= 30:
-            pe_hist_series = pe_ser
-            pe_25  = float(np.percentile(pe_ser, 25))
-            pe_med = float(np.percentile(pe_ser, 50))
-            pe_75  = float(np.percentile(pe_ser, 75))
-            hist_avg_pe = float(pe_ser.mean())
-
-    # ── 艾蜜莉合理價計算 ─────────────────────────────────────────
-    # 合理價 = 歷史均PE × EPS（若有歷史PE）
-    # fallback: 使用業界常用 15x PE（台股定存股標準）
-    if hist_avg_pe and eps_val:
-        fair_pe    = max(8.0, min(hist_avg_pe, 25.0))    # 限制合理PE上下界
-        emily_fair = eps_val * fair_pe
-        emily_src  = f"歷史均PE {fair_pe:.1f}×"
-    elif eps_val and pe_val:
-        fair_pe    = max(8.0, min(pe_val, 20.0))
-        emily_fair = eps_val * fair_pe
-        emily_src  = f"當前PE {fair_pe:.1f}×（歷史數據不足）"
-    elif eps_val:
-        fair_pe    = 15.0 if is_tw else 18.0             # 台股預設15，美股18
-        emily_fair = eps_val * fair_pe
-        emily_src  = f"標準PE {fair_pe:.1f}×（無PE數據）"
-    else:
-        emily_fair = None
-        emily_src  = "EPS不足，無法計算"
-
-    emily_cheap    = emily_fair * 0.85 if emily_fair else None  # 合理價85% = 便宜區上界
-    emily_exp      = emily_fair * 1.15 if emily_fair else None  # 合理價115% = 昂貴區下界
-
-    # ── 價格評估訊號 ─────────────────────────────────────────────
-    if emily_fair and cp > 0:
-        ratio = cp / emily_fair
-        if ratio <= 0.85:
-            signal = "cheap"
-        elif ratio >= 1.15:
-            signal = "expensive"
-        else:
-            signal = "fair"
-        pct_vs_fair = (cp - emily_fair) / emily_fair * 100
-    elif pe_hist_series is not None and pe_val:
-        ratio = pe_val / pe_med if pe_med else 1.0
-        signal = "cheap" if pe_val < pe_25 else ("expensive" if pe_val > pe_75 else "fair")
-        pct_vs_fair = None
+    use_pe = hist_pe or pe_trail or pe_fwd
+    if use_pe and pe_25 and pe_75:
+        signal = "cheap" if use_pe < pe_25 else ("expensive" if use_pe > pe_75 else "fair")
+    elif use_pe:
+        signal = "cheap" if use_pe < 15 else ("expensive" if use_pe > 35 else "fair")
     else:
         signal = "neutral"
-        pct_vs_fair = None
 
-    sig_map = {
-        "cheap":    ("🟢 便宜買入區", "#00FF7F", "低於合理價，艾蜜莉甜蜜點"),
-        "fair":     ("🟡 合理觀望區", "#FFD700", "合理價附近，等待更好切入點"),
-        "expensive":("🔴 昂貴警戒區", "#FF3131", "高於合理價，謹慎操作"),
-        "neutral":  ("⬜ 數據不足",   "#888888", "無EPS/PE，改看P/B·P/S·殖利率"),
-    }
-    sig_lbl, sig_c, sig_desc = sig_map[signal]
-
-    # ── DDM（股利折現模型）─────────────────────────────────────
+    # DDM
     ddm_val = None
-    if div_rate > 0 and cp > 0:
-        g_ddm = min(roe * 0.5, 0.07) if roe > 0 else 0.03
-        r_ddm = 0.10 if not is_tw else 0.08        # 台股用8%折現率
-        if r_ddm > g_ddm:
-            ddm_val = div_rate / (r_ddm - g_ddm)
-    elif div_y > 0 and cp > 0:
+    if div_y > 0 and cp > 0:
         D = cp * div_y
-        g_ddm = min(roe * 0.5, 0.07) if roe > 0 else 0.03
-        r_ddm = 0.10 if not is_tw else 0.08
-        if r_ddm > g_ddm:
-            ddm_val = D / (r_ddm - g_ddm)
+        g = min(roe * 0.5, 0.08) if roe > 0 else 0.03
+        r = 0.10
+        if r > g:
+            ddm_val = D / (r - g)
 
-    # ── Graham 安全價格 ─────────────────────────────────────────
+    # Graham
     graham_val = None
-    if eps_val and eps_val > 0 and bvps > 0:
-        try:
-            graham_val = float(np.sqrt(22.5 * eps_val * bvps))
-        except Exception:
-            pass
+    if eps and float(eps) > 0 and bvps > 0:
+        graham_val = float(np.sqrt(22.5 * float(eps) * bvps))
 
-    # ════════════════════════════════════════════════════════
-    # BLOCK A：KPI 總覽列
-    # ════════════════════════════════════════════════════════
-    _sec28("📊 核心估值 KPI 總覽")
-    _sec26("艾蜜莉合理價 · PE · PB · DDM · Graham · 殖利率 一目瞭然", "rgba(255,154,60,.5)")
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    sm = {
+        "cheap":    ("🟢 便宜 CHEAP",    "#00FF7F", "建議逢低佈局"),
+        "fair":     ("🟡 合理 FAIR",     "#FFD700", "持有觀望"),
+        "expensive":("🔴 昂貴 EXPENSIVE","#FF3131", "謹慎操作"),
+        "neutral":  ("⬜ 無PE數據",      "#888888", "改看P/B · P/S"),
+    }
+    sig_lbl, sig_c, sig_desc = sm[signal]
 
-    c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
-    _kpi(c1, "股價",
-         f"{cur_sym}{cp:.2f}" if cp else "N/A",
-         is_tw and "台股NT$" or "美股$",
-         "#00F5FF")
-    _kpi(c2, "EPS(TTM)",
-         f"{cur_sym}{eps_val:.2f}" if eps_val else "N/A",
-         "每股稅後盈餘",
-         "#FFD700")
-    _kpi(c3, "艾蜜莉合理價",
-         f"{cur_sym}{emily_fair:.1f}" if emily_fair else "N/A",
-         emily_src if emily_fair else "EPS不足",
-         sig_c)
-    _kpi(c4, "P/E 本益比",
-         f"{pe_val:.1f}×" if pe_val else "N/A",
-         f"均:{hist_avg_pe:.1f}×" if hist_avg_pe else "歷史均PE",
-         sig_c)
-    _kpi(c5, "P/B 淨值比",
-         f"{pb:.2f}×" if pb else "N/A",
-         "<1.5 偏低估",
-         "#00FF7F" if pb and pb < 1.5 else "#FFD700" if pb and pb < 3 else "#FF6060")
-    _kpi(c6, "DDM 估值",
-         f"{cur_sym}{ddm_val:.1f}" if ddm_val else "N/A",
-         ("低估✓" if ddm_val and cp < ddm_val else "高估✗") if ddm_val else "無配息紀錄",
+    # ── KPI row ───────────────────────────────────────────────────────
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    _kpi(c1, "股價",       f"{cp:.2f}" if cp else "N/A",                "",                                             "#00F5FF")
+    _kpi(c2, "EPS (TTM)",  f"{float(eps):.2f}" if eps else "N/A",      "每股盈餘",                                     "#FFD700")
+    _kpi(c3, "P/E",        f"{use_pe:.1f}×" if use_pe else "N/A",      "本益比",                                       sig_c)
+    _kpi(c4, "P/B",        f"{pb:.2f}×" if pb else "N/A",              "股價淨值",                                     "#B77DFF")
+    _kpi(c5, "DDM估值",    f"{ddm_val:.2f}" if ddm_val else "N/A",
+         f"{'低估✓' if ddm_val and cp < ddm_val else '高估✗' if ddm_val else '無配息'}",
          "#00FF7F" if ddm_val and cp < ddm_val else "#FF6060")
-    _kpi(c7, "殖利率",
-         f"{div_y*100:.2f}%" if div_y > 0 else "N/A",
-         ">4%=定存股門檻" if is_tw else ">2%=配息股",
-         "#00FF7F" if (is_tw and div_y > 0.04) or (not is_tw and div_y > 0.02)
-         else "#FFD700" if div_y > 0 else "#666")
+    _kpi(c6, "Graham值",   f"{graham_val:.2f}" if graham_val else "N/A",
+         f"{'低估✓' if graham_val and cp < graham_val else '高估✗' if graham_val else 'N/A'}",
+         "#00FF7F" if graham_val and cp and cp < graham_val else "#FF6060")
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # ════════════════════════════════════════════════════════
-    # BLOCK B：艾蜜莉合理價紅綠燈
-    # ════════════════════════════════════════════════════════
-    _sec28("🚦 艾蜜莉價格紅綠燈")
-    _sec26("股價與艾蜜莉合理價的相對位置 — 85%以下買入 / 115%以上賣出", "rgba(255,154,60,.5)")
-
+    # Traffic light
     def _circle(lbl, sub, cls, active):
         a = "active" if active else "dim"
-        return (f'<div class="tl-circle {cls} {a}">'
-                f'<div style="font-size:13px;font-weight:800;">{lbl}</div>'
-                f'<div style="font-size:9px;opacity:.7;margin-top:3px;">{sub}</div></div>')
+        return f'<div class="tl-circle {cls} {a}"><div style="font-size:13px;font-weight:800;">{lbl}</div><div style="font-size:9px;opacity:.7;margin-top:3px;">{sub}</div></div>'
 
-    if emily_fair:
-        cheap_sub = f"<{cur_sym}{emily_cheap:.0f}" if emily_cheap else "<85%"
-        fair_sub  = f"{cur_sym}{emily_cheap:.0f}~{emily_exp:.0f}" if emily_cheap and emily_exp else "85-115%"
-        exp_sub   = f">{cur_sym}{emily_exp:.0f}" if emily_exp else ">115%"
+    if pe_25 and pe_75:
+        rows = [(signal == "expensive", "tl-red",    "🔴 昂貴", f"PE>{pe_75:.0f}"),
+                (signal == "fair",     "tl-yellow",  "🟡 合理", f"PE {pe_25:.0f}-{pe_75:.0f}"),
+                (signal == "cheap",    "tl-green",   "🟢 便宜", f"PE<{pe_25:.0f}")]
     else:
-        cheap_sub = "PE < 25th pct" if pe_25 else "PE<15"
-        fair_sub  = "PE 合理區間"
-        exp_sub   = "PE > 75th pct" if pe_75 else "PE>35"
+        rows = [(signal == "expensive", "tl-red",    "🔴 昂貴", "PE>35"),
+                (signal == "fair",     "tl-yellow",  "🟡 合理", "PE 15-35"),
+                (signal == "cheap",    "tl-green",   "🟢 便宜", "PE<15")]
 
-    circles = (
-        _circle("🔴 昂貴", exp_sub,   "tl-red",    signal == "expensive") +
-        _circle("🟡 合理", fair_sub,  "tl-yellow", signal == "fair") +
-        _circle("🟢 便宜", cheap_sub, "tl-green",  signal == "cheap")
-    )
+    circles = "".join(_circle(lb, sb, cls, act) for act, cls, lb, sb in rows)
     st.markdown(f'<div class="tl-wrap">{circles}</div>', unsafe_allow_html=True)
-
-    # 主訊號條
-    pct_str = (f" &nbsp;·&nbsp; 偏離合理價 {pct_vs_fair:+.1f}%"
-               if pct_vs_fair is not None else "")
     st.markdown(
-        f'<div style="margin:12px 0;padding:20px 28px;background:rgba(0,0,0,.2);'
-        f'border:1px solid {sig_c}33;border-left:5px solid {sig_c};border-radius:0 14px 14px 0;">'
-        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:30px;font-weight:800;color:{sig_c};">'
-        f'{sig_lbl}</div>'
-        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;'
-        f'color:rgba(180,195,220,.65);margin-top:8px;">'
-        f'{sig_desc}{pct_str}'
-        f' &nbsp;·&nbsp; 合理價: {f"{cur_sym}{emily_fair:.1f}" if emily_fair else "N/A"}'
-        f' &nbsp;·&nbsp; 來源: {emily_src}'
-        f'</div></div>',
+        f'<div style="margin:12px 0;padding:18px 24px;background:rgba(0,0,0,.2);border:1px solid {sig_c}33;'
+        f'border-left:5px solid {sig_c};border-radius:0 12px 12px 0;text-align:center;">'
+        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:30px;font-weight:800;color:{sig_c};">{sig_lbl}</div>'
+        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;color:rgba(180,195,220,.65);margin-top:8px;">'
+        f'{sig_desc} &nbsp;·&nbsp; PE: {f"{use_pe:.1f}" if use_pe else "N/A"} &nbsp;·&nbsp; '
+        f'P/B: {f"{pb:.2f}" if pb else "N/A"} &nbsp;·&nbsp; Div: {div_y*100:.2f}% &nbsp;·&nbsp; '
+        f'Graham: {f"{graham_val:.2f}" if graham_val else "N/A"}</div></div>',
         unsafe_allow_html=True
     )
 
-    # ── 說明卡：艾蜜莉合理價如何計算 ──────────────────────────
-    with st.expander("📖 艾蜜莉合理價計算邏輯詳解（展開查看）", expanded=False):
-        st.markdown(f"""
-<div class="t5-explain">
-<div class="t5-explain-title">🌸 艾蜜莉合理價公式</div>
-<div class="t5-explain-body">
+    # ══════════════════════════════════════════════════════════════
+    # PE RIVER CHART (Plotly) — 8x / 12x / 16x / 20x bands
+    # ══════════════════════════════════════════════════════════════
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+    _sec28("PE 價值河流圖 (PE River Chart)")
+    _sec26("股價與四條PE估值帶的相對位置 — 落在哪條河道一眼看清估值高低", "rgba(160,176,208,.45)")
 
-**核心公式**：合理價 = 歷史平均EPS × 歷史合理PE
-
-艾蜜莉的邏輯核心是「均值回歸」：好公司的 EPS 長期向上，市場給予的 PE 倍數則會在一個合理範圍內波動。
-當股價低於這個合理中心值的 85% 時，代表市場過度悲觀，是進場時機；
-當高於 115% 時，代表市場過度樂觀，應考慮獲利了結。
-
-**本次計算**：
-- EPS (TTM)：{f"{cur_sym}{eps_val:.2f}" if eps_val else "無法取得（台股需等年報）"}
-- 歷史平均PE：{f"{hist_avg_pe:.1f}×" if hist_avg_pe else "歷史數據不足，使用標準值"}
-- 合理PE（限制8–25）：{f"{fair_pe:.1f}×" if emily_fair else "N/A"}
-- **艾蜜莉合理價：{f"{cur_sym}{emily_fair:.2f}" if emily_fair else "N/A"}**
-- 便宜買入上界（×0.85）：{f"{cur_sym}{emily_cheap:.2f}" if emily_cheap else "N/A"}
-- 昂貴警戒下界（×1.15）：{f"{cur_sym}{emily_exp:.2f}" if emily_exp else "N/A"}
-
-</div>
-<div class="t5-explain-key">
-▸ Graham 安全邊際：{f"{cur_sym}{graham_val:.2f}" if graham_val else "N/A（需EPS+BVPS）"}　
-▸ DDM 股利估值：{f"{cur_sym}{ddm_val:.2f}" if ddm_val else "N/A（無配息紀錄）"}　
-▸ 台股EPS提示：部分台股 yfinance 回傳的EPS為年度數據，河流圖以此為準
-</div>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
-
-    # ════════════════════════════════════════════════════════
-    # BLOCK C：PE 河流圖
-    # ════════════════════════════════════════════════════════
-    _sec28("🌊 PE 價值河流圖（PE River Chart）")
-    _sec26("股價相對於四條PE估值帶的歷史位置 — 8×/12×/16×/20×，落在哪條河道一眼判斷估值高低", "rgba(160,176,208,.45)")
-
-    if not hist3y.empty and eps_val and eps_val > 0:
-        eps_v = eps_val
-        river = hist3y.copy().reset_index()
-
-        # 標準化日期欄
-        for _c in river.columns:
-            if str(_c).lower() in ["date", "datetime", "index"]:
-                river.rename(columns={_c: "Date"}, inplace=True)
+    if not hist3y.empty and eps and float(eps) > 0:
+        eps_val = float(eps)
+        river_df = hist3y.copy().reset_index()
+        for c in river_df.columns:
+            if str(c).lower() in ["date", "datetime", "index"]:
+                river_df.rename(columns={c: "Date"}, inplace=True)
                 break
-        if "Date" not in river.columns:
-            river["Date"] = river.index
-        river["Date"] = pd.to_datetime(river["Date"])
-        river["PE8"]  = eps_v * 8
-        river["PE12"] = eps_v * 12
-        river["PE16"] = eps_v * 16
-        river["PE20"] = eps_v * 20
+        if "Date" not in river_df.columns:
+            river_df["Date"] = river_df.index
+        river_df["Date"]  = pd.to_datetime(river_df["Date"])
+        river_df["PE8"]   = eps_val * 8
+        river_df["PE12"]  = eps_val * 12
+        river_df["PE16"]  = eps_val * 16
+        river_df["PE20"]  = eps_val * 20
 
-        fig_r = go.Figure()
-
-        # 填色帶（8-12 / 12-16 / 16-20）
-        bands = [
-            (river["PE8"],  river["PE12"], "#00FF7F", "rgba(0,255,127,.06)",  "PE 8×–12× 低估帶"),
-            (river["PE12"], river["PE16"], "#FFD700", "rgba(255,215,0,.06)",  "PE 12×–16× 合理帶"),
-            (river["PE16"], river["PE20"], "#FF9A3C", "rgba(255,154,60,.06)", "PE 16×–20× 偏貴帶"),
+        fig_river = go.Figure()
+        # Colored river bands (filled areas between PE lines)
+        river_colors = [
+            ("#00FF7F", "rgba(0,255,127,.08)",  "PE 8×",  "river_df.PE8",  "PE 12×", "river_df.PE12"),
+            ("#FFD700", "rgba(255,215,0,.07)",  "PE 12×", "river_df.PE12", "PE 16×", "river_df.PE16"),
+            ("#FF9A3C", "rgba(255,154,60,.07)", "PE 16×", "river_df.PE16", "PE 20×", "river_df.PE20"),
+            ("#FF3131", "rgba(255,49,49,.07)",  "PE 20×", "river_df.PE20", None,     None),
         ]
-        for y_lo, y_hi, lc, fc, bname in bands:
-            fig_r.add_trace(go.Scatter(
-                x=pd.concat([river["Date"], river["Date"][::-1]]),
-                y=pd.concat([y_hi, y_lo[::-1]]),
-                fill="toself", fillcolor=fc,
-                line=dict(width=0), name=bname,
-                showlegend=True, hoverinfo="skip"
+        pe_band_data = [
+            (river_df["PE8"],  river_df["PE12"],  "#00FF7F", "rgba(0,255,127,.06)",  "PE 8×–12×"),
+            (river_df["PE12"], river_df["PE16"],  "#FFD700", "rgba(255,215,0,.06)",  "PE 12×–16×"),
+            (river_df["PE16"], river_df["PE20"],  "#FF9A3C", "rgba(255,154,60,.06)", "PE 16×–20×"),
+        ]
+        for y_lower, y_upper, lc, fc, band_name in pe_band_data:
+            fig_river.add_trace(go.Scatter(
+                x=pd.concat([river_df["Date"], river_df["Date"][::-1]]),
+                y=pd.concat([y_upper, y_lower[::-1]]),
+                fill="toself", fillcolor=fc, line=dict(width=0),
+                name=band_name, showlegend=True,
+                hoverinfo="skip"
             ))
-
-        # PE 分位線（若有歷史分佈）
-        if pe_25 and pe_med and pe_75:
-            for pct_pe, pname, pc in [
-                (pe_25 * eps_v,  f"25th pct ({pe_25:.0f}×)", "rgba(0,255,127,.5)"),
-                (pe_med * eps_v, f"中位 ({pe_med:.0f}×)",    "rgba(255,215,0,.5)"),
-                (pe_75 * eps_v,  f"75th pct ({pe_75:.0f}×)", "rgba(255,100,60,.5)"),
-            ]:
-                fig_r.add_hline(y=pct_pe, line=dict(color=pc, width=1, dash="longdash"),
-                                annotation_text=pname,
-                                annotation_font_color=pc,
-                                annotation_position="right")
-
-        # 艾蜜莉合理價線
-        if emily_fair:
-            fig_r.add_hline(
-                y=emily_fair,
-                line=dict(color="#FF9A3C", width=2, dash="dash"),
-                annotation_text=f"🌸 合理價 {cur_sym}{emily_fair:.1f}",
-                annotation_font_color="#FF9A3C",
-                annotation_position="right"
-            )
-
-        # PE 帶線（虛線）
-        for pm, pc_line in [(8,"#00FF7F"),(12,"#FFD700"),(16,"#FF9A3C"),(20,"#FF3131")]:
-            fig_r.add_trace(go.Scatter(
-                x=river["Date"], y=river[f"PE{pm}"],
-                name=f"PE {pm}×",
-                line=dict(color=pc_line, width=1.2, dash="dot"),
-                hovertemplate=f"PE {pm}× = %{{y:.2f}}<extra></extra>"
+        # PE lines
+        for pe_mult, pe_col, pe_col_line in [(8, "#00FF7F", "#00FF7F"), (12, "#FFD700", "#FFD700"),
+                                              (16, "#FF9A3C", "#FF9A3C"), (20, "#FF3131", "#FF3131")]:
+            fig_river.add_trace(go.Scatter(
+                x=river_df["Date"], y=river_df[f"PE{pe_mult}"],
+                name=f"PE {pe_mult}×", line=dict(color=pe_col_line, width=1.2, dash="dot"),
+                hovertemplate=f"PE {pe_mult}× = %{{y:.2f}}<extra></extra>"
             ))
-
-        # 收盤價（最上層）
-        fig_r.add_trace(go.Scatter(
-            x=river["Date"], y=river["Close"],
-            name="收盤價", line=dict(color="#00F5FF", width=2.5),
+        # Price line on top
+        fig_river.add_trace(go.Scatter(
+            x=river_df["Date"], y=river_df["Close"],
+            name="收盤價", line=dict(color="#00F5FF", width=2.2),
             hovertemplate="Price = %{y:.2f}<extra></extra>"
         ))
-
-        fig_r.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=400,
-            margin=dict(t=20, b=50, l=70, r=100),
-            legend=dict(font=dict(color="#B0C0D0", size=10, family="Rajdhani"),
-                        orientation="h", y=-0.14),
-            yaxis=dict(gridcolor="rgba(255,255,255,.04)",
-                       tickfont=dict(color="#778"),
-                       title=dict(text=f"股價 ({cur_sym})", font=dict(color="#778", size=11))),
+        fig_river.update_layout(
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            height=380,
+            margin=dict(t=20, b=40, l=60, r=20),
+            legend=dict(font=dict(color="#B0C0D0", size=11, family="Rajdhani"), orientation="h", y=-0.12),
+            yaxis=dict(gridcolor="rgba(255,255,255,.04)", tickfont=dict(color="#778")),
             xaxis=dict(gridcolor="rgba(255,255,255,.03)", tickfont=dict(color="#778")),
         )
-        st.plotly_chart(fig_r, use_container_width=True)
-
-        # PE 百分位進度條
-        if pe_25 and pe_75 and pe_val:
-            pct_pos  = min(100, max(0, (pe_val - pe_25) / max(pe_75 - pe_25, 0.001) * 100))
-            bar_c    = "#FF3131" if pct_pos > 80 else ("#FFD700" if pct_pos > 40 else "#00FF7F")
+        st.plotly_chart(fig_river, use_container_width=True)
+        # PE percentile bar
+        if pe_25 and pe_75 and use_pe:
+            pct_pos = min(100, max(0, (use_pe - pe_25) / (pe_75 - pe_25 + 0.001) * 100))
+            c_pos   = "#FF3131" if pct_pos > 80 else ("#FFD700" if pct_pos > 40 else "#00FF7F")
             st.markdown(
-                f'<div style="margin:14px 0;">'
-                f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:20px;'
-                f'color:rgba(160,176,208,.55);margin-bottom:8px;">'
-                f'PE 歷史百分位 — 目前本益比 {pe_val:.1f}× 位於3年歷史的第 '
-                f'<span style="color:{bar_c};font-weight:700;">{pct_pos:.0f}th</span> 百分位</div>'
-                f'<div style="background:rgba(255,255,255,.05);border-radius:20px;'
-                f'height:12px;position:relative;overflow:hidden;">'
+                f'<div style="margin:12px 0;">'
+                f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;color:rgba(160,176,208,.5);margin-bottom:8px;">'
+                f'PE PERCENTILE — 目前PE位於3年歷史的第 {pct_pos:.0f} 百分位</div>'
+                f'<div style="background:rgba(255,255,255,.05);border-radius:20px;height:10px;position:relative;overflow:hidden;">'
                 f'<div style="position:absolute;left:0;top:0;height:100%;width:{pct_pos:.0f}%;'
-                f'background:linear-gradient(90deg,#00FF7F,{bar_c});border-radius:20px;"></div></div>'
-                f'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
-                f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-                f'color:rgba(0,255,127,.5);">25th: {pe_25:.1f}×</span>'
-                f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-                f'color:rgba(255,215,0,.5);">中位: {pe_med:.1f}×</span>'
-                f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;'
-                f'color:rgba(255,100,60,.5);">75th: {pe_75:.1f}×</span>'
-                f'</div></div>',
+                f'background:linear-gradient(90deg,#00FF7F,{c_pos});border-radius:20px;"></div></div>'
+                f'<div style="font-family:\'Orbitron\',sans-serif;font-size:12px;color:{c_pos};margin-top:6px;text-align:right;">'
+                f'{pct_pos:.0f}th PERCENTILE</div></div>',
                 unsafe_allow_html=True
             )
     else:
-        # 無EPS → 顯示說明 + 現有PE/PS
-        st.toast("💡 此標的無EPS數據（ETF/未獲利/台股年報未更新），PE河流圖不可用", icon="💡")
-        r1, r2, r3 = st.columns(3)
-        if pe_trail:
-            _kpi(r1, "Trailing P/E", f"{pe_trail:.1f}×", "TTM本益比", "#FFD700")
-        if pe_fwd:
-            _kpi(r2, "Forward P/E",  f"{pe_fwd:.1f}×",  "預估本益比", "#FF9A3C")
-        if ps:
-            _kpi(r3, "P/S (TTM)",    f"{ps:.2f}×",      "市銷率",     "#B77DFF")
-        st.markdown(
-            '<div style="background:rgba(255,165,0,.06);border:1px solid rgba(255,165,0,.2);'
-            'border-radius:10px;padding:18px 22px;margin:14px 0;">'
-            '<div style="font-family:\'Rajdhani\',sans-serif;font-size:22px;color:#FF9A3C;">'
-            '📌 台股EPS說明</div>'
-            '<div style="font-family:\'Rajdhani\',sans-serif;font-size:18px;'
-            'color:rgba(200,215,235,.7);margin-top:8px;line-height:1.7;">'
-            '部分台股 yfinance 回傳的EPS不穩定，尤其是新上市或年報更新延遲的公司。<br>'
-            '建議：手動輸入下方的「EPS手動計算」工具，或至 Cmoney / 公開資訊觀測站確認最新EPS。'
-            '</div></div>',
-            unsafe_allow_html=True
-        )
+        st.toast("💡 此標的無EPS數據（ETF/未獲利公司），PE河流圖不可用", icon="💡")
+        if pe_trail: st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Trailing P/E: <b>{pe_trail:.1f}×</b></div>', unsafe_allow_html=True)
+        if pe_fwd:   st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">Forward P/E: <b>{pe_fwd:.1f}×</b></div>',  unsafe_allow_html=True)
+        if ps:       st.markdown(f'<div style="font-family:Rajdhani,sans-serif;font-size:22px;color:#FFF;">P/S (TTM): <b>{ps:.2f}×</b></div>',          unsafe_allow_html=True)
 
-    # ── EPS 手動計算器（台股補充工具）──────────────────────────
-    with st.expander("🔧 EPS 手動合理價計算器（台股/API數據不足時使用）", expanded=False):
-        st.markdown(
-            '<div style="font-family:\'Rajdhani\',sans-serif;font-size:22px;'
-            'color:rgba(255,154,60,.8);margin-bottom:12px;">'
-            '手動輸入EPS + 目標PE，快速計算艾蜜莉合理價</div>',
-            unsafe_allow_html=True
-        )
-        ca, cb, cc = st.columns(3)
-        manual_eps = ca.number_input("每股盈餘 EPS (元)",
-                                     min_value=0.01, value=float(eps_val) if eps_val else 5.0,
-                                     step=0.5, format="%.2f", key="em_manual_eps")
-        manual_pe  = cb.number_input("目標合理 PE 倍數",
-                                     min_value=5.0, value=float(fair_pe) if emily_fair else 15.0,
-                                     step=0.5, format="%.1f", key="em_manual_pe")
-        manual_cp  = cc.number_input("現在股價 (元)",
-                                     min_value=0.01, value=float(cp) if cp else 100.0,
-                                     step=0.5, format="%.2f", key="em_manual_cp")
-        m_fair  = manual_eps * manual_pe
-        m_cheap = m_fair * 0.85
-        m_exp   = m_fair * 1.15
-        m_ratio = manual_cp / m_fair if m_fair > 0 else 0
-        m_sig_c = "#00FF7F" if m_ratio <= 0.85 else ("#FF3131" if m_ratio >= 1.15 else "#FFD700")
-        m_sig_t = "🟢 便宜買入區" if m_ratio <= 0.85 else ("🔴 昂貴警戒區" if m_ratio >= 1.15 else "🟡 合理觀望區")
-        st.markdown(
-            f'<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;">'
-            f'<div style="flex:1;min-width:160px;padding:16px 20px;'
-            f'background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
-            f'border-top:3px solid #FF9A3C;border-radius:12px;text-align:center;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'color:rgba(140,155,178,.5);letter-spacing:2px;text-transform:uppercase;">艾蜜莉合理價</div>'
-            f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:44px;'
-            f'color:#FF9A3C;line-height:.9;margin:6px 0;">{m_fair:.1f}</div></div>'
-            f'<div style="flex:1;min-width:160px;padding:16px 20px;'
-            f'background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
-            f'border-top:3px solid #00FF7F;border-radius:12px;text-align:center;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'color:rgba(140,155,178,.5);letter-spacing:2px;text-transform:uppercase;">便宜上界 ×0.85</div>'
-            f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:44px;'
-            f'color:#00FF7F;line-height:.9;margin:6px 0;">{m_cheap:.1f}</div></div>'
-            f'<div style="flex:1;min-width:160px;padding:16px 20px;'
-            f'background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);'
-            f'border-top:3px solid #FF3131;border-radius:12px;text-align:center;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'color:rgba(140,155,178,.5);letter-spacing:2px;text-transform:uppercase;">昂貴下界 ×1.15</div>'
-            f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:44px;'
-            f'color:#FF3131;line-height:.9;margin:6px 0;">{m_exp:.1f}</div></div>'
-            f'<div style="flex:1;min-width:160px;padding:16px 20px;'
-            f'background:rgba(255,255,255,.02);border:1px solid {m_sig_c}33;'
-            f'border-top:3px solid {m_sig_c};border-radius:12px;text-align:center;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'color:rgba(140,155,178,.5);letter-spacing:2px;text-transform:uppercase;">現在評估</div>'
-            f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:22px;font-weight:800;'
-            f'color:{m_sig_c};line-height:1.2;margin:6px 0;">{m_sig_t}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
-            f'color:{m_sig_c};">{(manual_cp/m_fair-1)*100:+.1f}%</div></div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
+    # ══════════════════════════════════════════════════════════════
+    # MINE SWEEPER (掃雷大隊)
+    # ══════════════════════════════════════════════════════════════
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
+    _sec28("💣 掃雷大隊 (Mine Sweeper)")
+    _sec26("負債股權比 + 自由現金流 — 財務地雷偵測，排雷後的便宜股才是真低估", "rgba(255,154,60,.5)")
 
-    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+    mine_count = int(has_debt_mine) + int(has_fcf_mine)
 
-    # ════════════════════════════════════════════════════════
-    # BLOCK D：股息護城河
-    # ════════════════════════════════════════════════════════
-    _sec28("💰 股息護城河分析（Dividend Moat）")
-    _sec26("殖利率 · 配息率 · 股息穩定性 · DDM估值 — 現金流不說謊，配息是財務健康的最誠實指標", "rgba(160,176,208,.45)")
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-    d1, d2, d3, d4 = st.columns(4)
-    _kpi(d1, "殖利率",
-         f"{div_y*100:.2f}%" if div_y > 0 else "無配息",
-         ">4% 台股定存門檻" if is_tw else ">2% 美股門檻",
-         "#00FF7F" if (is_tw and div_y > 0.04) or (not is_tw and div_y > 0.02)
-         else "#FFD700" if div_y > 0 else "#888")
-    _kpi(d2, "每股股息",
-         f"{cur_sym}{div_rate:.2f}" if div_rate > 0 else "N/A",
-         "年度配息金額",
-         "#FFD700" if div_rate > 0 else "#888")
-    _kpi(d3, "配息率",
-         f"{payout*100:.1f}%" if payout > 0 else "N/A",
-         "< 80% = 可持續",
-         "#00FF7F" if 0 < payout < 0.8 else "#FF6060" if payout > 0.9 else "#FFD700")
-    _kpi(d4, "DDM估值",
-         f"{cur_sym}{ddm_val:.1f}" if ddm_val else "N/A",
-         ("↑低估" if ddm_val and cp < ddm_val else "↓高估") if ddm_val else "無配息",
-         "#00FF7F" if ddm_val and cp < ddm_val else "#FF6060" if ddm_val else "#888")
-
-    # 股息護城河評分
-    div_score = 0
-    div_notes = []
-    if div_y > (0.04 if is_tw else 0.02):
-        div_score += 30; div_notes.append(f"✅ 殖利率 {div_y*100:.1f}% 達門檻")
-    elif div_y > 0:
-        div_score += 10; div_notes.append(f"⚠️ 殖利率 {div_y*100:.1f}% 略低")
+    if mine_count == 0:
+        st.markdown(f"""
+<div class="mine-safe">
+  <div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:#00FF7F;">
+    ✅ 財務健康 — 無明顯地雷</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:rgba(0,255,127,.55);margin-top:6px;">
+    D/E: {f"{debt_to_equity:.1f}%" if debt_to_equity is not None else "N/A"} (&lt;200% 安全) &nbsp;·&nbsp;
+    FCF: {f"${free_cashflow/1e9:.2f}B" if free_cashflow and abs(free_cashflow)>1e9 else f"${free_cashflow/1e6:.0f}M" if free_cashflow else "N/A"} (&gt;0 健康)
+  </div>
+</div>""", unsafe_allow_html=True)
     else:
-        div_notes.append("❌ 目前無配息紀錄")
-    if 0 < payout < 0.5:
-        div_score += 30; div_notes.append("✅ 配息率<50%，保留充裕再投資空間")
-    elif 0.5 <= payout < 0.8:
-        div_score += 20; div_notes.append("✅ 配息率合理（50–80%）")
-    elif payout >= 0.8:
-        div_notes.append("⚠️ 配息率>80%，長期可持續性需關注")
-    if ddm_val and cp < ddm_val:
-        div_score += 25; div_notes.append(f"✅ DDM估值 {cur_sym}{ddm_val:.1f} > 現價，具安全邊際")
-    elif ddm_val:
-        div_notes.append(f"⚠️ 現價高於DDM估值 {cur_sym}{ddm_val:.1f}")
-    if roe > 0.15:
-        div_score += 15; div_notes.append(f"✅ ROE {roe*100:.1f}%，股東權益報酬優秀")
-    elif roe > 0:
-        div_score += 5; div_notes.append(f"⚠️ ROE {roe*100:.1f}%，尚可")
+        debt_str = (f"{debt_to_equity:.1f}%" if debt_to_equity is not None else "N/A")
+        fcf_str  = (f"${free_cashflow/1e9:.2f}B" if free_cashflow and abs(free_cashflow) > 1e9
+                    else f"${free_cashflow/1e6:.0f}M" if free_cashflow else "N/A")
+        st.markdown(f"""
+<div class="mine-alert">
+  <div style="font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:#FF6B6B;">
+    💣 財務地雷 (Mine Alert) — 偵測到 {mine_count} 個風險訊號</div>
+  <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;">""", unsafe_allow_html=True)
 
-    div_score = min(100, div_score)
-    div_color = "#00FF7F" if div_score >= 70 else ("#FFD700" if div_score >= 40 else "#FF3131")
-    div_label = "🏰 護城河深厚" if div_score >= 70 else ("🌊 護城河普通" if div_score >= 40 else "🚧 護城河薄弱")
+        if has_debt_mine:
+            st.markdown(f"""
+    <div style="flex:1;min-width:220px;padding:12px 16px;background:rgba(255,49,49,.06);
+      border:1px solid rgba(255,49,49,.25);border-radius:10px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,100,100,.6);
+        letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">💣 高負債風險</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:#FF6B6B;line-height:1;">{debt_str}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(255,120,120,.6);margin-top:4px;">
+        負債股權比 D/E &gt; 200% 警戒線</div>
+    </div>""", unsafe_allow_html=True)
 
-    st.markdown(
-        f'<div style="margin:14px 0;padding:18px 24px;background:rgba(0,0,0,.2);'
-        f'border:1px solid {div_color}22;border-left:5px solid {div_color};border-radius:0 14px 14px 0;">'
-        f'<div style="display:flex;align-items:center;gap:20px;margin-bottom:12px;">'
-        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:28px;font-weight:800;'
-        f'color:{div_color};">{div_label}</div>'
-        f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:44px;color:{div_color};'
-        f'line-height:1;">{div_score}</div>'
-        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;'
-        f'color:rgba(160,176,208,.4);">/100</div></div>'
-        f'<div style="display:flex;flex-wrap:wrap;gap:8px;">'
-        + "".join(
-            f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:17px;'
-            f'color:rgba(200,215,235,.7);background:rgba(255,255,255,.04);'
-            f'border-radius:6px;padding:4px 12px;">{n}</div>'
-            for n in div_notes
-        )
-        + f'</div></div>',
-        unsafe_allow_html=True
-    )
+        if has_fcf_mine:
+            st.markdown(f"""
+    <div style="flex:1;min-width:220px;padding:12px 16px;background:rgba(255,49,49,.06);
+      border:1px solid rgba(255,49,49,.25);border-radius:10px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,100,100,.6);
+        letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">💣 自由現金流負值</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:#FF6B6B;line-height:1;">{fcf_str}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(255,120,120,.6);margin-top:4px;">
+        FCF &lt; 0 · 公司正在燒錢</div>
+    </div>""", unsafe_allow_html=True)
 
-    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
-    # ════════════════════════════════════════════════════════
-    # BLOCK E：八大財務地雷掃除
-    # ════════════════════════════════════════════════════════
-    _sec28("💣 八大財務地雷掃除（Mine Sweeper）")
-    _sec26("艾蜜莉最重視的財務健康指標：排雷後的便宜股才是真正安全邊際，任何一個地雷都可能讓便宜變陷阱", "rgba(255,154,60,.5)")
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    # Mine sweeper metrics summary
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    de_c = "#FF3131" if has_debt_mine else "#00FF7F"
+    fc_c = "#FF3131" if has_fcf_mine  else "#00FF7F"
+    _kpi(mc1, "負債股權比 D/E", f"{debt_to_equity:.0f}%" if debt_to_equity is not None else "N/A",
+         ">200%=高風險", de_c)
+    _kpi(mc2, "自由現金流",
+         f"${free_cashflow/1e9:.1f}B" if free_cashflow and abs(free_cashflow) > 1e9
+         else f"${free_cashflow/1e6:.0f}M" if free_cashflow else "N/A",
+         ">0=健康", fc_c)
+    _kpi(mc3, "流動比率", f"{info.get('currentRatio', 0) or 0:.2f}×", ">1.5=安全",
+         "#00FF7F" if (info.get("currentRatio") or 0) > 1.5 else "#FFD700")
+    _kpi(mc4, "ROE",
+         f"{info.get('returnOnEquity', 0) * 100:.1f}%" if info.get("returnOnEquity") else "N/A",
+         ">15%=優秀",
+         "#00FF7F" if (info.get("returnOnEquity") or 0) > 0.15 else "#FFD700")
 
-    # 八大地雷評估邏輯
-    mines = []
-
-    # 地雷1：高負債
-    de_v = float(d_e) if d_e is not None else None
-    if de_v is not None:
-        is_mine = de_v > 200
-        mines.append({
-            "name": "💣 高負債風險",
-            "value": f"{de_v:.0f}%",
-            "threshold": "D/E > 200% = 警戒",
-            "safe": f"D/E < 100% 較安全",
-            "mine": is_mine,
-            "warn": de_v > 100 and not is_mine,
-            "detail": "負債股權比衡量企業財務槓桿，台股超過200%代表高度依賴借貸，利率敏感。"
-        })
-    else:
-        mines.append({"name": "💣 高負債風險", "value": "N/A", "threshold": "D/E > 200%",
-                      "safe": "數據不足", "mine": False, "warn": True,
-                      "detail": "無法取得負債數據，建議至公開資訊觀測站查閱財報。"})
-
-    # 地雷2：FCF 為負
-    fcf_v = float(fcf) if fcf is not None else None
-    if fcf_v is not None:
-        fcf_str = (f"${fcf_v/1e9:.2f}B" if abs(fcf_v) > 1e9
-                   else f"{cur_sym}{fcf_v/1e6:.0f}M" if not is_tw
-                   else f"NT${fcf_v/1e8:.1f}億")
-        mines.append({
-            "name": "💣 自由現金流",
-            "value": fcf_str,
-            "threshold": "FCF < 0 = 燒錢",
-            "safe": "FCF > 0 代表真實現金獲利",
-            "mine": fcf_v < 0,
-            "warn": False,
-            "detail": "FCF = 營業現金流 - 資本支出。負值代表公司入不敷出，靠借貸或股本維持營運。"
-        })
-    else:
-        mines.append({"name": "💣 自由現金流", "value": "N/A", "threshold": "FCF < 0",
-                      "safe": "數據不足", "mine": False, "warn": True,
-                      "detail": "無法取得現金流數據。"})
-
-    # 地雷3：流動比率偏低
-    if curr_r > 0:
-        mines.append({
-            "name": "💣 流動性風險",
-            "value": f"{curr_r:.2f}×",
-            "threshold": "流動比 < 1.0 = 危險",
-            "safe": "> 1.5 較安全",
-            "mine": curr_r < 1.0,
-            "warn": curr_r < 1.5 and curr_r >= 1.0,
-            "detail": "流動比率 = 流動資產/流動負債。低於1代表短期償債能力不足，可能面臨財務壓力。"
-        })
-    else:
-        mines.append({"name": "💣 流動性風險", "value": "N/A", "threshold": "流動比 < 1.0",
-                      "safe": "數據不足", "mine": False, "warn": True, "detail": ""})
-
-    # 地雷4：ROE 偏低
-    if roe != 0:
-        mines.append({
-            "name": "💣 獲利能力",
-            "value": f"{roe*100:.1f}%",
-            "threshold": "ROE < 8% = 低效",
-            "safe": "> 15% 優秀",
-            "mine": roe < 0.08 and roe > 0,
-            "warn": roe < 0,
-            "detail": "ROE衡量股東權益回報率。艾蜜莉要求長期ROE > 10%，代表公司有真實護城河。"
-        })
-    else:
-        mines.append({"name": "💣 獲利能力 ROE", "value": "N/A", "threshold": "ROE < 8%",
-                      "safe": "數據不足", "mine": False, "warn": True, "detail": ""})
-
-    # 地雷5：配息率過高
-    if payout > 0:
-        mines.append({
-            "name": "💣 配息可持續性",
-            "value": f"{payout*100:.1f}%",
-            "threshold": "配息率 > 90% = 超配",
-            "safe": "< 70% 可持續",
-            "mine": payout > 0.9,
-            "warn": payout > 0.7 and payout <= 0.9,
-            "detail": "配息率過高代表公司將幾乎所有盈餘都發出去，留不住資本投資未來，長期可持續性堪憂。"
-        })
-    else:
-        mines.append({"name": "💣 配息可持續性", "value": "N/A", "threshold": "配息率 > 90%",
-                      "safe": "無配息紀錄", "mine": False, "warn": div_y == 0,
-                      "detail": "無配息紀錄的公司需以成長性補充（適用科技成長股）。"})
-
-    # 地雷6：毛利率偏低
-    if gross_m != 0:
-        mines.append({
-            "name": "💣 毛利率護城河",
-            "value": f"{gross_m*100:.1f}%",
-            "threshold": "毛利 < 20% = 低護城河",
-            "safe": "> 40% 寬護城河",
-            "mine": 0 < gross_m < 0.20,
-            "warn": 0.20 <= gross_m < 0.35,
-            "detail": "低毛利率代表競爭激烈或定價能力弱，艾蜜莉偏好毛利率穩定向上的公司。"
-        })
-    else:
-        mines.append({"name": "💣 毛利率護城河", "value": "N/A", "threshold": "毛利 < 20%",
-                      "safe": "數據不足", "mine": False, "warn": True, "detail": ""})
-
-    # 地雷7：營收成長停滯
-    if rev_g != 0:
-        mines.append({
-            "name": "💣 營收成長停滯",
-            "value": f"{rev_g*100:+.1f}%",
-            "threshold": "YoY < -10% = 衰退",
-            "safe": "> 5% 成長健康",
-            "mine": rev_g < -0.10,
-            "warn": -0.10 <= rev_g < 0,
-            "detail": "定存股要求營收能抵抗通膨，持續萎縮的營收難以支撐長期股息。"
-        })
-    else:
-        mines.append({"name": "💣 營收成長", "value": "N/A", "threshold": "YoY < -10%",
-                      "safe": "數據不足", "mine": False, "warn": True, "detail": ""})
-
-    # 地雷8：P/B 過高（資產泡沫）
-    if pb and pb > 0:
-        mines.append({
-            "name": "💣 淨值溢價",
-            "value": f"{pb:.2f}×",
-            "threshold": "P/B > 5× = 資產溢價",
-            "safe": "< 2× 較安全",
-            "mine": pb > 5.0,
-            "warn": pb > 3.0 and pb <= 5.0,
-            "detail": "P/B過高代表帳面資產定價過度昂貴，若遇景氣下行股價回調空間大。"
-        })
-    else:
-        mines.append({"name": "💣 淨值溢價 P/B", "value": "N/A", "threshold": "P/B > 5×",
-                      "safe": "數據不足", "mine": False, "warn": True, "detail": ""})
-
-    total_mines = sum(1 for m in mines if m["mine"])
-    total_warns = sum(1 for m in mines if m["warn"] and not m["mine"])
-
-    # 整體健康旗幟
-    if total_mines == 0:
-        health_txt = "✅ 財務健康 — 無觸發地雷"
-        health_c   = "#00FF7F"
-        health_bg  = "mine-safe"
-    elif total_mines <= 2:
-        health_txt = f"⚠️ 輕度風險 — {total_mines} 個地雷觸發"
-        health_c   = "#FFD700"
-        health_bg  = "mine-alert"
-    else:
-        health_txt = f"💣 高度警戒 — {total_mines} 個地雷觸發"
-        health_c   = "#FF3131"
-        health_bg  = "mine-alert"
-
-    st.markdown(
-        f'<div class="{health_bg}">'
-        f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:28px;'
-        f'font-weight:700;color:{health_c};">{health_txt}</div>'
-        f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
-        f'color:{health_c}55;margin-top:6px;">'
-        f'觸發地雷: {total_mines}/8 · 警示訊號: {total_warns}/8 · '
-        f'最後更新: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    # 八格地雷卡片（2列×4行）
-    for row_mines in [mines[:4], mines[4:]]:
-        cols = st.columns(4)
-        for col, m in zip(cols, row_mines):
-            if m["mine"]:
-                bc, tc, tag = "#FF3131", "rgba(255,80,80,.08)", "💣 地雷"
-            elif m["warn"]:
-                bc, tc, tag = "#FFD700", "rgba(255,215,0,.05)", "⚠️ 警示"
-            else:
-                bc, tc, tag = "#00FF7F", "rgba(0,255,127,.04)", "✅ 安全"
-
-            col.markdown(
-                f'<div style="background:{tc};border:1px solid {bc}22;'
-                f'border-top:3px solid {bc};border-radius:12px;padding:16px 14px;'
-                f'margin-bottom:8px;min-height:150px;">'
-                f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-                f'color:{bc};letter-spacing:2px;text-transform:uppercase;">{tag}</div>'
-                f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:17px;'
-                f'font-weight:700;color:rgba(220,230,245,.9);margin:4px 0;">{m["name"]}</div>'
-                f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:32px;'
-                f'color:{bc};line-height:1;">{m["value"]}</div>'
-                f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:13px;'
-                f'color:rgba(160,176,208,.5);margin-top:4px;line-height:1.4;">'
-                f'{m["threshold"]}<br><span style="color:{bc}88;">{m["safe"]}</span></div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-    # 地雷詳解 expander
-    with st.expander("📋 八大地雷詳細說明（展開查看每項邏輯）", expanded=False):
-        for m in mines:
-            marker = "🔴" if m["mine"] else ("🟡" if m["warn"] else "🟢")
-            st.markdown(
-                f'<div style="display:flex;align-items:flex-start;gap:14px;'
-                f'padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);">'
-                f'<div style="font-size:20px;min-width:28px;">{marker}</div>'
-                f'<div><div style="font-family:\'Rajdhani\',sans-serif;font-size:20px;'
-                f'font-weight:700;color:#FFF;">{m["name"]} — {m["value"]}</div>'
-                f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:16px;'
-                f'color:rgba(180,195,220,.6);margin-top:3px;">{m["detail"]}</div></div></div>',
-                unsafe_allow_html=True
-            )
-
-    st.markdown("<div style='height:22px'></div>", unsafe_allow_html=True)
-
-    # ════════════════════════════════════════════════════════
-    # BLOCK F：多模型估值交叉驗證
-    # ════════════════════════════════════════════════════════
-    _sec28("🔬 多模型估值交叉驗證")
-    _sec26("艾蜜莉合理價 · DDM · Graham · Buffett殖利率反推 — 多個模型指向同一方向才是真正低估", "rgba(160,176,208,.45)")
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-    # Buffett 反推：用 10年期公債殖利率 + 溢價反推 PE 應值
-    buffett_val = None
-    buffett_pe  = None
-    if eps_val and eps_val > 0:
-        rf_rate  = 0.04 if is_tw else 0.045      # 無風險利率估算
-        rp       = 0.04                           # 股權風險溢價
-        req_ret  = rf_rate + rp
-        buffett_pe  = 1.0 / req_ret               # 合理PE = 1/要求報酬率
-        buffett_val = eps_val * buffett_pe
-
-    models = [
-        ("🌸 艾蜜莉合理價", emily_fair, emily_src if emily_fair else "—"),
-        ("📊 DDM 股利折現",  ddm_val,   f"r={0.08 if is_tw else 0.10:.0%}, g={min(roe*0.5,0.07):.0%}" if ddm_val else "無配息"),
-        ("🔢 Graham公式",   graham_val, f"√(22.5 × EPS × BVPS)" if graham_val else "缺BVPS"),
-        ("🏦 Buffett反推",  buffett_val, f"PE={buffett_pe:.0f}× ({rf_rate+0.04:.0%}要求報酬)" if buffett_val else "缺EPS"),
-    ]
-
-    valid_models = [(n, v, s) for n, v, s in models if v and v > 0]
-    avg_fair = np.mean([v for _, v, _ in valid_models]) if valid_models else None
-
-    v_cols = st.columns(len(models))
-    for vc, (mname, mval, msrc) in zip(v_cols, models):
-        if mval and cp > 0:
-            mratio = cp / mval
-            mc = "#00FF7F" if mratio < 0.9 else ("#FF3131" if mratio > 1.1 else "#FFD700")
-            msig = f"{'低估' if mratio < 0.9 else ('高估' if mratio > 1.1 else '合理')} {(mratio-1)*100:+.0f}%"
-        else:
-            mc, msig = "#888", "N/A"
-        vc.markdown(
-            f'<div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);'
-            f'border-top:3px solid {mc};border-radius:12px;padding:18px 14px;text-align:center;'
-            f'min-height:140px;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;'
-            f'color:rgba(140,155,178,.4);letter-spacing:2px;text-transform:uppercase;'
-            f'margin-bottom:6px;">{mname}</div>'
-            f'<div style="font-family:\'Bebas Neue\',sans-serif;font-size:38px;'
-            f'color:{mc};line-height:1;">{f"{cur_sym}{mval:.1f}" if mval else "N/A"}</div>'
-            f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:15px;'
-            f'font-weight:700;color:{mc};margin-top:4px;">{msig}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;'
-            f'color:rgba(120,140,160,.35);margin-top:4px;">{msrc}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-    # 模型共識
-    if avg_fair and cp > 0:
-        consensus_ratio = cp / avg_fair
-        cc = "#00FF7F" if consensus_ratio < 0.9 else ("#FF3131" if consensus_ratio > 1.1 else "#FFD700")
-        cc_lbl = "🟢 多模型共識：低估" if consensus_ratio < 0.9 else \
-                 ("🔴 多模型共識：高估" if consensus_ratio > 1.1 else "🟡 多模型共識：合理")
-        st.markdown(
-            f'<div style="margin:16px 0;padding:16px 24px;background:rgba(0,0,0,.2);'
-            f'border:1px solid {cc}33;border-left:5px solid {cc};border-radius:0 14px 14px 0;">'
-            f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:26px;'
-            f'font-weight:800;color:{cc};">{cc_lbl}</div>'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;'
-            f'color:rgba(160,176,208,.4);margin-top:6px;">'
-            f'{len(valid_models)}個模型平均估值 {cur_sym}{avg_fair:.1f} · '
-            f'現價偏離 {(consensus_ratio-1)*100:+.1f}% · '
-            f'多模型指向同方向 = 更高可信度'
-            f'</div></div>',
-            unsafe_allow_html=True
-        )
-
-
-def _s54(hist3y, info, symbol):
-    render_5_4_value_river(symbol, info, hist3y)
 
 def _s54(hist3y, info, symbol):
     render_5_4_value_river(symbol, info, hist3y)
