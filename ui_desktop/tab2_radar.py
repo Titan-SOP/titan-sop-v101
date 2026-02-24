@@ -37,12 +37,6 @@ from execution import CalendarAgent
 # ══════════════════════════════════════════════════════════════════════════════
 #  [UPGRADE #3] VALKYRIE AI TYPEWRITER — Sci-Fi Terminal Streaming
 # ══════════════════════════════════════════════════════════════════════════════
-def _is_rl(e) -> bool:
-    """Yahoo Finance Rate Limit 偵測"""
-    msg = str(e).lower()
-    return any(k in msg for k in ["429","too many requests","rate limit","ratelimit","rate limited"])
-
-
 def _stream_text(text, speed=0.018):
     """Character-by-character generator for st.write_stream"""
     for char in text:
@@ -407,10 +401,7 @@ def _plot_candle_chart(cb_code: str):
         st.markdown('</div>', unsafe_allow_html=True)
         st.caption(f"📈 標的股票代碼: {target_code}  ·  🔶 橘線: 87MA  ·  🔷 藍線: 284MA")
     except Exception as e:
-        if _is_rl(e):
-            st.toast("⏳ Yahoo Finance 限速，K線圖暫時無法載入，請稍後重試。", icon="⏳")
-        else:
-            st.toast(f"⚠️ K 線圖生成失敗: {e}", icon="⚡")
+        st.toast(f"⚠️ K 線圖生成失敗: {e}", icon="⚡")
 
 
 # ── TPEX DATA  (原版 get_tpex_data 完整移植，含30大分類chain_map) ─────────
@@ -565,7 +556,6 @@ def _run_census(df: pd.DataFrame, min_score: int):
 
         if code:
             try:
-                time.sleep(0.4)  # ⚡ 避免連打觸發 rate limit
                 hist = yf.Ticker(f"{code}.TW").history(period="2y")
                 if hist.empty:
                     hist = yf.Ticker(f"{code}.TWO").history(period="2y")
@@ -579,9 +569,8 @@ def _run_census(df: pd.DataFrame, min_score: int):
                         row['score'] = min(100, row.get('score', 0) + 20)
                     else:
                         row['trend_status'] = '整理/空頭'
-            except Exception as _e2:
-                if _is_rl(_e2):
-                    st.toast(f"⏳ {code} Yahoo 限速，跳過此標的。掃描完成後可重試。", icon="⏳")
+            except Exception:
+                pass
 
         enriched.append(row)
         pbar.progress((i + 1) / total)

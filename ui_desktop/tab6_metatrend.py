@@ -104,12 +104,6 @@ def get_time_slice(df, months):
     return df
 
 
-def _is_rl(e) -> bool:
-    """Rate limit 偵測（tab6 共用）"""
-    msg = str(e).lower()
-    return any(k in msg for k in ["429","too many requests","rate limit","ratelimit","rate limited"])
-
-
 @st.cache_data(ttl=3600)
 def download_full_history(ticker, start="1990-01-01"):
     """下載完整歷史月K線 [V86.2]: 支援台股上櫃 (.TWO)"""
@@ -142,9 +136,7 @@ def download_full_history(ticker, start="1990-01-01"):
             'Close': 'last', 'Volume': 'sum'
         }).dropna()
         return df_monthly
-    except Exception as _e6:
-        if _is_rl(_e6):
-            st.toast(f"⏳ Yahoo Finance 限速中，{ticker} 暫時無法取得資料，請稍後重試。", icon="⏳")
+    except Exception:
         return None
 
 
@@ -3972,7 +3964,6 @@ def _s64():
             for i, t in enumerate(tickers):
                 geo = compute_7d_geometry(t)
                 prog.progress((i + 1) / len(tickers), text=f"掃描進度: {t} ({i + 1}/{len(tickers)})")
-                time.sleep(0.5)  # ⚡ 避免連打 Yahoo Finance 觸發 rate limit
                 if geo:
                     cp = 0.0
                     dp = st.session_state.get('daily_price_data', {}).get(t)

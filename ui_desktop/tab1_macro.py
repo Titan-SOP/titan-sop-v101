@@ -41,117 +41,24 @@ def _stream_text(text, speed=0.018):
 @st.dialog("🔰 戰術指導 — Macro Risk Command Center")
 def _show_tactical_guide():
     st.markdown("""
-<div style="font-family:'JetBrains Mono',monospace;">
+    ### 指揮官，歡迎進入宏觀風控指揮中心
 
-<div style="text-align:center;padding:16px 0 20px;">
-  <div style="font-size:13px;letter-spacing:4px;color:rgba(255,215,0,0.5);margin-bottom:6px;">TITAN SOP V300 · CLASSIFIED BRIEFING</div>
-  <div style="font-size:28px;font-weight:900;color:#FFD700;letter-spacing:2px;text-shadow:0 0 24px rgba(255,215,0,0.4);">🛡️ 宏觀風控指揮中心</div>
-  <div style="font-size:14px;color:rgba(200,215,230,0.45);margin-top:4px;">MACRO RISK COMMAND CENTER — 作戰手冊 v5.0</div>
-</div>
+    **核心功能**：
+    - **🚦 1.1 風控儀表 (MACRO HUD)**：三燈號系統 (🟢綠/🟡黃/🔴紅) 自動判定進攻/防守態勢，搭配 VIX、PR90 籌碼分佈、PTT 散戶情緒三重驗證。
+    - **🌡️ 1.2 多空溫度計 / 📊 1.3 籌碼分佈**：高價權值股站上 87MA 的比例 = 市場體溫。籌碼分佈圖即時呈現全市場 CB 籌碼壓力，PR90 過熱線精準辨識危險區。
+    - **🔥 1.4 族群熱度 (SECTOR MAP)**：台股 6 大板塊類別 × 動態熱力矩陣，一眼辨識哪個板塊在吸金、哪個板塊在失血。結合近 3 個月相對強度與資金輪動信號，精準鎖定主力進駐族群（共 30 大板塊全覆蓋）。
+    - **💹 1.5 成交重心 / 👑 1.6 趨勢雷達**：全市場 TOP 100 成交重心即時掃描 + 高價權值股趨勢追蹤，附帶 87MA 扣抵預測與亞當理論反射路徑。
+    - **🎯 1.7 台指獵殺 (WTX Predator)**：獨門戰法，利用過去 12 個月結算慣性推導本月台指期虛擬 K 棒，精準鎖定 1B/2B/3B/HR 結算目標價。
 
----
+    **操作方式**：點擊上方海報欄切換模組 (1.1 風控儀表 → 1.2 多空溫度 → ... → 1.7 台指獵殺)。
 
-### 🗺️ 作戰地圖 — 七大模組完整說明
+    **狀態監控**：隨時留意三燈號系統訊號，紅燈期間所有慣性策略自動暫停。
 
----
+    ---
+    *建議：先查看 1.1 宏觀燈號確認市場狀態 → 再進入各子模組分析*
+    """)
 
-#### 🎯 **1.1 台指獵殺 · WTX PREDATOR**
-**核心問題**：本月台指期將在哪裡結算？
-
-台指期每月第三個週三結算。主力（外資/期貨商）在結算前會主動引導價格靠近對自己有利的結算點——這個行為受「歷史結算慣性」約束。
-
-WTX Predator 利用**過去 12 個月每個合約月的實際移動幅度**建立統計分佈，以**上次結算日隔天的開盤價**為錨定點，推導四個目標帶：
-
-| 目標 | 定義 | 意義 |
-|------|------|------|
-| **1B 一壘** | 錨定 ± 最小幅度 × 50% | 初始突破確認點 |
-| **2B 二壘** | 錨定 ± 最小幅度 | 保守結算目標 |
-| **3B 三壘** | 錨定 ± 12月平均幅度 | 最可能的結算區（主要目標）|
-| **🏠 HR** | 錨定 ± 12月最大幅度 | 極端行情黑天鵝目標 |
-
-⚡ **BIAS FROM ANCHOR** = `(當前收盤 − 結算後第一天開盤) ÷ 結算後第一天開盤 × 100%`
-→ 正值=多方主導（現價高於本合約起點），負值=空方主導。數值越大代表慣性越強。
-→ **注意**：錨定點是「上次結算日隔天的開盤價」，不是日曆月第一天。
-
----
-
-#### 🚦 **1.2 宏觀風控儀表 · MACRO HUD v5.0**
-**核心問題**：現在是進攻、防守、還是現金為王的時機？
-
-七維驗證系統——每個維度監測市場定價機器的不同零件：
-
-| 維度 | 指標 | 第一性原則 |
-|------|------|-----------|
-| 恐慌情緒 | **VIX** | 選擇權市場對未來30天波動的恐懼定價 |
-| 台股籌碼 | **PR90** | CB高位籌碼堆積程度，反映隱性拋壓 |
-| 散戶情緒 | **PTT** | 反向指標——散戶最悲觀時往往是市場底部 |
-| **折現率** | **10Y殖利率** | 影響所有資產估值的基準折現率，每漲1%壓縮估值~15% |
-| **資金流向** | **DXY美元** | 強美元→外資從新興市場撤退→台股承壓 |
-| **信用壓力** | **HYG** | 煤礦金絲雀——比VIX早1~4週預警股市崩盤 |
-| 台股技術 | **TSE/87MA** | 格蘭碧法則+扣抵斜率判定多空趨勢 |
-
-🔴 **燈號邏輯**：VIX>30 或 10Y急升 或 HYG急跌 任一觸發 → 紅燈，全部慣性策略暫停。
-
----
-
-#### 🌡️ **1.3 多空溫度計 · THERMOMETER**
-**核心問題**：市場整體體溫是高燒、正常、還是低體溫？
-
-以「高價權值股站上 87MA 的比例」衡量市場體溫：
-- **>70%**：市場過熱，多頭佔絕對優勢，但需警戒反轉
-- **40~70%**：健康區間，多空平衡，正常操作
-- **<40%**：市場低溫，空方主導，需等待回暖訊號
-
----
-
-#### 📊 **1.4 籌碼分佈 · PR90 MAP**
-**核心問題**：CB籌碼堆在哪裡？哪個區間有最大的拋壓？
-
-全市場 CB 可轉換公司債的價格分佈圖，PR90（第90百分位）是核心指標。
-PR90 > 130 → 高位籌碼嚴重堆積 → 主力若開始出貨，將引發籌碼崩塌式下跌。
-
----
-
-#### 🔥 **1.5 族群熱度 · SECTOR MAP**
-**核心問題**：資金正在流入哪個族群？哪個板塊是當前主流？
-
-台股 30 大板塊 × 6 大類別的熱力矩陣——即時呈現資金輪動方向。
-結合 3 個月相對強度，精準辨識「主力剛進場」vs「已經過熱」的族群。
-
----
-
-#### 💹 **1.6 成交重心 · VOLUME CORE**
-**核心問題**：今日市場的成交量集中在哪個價位帶？
-
-全市場 TOP 100 成交重心掃描，識別主力建倉/出貨的價格重心。
-成交重心持續上移 = 量價俱揚，趨勢健康。
-
----
-
-#### 👑 **1.7 趨勢雷達 · TREND RADAR**
-**核心問題**：高價權值股哪些還在趨勢上？哪些開始轉弱？
-
-個股 87MA 扣抵預測 + 亞當理論反射路徑，量化「未來4週均線走向」。
-結合格蘭碧法則，判斷每檔個股當前所在的八大法則階段。
-
----
-
-### ⚡ 標準作戰流程 SOP
-
-```
-STEP 1 → 1.1 台指獵殺：確認本月月K方向（多/空）＋ 錨定目標帶
-STEP 2 → 1.2 宏觀風控：確認七維燈號（綠燈進攻 / 黃燈謹慎 / 紅燈退守）
-STEP 3 → 1.3 多空溫度：確認市場體溫（>70%才積極進攻）
-STEP 4 → 1.5 族群熱度：確認資金流向（選擇主流板塊）
-STEP 5 → 1.7 趨勢雷達：個股篩選（87MA站穩 + 格蘭碧買點）
-```
-
-> ⚠️ **鐵則**：1.2 宏觀燈號亮紅時，**一切慣性策略自動暫停**，持現等待訊號收斂。
-
-</div>
-""", unsafe_allow_html=True)
-
-    if st.button("⚡ 進入戰情室 · ENTER COMMAND CENTER", type="primary", use_container_width=True):
+    if st.button("✅ 收到，進入戰情室 (Roger That)", type="primary", use_container_width=True):
         st.session_state['tab1_guided'] = True
         st.rerun()
 
@@ -173,13 +80,13 @@ SIGNAL_PALETTE = {
 
 # (code, emoji, label-zh, label-en)
 SUB_MODULES = [
-    ("1.1", "🎯", "台指獵殺",  "PREDATOR"),
-    ("1.2", "🚦", "風控儀表",  "MACRO HUD"),
-    ("1.3", "🌡️", "多空溫度",  "THERMO"),
-    ("1.4", "📊", "籌碼分佈",  "PR90"),
-    ("1.5", "🔥", "族群熱度",  "SECTOR MAP"),
-    ("1.6", "💹", "成交重心",  "VOLUME"),
-    ("1.7", "👑", "趨勢雷達",  "RADAR"),
+    ("1.1", "🚦", "風控儀表",  "MACRO HUD"),
+    ("1.2", "🌡️", "多空溫度",  "THERMO"),
+    ("1.3", "📊", "籌碼分佈",  "PR90"),
+    ("1.4", "🔥", "族群熱度",  "SECTOR MAP"),
+    ("1.5", "💹", "成交重心",  "VOLUME"),
+    ("1.6", "👑", "趨勢雷達",  "RADAR"),
+    ("1.7", "🎯", "台指獵殺",  "PREDATOR"),
 ]
 
 
@@ -998,34 +905,12 @@ def _calculate_futures_targets():
     l12   = stats[-12:]
     min_a = min(l12);  avg_a = sum(l12) / 12;  max_a = max(l12)
 
-    # ── 錨定點：上次結算日隔天 = 新合約第一天（原始正確邏輯）──────────────
-    # 獨門秘技核心：「結算後隔天開盤」= 本次合約月的起點錨定
-    # 過去12個月的移動幅度全部是以這個基準計算，所以錨定點必須一致
     curr = df[df['Date'] > s_dates[-1]]
     if curr.empty:
-        return {"error": "新合約未開始，結算日後尚無交易資料"}
+        return {"error": "新合約未開始"}
 
-    # ── op_v 資料驗證：yfinance WTX=F 換約日 Open 有時回傳 0 / NaN ──────
-    # 若發生此情況，改用該日 Close 作為 op_v（期指開盤與收盤差距極小）
-    def _scalar(val):
-        """安全提取純量，防止 yfinance 偶爾回傳 Series 或 ndarray"""
-        if hasattr(val, 'iloc'):  return float(val.iloc[0])
-        if hasattr(val, 'item'): return float(val.item())
-        return float(val)
-
-    try:
-        open_f  = _scalar(curr.iloc[0]['Open'])
-        close_f = _scalar(curr.iloc[0]['Close'])
-    except Exception:
-        open_f, close_f = 0.0, 0.0
-
-    # 台指期正常值 > 1000；若 open_f 為 0/NaN/異常小值 → 壞資料，用 close 代替
-    if pd.isna(open_f) or open_f < 1000:
-        op_v = close_f if close_f >= 1000 else float(curr['Close'].dropna().iloc[0])
-    else:
-        op_v = open_f
-
-    cl_v   = float(curr.iloc[-1]['Close'])             # 最新收盤
+    op_v   = float(curr.iloc[0]['Open'])
+    cl_v   = float(curr.iloc[-1]['Close'])
     is_red = cl_v >= op_v
     sign   = 1 if is_red else -1
     return {
@@ -1045,614 +930,246 @@ def _calculate_futures_targets():
 
 def render_1_1_hud():
     # ══════════════════════════════════════════════════════════════════════
-    # 宏觀風控儀表 V5.0 — 七維驗證戰情系統
-    # 原有：VIX · PR90 · PTT · TSE（四維）
-    # 新增：^TNX 殖利率 · DXY 美元 · HYG 信用利差（三維）
+    # 1.1 宏觀風控儀表 — 第一性原則重建
+    # 核心邏輯：三燈號系統 = VIX × PR90 × PTT 三重交叉驗證
+    #   GREEN：VIX<20 且 PR90<115 且 PTT<50%  → 系統性風險低，積極進攻
+    #   YELLOW：任一指標進入警戒區            → 區間操作，控制倉位
+    #   RED：VIX>30 或 PR90>130 或 PTT>65%   → 極端恐慌/過熱，現金為王
     # ══════════════════════════════════════════════════════════════════════
-    _sec_header("🚦", "宏觀風控儀表 · 七維驗證戰情系統", "MACRO HUD v5.0")
+    _sec_header("🚦", "宏觀風控儀表 · 三重驗證戰情系統", "MACRO HUD v3.0")
+    macro, _, _ = _load_engines()
+    df      = st.session_state.get('df', pd.DataFrame())
+    df_hash = f"{len(df)}_{list(df.columns)}" if not df.empty else "empty"
 
-    # ── 數據抓取（全部獨立，不依賴 CB）─────────────────────────────────
-    @st.cache_data(ttl=300, show_spinner=False)
-    def _fetch_vix():
-        try:
-            tk  = yf.Ticker("^VIX")
-            inf = tk.info
-            v   = (inf.get("regularMarketPrice") or inf.get("previousClose") or 20.0)
-            h   = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
-            return float(v), h
-        except Exception as _e1v:
-            if any(k in str(_e1v).lower() for k in ["429","too many requests","rate limit"]):
-                st.toast("⏳ VIX 資料 Yahoo 限速，使用預設值 20.0。請稍後點「🔄 重新整合」。", icon="⏳")
-            return 20.0, pd.DataFrame()
-
-    @st.cache_data(ttl=300, show_spinner=False)
-    def _fetch_tse():
-        try:
-            h = yf.download("^TWII", period="18mo", progress=False, auto_adjust=True)
-            if isinstance(h.columns, pd.MultiIndex):
-                h.columns = h.columns.get_level_values(0)
-            if h.empty:
-                return {"price":0,"momentum":"N/A","granville":"N/A","magic_ma":"N/A","deduct_slope":["計算失敗"]}
-            cl   = h["Close"].dropna()
-            px   = float(cl.iloc[-1])
-            ma87 = cl.rolling(87).mean()
-            m87v = float(ma87.iloc[-1]) if not pd.isna(ma87.iloc[-1]) else None
-            if len(ma87.dropna()) >= 5:
-                t5 = ma87.dropna().tail(5)
-                sl = (t5.iloc[-1]-t5.iloc[0])/t5.iloc[0]
-                mom = "📈 上升" if sl>0.001 else "📉 下降" if sl<-0.001 else "➡️ 盤整"
-            else:
-                mom = "計算中"
-            gran = ("🟢 多頭排列（現值>87MA）" if px>m87v else "🔴 空頭排列（現值<87MA）") if m87v else "N/A"
-            mma  = f"87MA = {m87v:,.0f}" if m87v else "N/A"
-            ded  = []
-            for w in [1,2,4]:
-                idx = -(87-w)
-                if abs(idx) <= len(cl):
-                    old = float(cl.iloc[idx])
-                    ded.append(f"{w}週後 扣{old:,.0f} ({'↑扣高→MA向下' if old>px else '↓扣低→MA向上'})")
-            return {"price":px,"momentum":mom,"granville":gran,"magic_ma":mma,"deduct_slope":ded or ["扣抵計算中"]}
-        except Exception as e:
-            return {"price":0,"momentum":"N/A","granville":"N/A","magic_ma":"N/A","deduct_slope":[f"失敗:{e}"]}
-
-    @st.cache_data(ttl=600, show_spinner=False)
-    def _fetch_ptt(_mid):
-        try:
-            macro,_,_ = _load_engines()
-            r = macro.check_market_status(cb_df=pd.DataFrame())
-            return r.get("ptt_ratio", -1.0)
-        except Exception:
-            return -1.0
-
-    @st.cache_data(ttl=600, show_spinner=False)
-    def _fetch_pr90(_hash):
-        df = st.session_state.get("df", pd.DataFrame())
-        if df.empty: return None
-        try:
-            macro,_,_ = _load_engines()
-            r = macro.check_market_status(cb_df=df)
-            return r.get("price_distribution",{}).get("pr90", None)
-        except Exception:
-            return None
-
-    @st.cache_data(ttl=300, show_spinner=False)
-    def _fetch_global():
-        """
-        抓取三大全球宏觀指標：
-        ^TNX   = 美國10年期公債殖利率
-        DX-Y.NYB = 美元指數 DXY
-        HYG    = 高收益債 ETF（信用利差代理）
-        """
-        result = {}
-        # ① 10年期殖利率
-        try:
-            tnx_h = yf.download("^TNX", period="6mo", progress=False, auto_adjust=True)
-            if isinstance(tnx_h.columns, pd.MultiIndex):
-                tnx_h.columns = tnx_h.columns.get_level_values(0)
-            if not tnx_h.empty:
-                tnx_cl = tnx_h["Close"].dropna()
-                tnx_v  = float(tnx_cl.iloc[-1])
-                # 3個月變化（衡量速度，比絕對值更重要）
-                tnx_3m = float(tnx_cl.iloc[max(0,len(tnx_cl)-63)]) if len(tnx_cl)>63 else float(tnx_cl.iloc[0])
-                tnx_chg = tnx_v - tnx_3m   # bps 方向
-                result["tnx"] = tnx_v
-                result["tnx_3m_chg"] = tnx_chg
-                result["tnx_hist"] = tnx_h
-            else:
-                result["tnx"] = None
-        except Exception as _e1t:
-            if any(k in str(_e1t).lower() for k in ["429","too many requests","rate limit"]):
-                st.toast("⏳ 10Y殖利率資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
-            result["tnx"] = None
-
-        # ② 美元指數
-        try:
-            dxy_h = yf.download("DX-Y.NYB", period="6mo", progress=False, auto_adjust=True)
-            if isinstance(dxy_h.columns, pd.MultiIndex):
-                dxy_h.columns = dxy_h.columns.get_level_values(0)
-            if not dxy_h.empty:
-                dxy_cl = dxy_h["Close"].dropna()
-                dxy_v  = float(dxy_cl.iloc[-1])
-                dxy_ma20 = float(dxy_cl.rolling(20).mean().iloc[-1])
-                dxy_3m = float(dxy_cl.iloc[max(0,len(dxy_cl)-63)]) if len(dxy_cl)>63 else float(dxy_cl.iloc[0])
-                dxy_chg_pct = (dxy_v - dxy_3m) / dxy_3m * 100
-                result["dxy"] = dxy_v
-                result["dxy_ma20"] = dxy_ma20
-                result["dxy_3m_chg_pct"] = dxy_chg_pct
-                result["dxy_hist"] = dxy_h
-            else:
-                result["dxy"] = None
-        except Exception as _e1d:
-            if any(k in str(_e1d).lower() for k in ["429","too many requests","rate limit"]):
-                st.toast("⏳ DXY資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
-            result["dxy"] = None
-
-        # ③ HYG 高收益債（信用利差代理）
-        try:
-            hyg_h = yf.download("HYG", period="6mo", progress=False, auto_adjust=True)
-            if isinstance(hyg_h.columns, pd.MultiIndex):
-                hyg_h.columns = hyg_h.columns.get_level_values(0)
-            if not hyg_h.empty:
-                hyg_cl = hyg_h["Close"].dropna()
-                hyg_v  = float(hyg_cl.iloc[-1])
-                hyg_ma20 = float(hyg_cl.rolling(20).mean().iloc[-1])
-                hyg_3m = float(hyg_cl.iloc[max(0,len(hyg_cl)-63)]) if len(hyg_cl)>63 else float(hyg_cl.iloc[0])
-                hyg_chg_pct = (hyg_v - hyg_3m) / hyg_3m * 100
-                result["hyg"] = hyg_v
-                result["hyg_ma20"] = hyg_ma20
-                result["hyg_3m_chg_pct"] = hyg_chg_pct
-                result["hyg_hist"] = hyg_h
-            else:
-                result["hyg"] = None
-        except Exception as _e1h:
-            if any(k in str(_e1h).lower() for k in ["429","too many requests","rate limit"]):
-                st.toast("⏳ HYG資料 Yahoo 限速，請稍後點「🔄 重新整合」。", icon="⏳")
-            result["hyg"] = None
-
-        return result
-
-    # ── 一鍵啟動 ──────────────────────────────────────────────────────────
-    if not st.session_state.get("hud_v5_launched", False):
+    if df.empty:
         st.markdown("""
-<div class="hero-container" style="--hero-color:#00F5FF;--hero-glow:rgba(0,245,255,0.10);--hero-rgb:0,245,255;">
-  <div style="display:inline-flex;align-items:center;margin-bottom:10px;">
-    <span class="hero-pulse" style="--hero-color:#00F5FF;--hero-rgb:0,245,255;"></span>
-    <span style="font-family:var(--f-mono);font-size:28px;color:rgba(0,245,255,0.6);letter-spacing:3px;">
-      TITAN SOP V300 · MACRO HUD v5.0 · STANDBY
-    </span>
-  </div>
-  <div class="hero-title" style="--hero-color:#00F5FF;font-size:52px!important;">⚡ 戰情室待機中</div>
-  <div class="hero-subtitle" style="margin-top:10px;font-size:28px;">
-    VIX · TSE · PTT · PR90 · 10Y殖利率 · 美元指數 · 信用利差 — 七維全啟動<br>
-    <span style="font-size:26px;opacity:0.5;">無需 CB 數據 · PR90 有CB則自動計算</span>
-  </div>
-  <div class="hero-badge" style="margin-top:16px;font-size:26px;">READY TO LAUNCH · 7-DIM MACRO COMMAND</div>
+<div class="hero-container">
+  <div class="hero-title" style="font-size:60px!important;color:#222;">AWAITING DATA</div>
+  <div class="hero-subtitle">請上傳 CB 清單以啟動戰情室</div>
 </div>""", unsafe_allow_html=True)
-        col_l, col_btn, col_r = st.columns([2,3,2])
-        with col_btn:
-            if st.button("🚀 一鍵啟動七維戰情室", type="primary",
-                         use_container_width=True, key="hud_launch_btn"):
-                st.session_state["hud_v5_launched"] = True
-                st.session_state.pop("hud_v5_streamed", None)
-                st.rerun()
         return
 
-    # ── 抓取所有七維數據 ──────────────────────────────────────────────────
-    with st.spinner("📡 同步七維宏觀指標：VIX · TSE · PTT · PR90 · 10Y · DXY · HYG …"):
-        vix, vix_hist = _fetch_vix()
-        tse           = _fetch_tse()
-        ptt           = _fetch_ptt(id(_load_engines))
-        df_cb         = st.session_state.get("df", pd.DataFrame())
-        df_hash       = f"{len(df_cb)}_{list(df_cb.columns)}" if not df_cb.empty else "empty"
-        pr90_val      = _fetch_pr90(df_hash)
-        glob          = _fetch_global()
+    md  = _get_macro_data(macro, df_hash)
+    sig = md['signal']
+    col, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700", "255,215,0"))
+    sig_text = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
+    parts    = sig_text.split("：")
+    sig_main = parts[0] if parts else sig_text
+    sig_desc = parts[1] if len(parts) > 1 else ""
 
-    tse_price = tse.get("price", 0)
-    tse_mom   = tse.get("momentum", "N/A")
-    tse_gran  = tse.get("granville", "N/A")
-    tse_ma    = tse.get("magic_ma", "N/A")
-    deducts   = " | ".join(tse.get("deduct_slope", ["計算中"]))
-    ptt_txt   = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
-    has_pr90  = pr90_val is not None
-    pr90      = pr90_val if has_pr90 else 100.0
+    vix     = md['vix']
+    pr90    = md['price_distribution']['pr90']
+    ptt     = md['ptt_ratio']
+    ptt_txt = f"{ptt:.1f}%" if ptt != -1.0 else "N/A"
+    tse     = md['tse_analysis']
 
-    tnx_v     = glob.get("tnx")
-    tnx_chg   = glob.get("tnx_3m_chg", 0.0)
-    dxy_v     = glob.get("dxy")
-    dxy_ma20  = glob.get("dxy_ma20")
-    dxy_chg   = glob.get("dxy_3m_chg_pct", 0.0)
-    hyg_v     = glob.get("hyg")
-    hyg_ma20  = glob.get("hyg_ma20")
-    hyg_chg   = glob.get("hyg_3m_chg_pct", 0.0)
+    # ── 指標評級 ───────────────────────────────────────────────────────────
+    # VIX 評級
+    if vix > 35:   vix_lv, vix_col = "💀 極端恐慌", "#FF3131"
+    elif vix > 25: vix_lv, vix_col = "🔴 高度警戒", "#FF3131"
+    elif vix > 20: vix_lv, vix_col = "🟡 溫和警戒", "#FFD700"
+    else:          vix_lv, vix_col = "🟢 市場平靜", "#00FF7F"
 
-    # ══════════════════════════════════════════════════════════════════════
-    # 第一性原則評級邏輯
-    # ══════════════════════════════════════════════════════════════════════
+    # PR90 評級（CB籌碼壓力）
+    if pr90 > 135:   pr90_lv, pr90_col = "🔴 嚴重過熱 — 獲利了結", "#FF3131"
+    elif pr90 > 120: pr90_lv, pr90_col = "🟡 籌碼偏高 — 謹慎追高", "#FFD700"
+    elif pr90 > 100: pr90_lv, pr90_col = "🟢 健康區間 — 正常操作", "#00FF7F"
+    else:            pr90_lv, pr90_col = "🔵 籌碼偏低 — 可積極佈局", "#00F5FF"
 
-    # ① VIX
-    if   vix > 35: vix_lv, vix_col = "💀 極端恐慌",  "#FF3131"
-    elif vix > 25: vix_lv, vix_col = "🔴 高度警戒",  "#FF3131"
-    elif vix > 20: vix_lv, vix_col = "🟡 溫和警戒",  "#FFD700"
-    else:          vix_lv, vix_col = "🟢 市場平靜",  "#00FF7F"
-
-    # ② PR90
-    if not has_pr90:
-        pr90_lv, pr90_col = "⚪ 需CB數據", "#667788"
-    elif pr90 > 135: pr90_lv, pr90_col = "🔴 嚴重過熱", "#FF3131"
-    elif pr90 > 120: pr90_lv, pr90_col = "🟡 籌碼偏高", "#FFD700"
-    elif pr90 > 100: pr90_lv, pr90_col = "🟢 健康區間", "#00FF7F"
-    else:            pr90_lv, pr90_col = "🔵 籌碼偏低", "#00F5FF"
-
-    # ③ PTT
+    # PTT 評級（散戶情緒反向指標）
     if ptt != -1.0:
-        if   ptt > 65: ptt_lv, ptt_col = "🔴 散戶極悲觀→反向看多", "#FF3131"
-        elif ptt > 50: ptt_lv, ptt_col = "🟡 散戶偏空→謹慎",       "#FFD700"
-        elif ptt > 35: ptt_lv, ptt_col = "🟢 情緒平衡",             "#00FF7F"
-        else:          ptt_lv, ptt_col = "⚠️ 散戶過樂觀→反向注意", "#FF9A3C"
+        if ptt > 65:   ptt_lv, ptt_col = "🔴 散戶過度悲觀 → 反向看多訊號", "#FF3131"
+        elif ptt > 50: ptt_lv, ptt_col = "🟡 散戶偏空 → 市場謹慎", "#FFD700"
+        elif ptt > 35: ptt_lv, ptt_col = "🟢 散戶情緒平衡", "#00FF7F"
+        else:          ptt_lv, ptt_col = "⚠️ 散戶過度樂觀 → 反向注意", "#FF9A3C"
     else:
         ptt_lv, ptt_col = "⚪ 數據無法取得", "#667788"
 
-    # ④ 10Y 殖利率（第一性原則：速度 > 絕對值）
-    # 邏輯鏈：殖利率快速上升 → 折現率提高 → 股票估值P/E壓縮 → 股市承壓
-    # 危險：3個月漲幅 > 100bps（快速緊縮，歷史上每次都造成股市修正）
-    # 警戒：殖利率 > 5% 或 3個月漲 > 50bps
-    # 健康：殖利率 < 4.5% 且變化平穩（< 25bps）
-    if tnx_v is not None:
-        if   tnx_v > 5.0 or tnx_chg > 1.0: tnx_lv, tnx_col = "🔴 殖利率過高/急升→估值壓力大",    "#FF3131"
-        elif tnx_v > 4.5 or tnx_chg > 0.5: tnx_lv, tnx_col = "🟡 殖利率偏高→壓制成長股估值",      "#FFD700"
-        elif tnx_v > 3.5 and tnx_chg > -0.5: tnx_lv, tnx_col = "🟢 殖利率中性→股債均衡",           "#00FF7F"
-        else:                                 tnx_lv, tnx_col = "🔵 殖利率下行→估值擴張有利",        "#00F5FF"
-        tnx_txt = f"{tnx_v:.2f}%"
-    else:
-        tnx_lv, tnx_col, tnx_txt = "⚪ 數據獲取失敗", "#667788", "N/A"
+    # TSE 技術面
+    tse_price = tse.get('price', 0)
+    tse_mom   = tse.get('momentum', 'N/A')
+    tse_gran  = tse.get('granville', 'N/A')
+    tse_ma    = tse.get('magic_ma', 'N/A')
+    deducts   = " | ".join(tse.get('deduct_slope', ["計算中…"]))
 
-    # ⑤ 美元指數 DXY（第一性原則：方向 > 絕對值）
-    # 邏輯鏈：強美元 → 外資從新興市場撤資 → 台股承受資金外流壓力
-    # 危險：DXY > 107 且仍在上升趨勢（站上20MA）
-    # 警戒：DXY > 104 或 3個月漲幅 > 3%
-    # 健康：DXY < 102 或 3個月跌幅 > 2%（美元走弱有利台股）
-    if dxy_v is not None:
-        above_ma = dxy_v > dxy_ma20 if dxy_ma20 else False
-        if   dxy_v > 107 and above_ma:    dxy_lv, dxy_col = "🔴 強美元+上升趨勢→外資撤台壓力大",   "#FF3131"
-        elif dxy_v > 104 or dxy_chg > 3:  dxy_lv, dxy_col = "🟡 美元偏強→外資謹慎",               "#FFD700"
-        elif dxy_v < 100 or dxy_chg < -2: dxy_lv, dxy_col = "🔵 弱美元→資金回流新興市場有利",      "#00F5FF"
-        else:                              dxy_lv, dxy_col = "🟢 美元中性→對台股無特殊壓力",         "#00FF7F"
-        dxy_txt = f"{dxy_v:.2f}"
-    else:
-        dxy_lv, dxy_col, dxy_txt = "⚪ 數據獲取失敗", "#667788", "N/A"
-
-    # ⑥ HYG 信用利差（第一性原則：HYG 是股市的「煤礦中的金絲雀」）
-    # 邏輯鏈：HYG 下跌 → 高收益債信用利差擴大 → 企業融資成本上升
-    #         → 違約風險上升 → 比 VIX 更早預警股市崩盤
-    # 危險：HYG 3個月跌幅 > 5% 或跌破20MA超過2%（信用緊縮確認）
-    # 警戒：HYG 3個月跌幅 1~3% 或在20MA以下
-    # 健康：HYG 站在20MA以上且近期穩定或上漲
-    if hyg_v is not None:
-        above_hyg_ma = hyg_v > hyg_ma20 if hyg_ma20 else False
-        if   hyg_chg < -5 or (hyg_ma20 and hyg_v < hyg_ma20 * 0.98):
-            hyg_lv, hyg_col = "🔴 信用利差急擴→金融壓力高，比VIX更早警告",  "#FF3131"
-        elif hyg_chg < -2 or not above_hyg_ma:
-            hyg_lv, hyg_col = "🟡 信用略偏緊→注意流動性風險",                "#FFD700"
-        elif hyg_chg > 1 and above_hyg_ma:
-            hyg_lv, hyg_col = "🔵 信用利差收窄→市場風險偏好強",              "#00F5FF"
-        else:
-            hyg_lv, hyg_col = "🟢 信用市場健康→無金融壓力訊號",              "#00FF7F"
-        hyg_txt = f"${hyg_v:.2f}"
-    else:
-        hyg_lv, hyg_col, hyg_txt = "⚪ 數據獲取失敗", "#667788", "N/A"
-
-    # ══════════════════════════════════════════════════════════════════════
-    # 七維評分系統（0~7）→ 燈號判定
-    # ══════════════════════════════════════════════════════════════════════
+    # 三重驗證總評分（0~3，判定燈號合理性）
     score = 0
-    if vix <= 20:                                       score += 1
-    if has_pr90 and pr90 <= 115:                        score += 1
-    elif not has_pr90:                                  score += 1
-    if ptt != -1.0 and ptt <= 50:                       score += 1
-    if tnx_v is None or (tnx_v <= 4.5 and tnx_chg <= 0.5): score += 1
-    if dxy_v is None or dxy_v <= 104:                   score += 1
-    if hyg_v is None or (hyg_chg >= -2 and above_hyg_ma if hyg_v else True): score += 1
+    if vix <= 20:             score += 1
+    if pr90 <= 115:           score += 1
+    if ptt != -1.0 and ptt <= 50: score += 1
+    score_txt   = "三重確認 ✅" if score == 3 else f"{score}/3 訊號確認"
+    score_color = "#00FF7F" if score == 3 else "#FFD700" if score == 2 else "#FF3131"
 
-    # 燈號：任一「核心指標」亮紅 = 紅燈
-    red_flags = [
-        vix > 30,
-        has_pr90 and pr90 > 130,
-        tnx_v is not None and (tnx_v > 5.0 or tnx_chg > 1.0),
-        hyg_v is not None and (hyg_chg < -5 or (hyg_ma20 and hyg_v < hyg_ma20*0.98)),
-    ]
-    yellow_flags = [
-        vix > 20,
-        has_pr90 and pr90 > 115,
-        ptt != -1.0 and ptt > 50,
-        tnx_v is not None and (tnx_v > 4.5 or tnx_chg > 0.5),
-        dxy_v is not None and dxy_v > 104,
-        hyg_v is not None and (hyg_chg < -2 or not above_hyg_ma if hyg_v else False),
-    ]
-    if any(red_flags):       sig = "RED_LIGHT"
-    elif sum(yellow_flags) >= 2: sig = "YELLOW_LIGHT"
-    else:                    sig = "GREEN_LIGHT"
-
-    col_hex, rgb = SIGNAL_PALETTE.get(sig, ("#FFD700","255,215,0"))
-    sig_text     = SIGNAL_MAP.get(sig, "⚪ UNKNOWN")
-    parts        = sig_text.split("：")
-    sig_main     = parts[0] if parts else sig_text
-    sig_desc     = parts[1] if len(parts)>1 else ""
-    score_txt    = f"七維確認 ✅" if score == 7 else f"{score}/7 維通過"
-    score_color  = "#00FF7F" if score >= 6 else "#FFD700" if score >= 4 else "#FF3131"
-
+    # VIX 歷史情境對照
     vix_context = (
-        "歷史對照：VIX>40 對應金融危機（2008/2020）極端底部，通常為千載難逢買點。" if vix > 40 else
-        "歷史對照：VIX 25~35 對應修正行情，波動劇烈，需降低倉位等待企穩。" if vix > 25 else
-        "歷史對照：VIX 20~25 為市場轉折敏感區，宜縮減高風險部位。" if vix > 20 else
+        "歷史對照：VIX>40 對應金融危機（2008/2020）極端底部，通常為千載難逢買點。"
+        if vix > 40 else
+        "歷史對照：VIX 25~35 對應修正行情，波動劇烈，需降低倉位等待企穩。"
+        if vix > 25 else
+        "歷史對照：VIX 20~25 為市場轉折敏感區，宜縮減高風險部位。"
+        if vix > 20 else
         "歷史對照：VIX<20 為牛市常態，市場波動可控，可正常佈局。"
     )
 
-    # ── Hero 告示牌 ──────────────────────────────────────────────────────
+    # ── 英雄告示牌 ──────────────────────────────────────────────────────────
     st.markdown(f"""
-<div class="hero-container" style="--hero-color:{col_hex};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
+<div class="hero-container" style="--hero-color:{col};--hero-glow:rgba({rgb},0.10);--hero-rgb:{rgb};">
   <div style="display:inline-flex;align-items:center;margin-bottom:6px;">
-    <span class="hero-pulse" style="--hero-color:{col_hex};--hero-rgb:{rgb};"></span>
-    <span style="font-family:var(--f-mono);font-size:28px;color:rgba({rgb},0.6);letter-spacing:3px;">
-      TITAN SOP · 七維驗證{"（PR90 待CB）" if not has_pr90 else ""}
-    </span>
+    <span class="hero-pulse" style="--hero-color:{col};--hero-rgb:{rgb};"></span>
+    <span style="font-family:var(--f-mono);font-size:11px;color:rgba({rgb},0.6);letter-spacing:3px;">TITAN SOP V300 · 三重驗證</span>
   </div>
-  <div class="hero-title" style="--hero-color:{col_hex};">{sig_main}</div>
-  <div class="hero-subtitle" style="margin-top:8px;font-size:28px;">{sig_desc}</div>
-  <div style="display:flex;justify-content:center;gap:12px;margin-top:16px;flex-wrap:wrap;">
-    <div style="font-family:var(--f-mono);font-size:26px;color:{vix_col};border:1px solid {vix_col};border-radius:20px;padding:5px 14px;">VIX {vix:.1f}</div>
-    <div style="font-family:var(--f-mono);font-size:26px;color:{tnx_col};border:1px solid {tnx_col};border-radius:20px;padding:5px 14px;">10Y {tnx_txt}</div>
-    <div style="font-family:var(--f-mono);font-size:26px;color:{dxy_col};border:1px solid {dxy_col};border-radius:20px;padding:5px 14px;">DXY {dxy_txt}</div>
-    <div style="font-family:var(--f-mono);font-size:26px;color:{hyg_col};border:1px solid {hyg_col};border-radius:20px;padding:5px 14px;">HYG {hyg_txt}</div>
-    <div style="font-family:var(--f-mono);font-size:26px;color:{score_color};border:1px solid {score_color};border-radius:20px;padding:5px 14px;">{score_txt}</div>
+  <div class="hero-title" style="--hero-color:{col};">{sig_main}</div>
+  <div class="hero-subtitle" style="margin-top:8px;">{sig_desc}</div>
+  <div style="display:flex;justify-content:center;gap:16px;margin-top:16px;flex-wrap:wrap;">
+    <div style="font-family:var(--f-mono);font-size:12px;color:{vix_col};border:1px solid {vix_col};border-radius:20px;padding:5px 16px;">VIX {vix:.1f} — {vix_lv}</div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{pr90_col};border:1px solid {pr90_col};border-radius:20px;padding:5px 16px;">PR90 {pr90:.1f} — {pr90_lv[:4]}</div>
+    <div style="font-family:var(--f-mono);font-size:12px;color:{score_color};border:1px solid {score_color};border-radius:20px;padding:5px 16px;">{score_txt}</div>
   </div>
-  <div class="hero-badge" style="margin-top:14px;font-size:26px;">MACRO HUD v5.0 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+  <div class="hero-badge" style="margin-top:14px;">TITAN SOP V300 &nbsp;·&nbsp; {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
 </div>""", unsafe_allow_html=True)
 
-    st.toast(f"{sig_main} — {sig_desc} | 七維 {score}/7", icon="🚦")
+    st.toast(f"{sig_main} — {sig_desc}  |  三重驗證 {score}/3", icon="🚦")
 
-    # ── 重新整合按鈕 ─────────────────────────────────────────────────────
-    c_ref, _ = st.columns([1,5])
-    with c_ref:
-        if st.button("🔄 重新整合", key="hud_refresh_btn", help="清除快取重新抓取"):
-            for k in ["hud_v5_launched","hud_v5_streamed"]:
-                st.session_state.pop(k, None)
-            _fetch_vix.clear(); _fetch_tse.clear()
-            _fetch_ptt.clear(); _fetch_pr90.clear(); _fetch_global.clear()
-            st.rerun()
-
-    # ── KPI 儀表板（12格：原有8 + 新增4）────────────────────────────────
+    # ── KPI 儀表板（8格）──────────────────────────────────────────────────
     _kpi_row(
-        ("VIX 恐慌指數",   f"{vix:.2f}",                              vix_lv[:10],  vix_col),
-        ("PR90 籌碼壓力",  f"{pr90:.1f}" if has_pr90 else "N/A",      pr90_lv[:8],  pr90_col),
-        ("PTT 散戶看空比", ptt_txt,                                    ptt_lv[:10],  ptt_col),
-        ("七維驗證強度",   f"{score}/7",                               score_txt,    score_color),
+        ("VIX 恐慌指數",    f"{vix:.2f}",  vix_lv,   vix_col),
+        ("PR90 籌碼壓力",   f"{pr90:.1f}", pr90_lv[:8], pr90_col),
+        ("PTT 散戶看空比",  ptt_txt,       ptt_lv[:10], ptt_col),
+        ("訊號驗證強度",    f"{score}/3",  score_txt, score_color),
     )
     _kpi_row(
-        ("加權指數",   f"{tse_price:,.0f}", "TSE 即時點位", "#00F5FF"),
-        ("動能方向",   tse_mom,             "87MA 斜率",    "#FFD700"),
-        ("格蘭碧法則", tse_gran,            "生命線關係",   "#FF9A3C"),
-        ("神奇均線",   tse_ma,              "87MA 狀態",    "#FF6BFF"),
-    )
-    _kpi_row(
-        ("10Y 美債殖利率",  tnx_txt,  tnx_lv[:12],  tnx_col),
-        ("美元指數 DXY",    dxy_txt,  dxy_lv[:12],  dxy_col),
-        ("HYG 信用利差",    hyg_txt,  hyg_lv[:12],  hyg_col),
-        ("信用3M變化",
-         f"{hyg_chg:+.1f}%" if hyg_v else "N/A",
-         "HYG vs 3個月前",
-         "#00FF7F" if hyg_v and hyg_chg > 0 else "#FF3131" if hyg_v and hyg_chg < -3 else "#FFD700"),
+        ("加權指數",     f"{tse_price:,.0f}", "TSE 即時點位",  "#00F5FF"),
+        ("動能方向",     tse_mom,             "MA 斜率判定",   "#FFD700"),
+        ("格蘭碧法則",   tse_gran,            "生命線關係",    "#FF9A3C"),
+        ("神奇均線",     tse_ma,              "87MA 狀態",     "#FF6BFF"),
     )
 
-    # ══════════════════════════════════════════════════════════════════════
-    # 🧠 七維第一性原則完整戰術分析
-    # ══════════════════════════════════════════════════════════════════════
-    st.markdown("### 🧠 七維驗證 · 第一性原則完整戰情推演")
-    st.markdown('<div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,245,255,0.1);border-radius:16px;padding:20px 24px;margin:12px 0;font-family:var(--f-mono);font-size:26px;color:rgba(200,215,230,0.85);line-height:2.0;">', unsafe_allow_html=True)
+    # ── AI 戰術分析（Typewriter）────────────────────────────────────────────
+    st.markdown("### 🧠 三重驗證 · 第一性原則戰術推演")
+    st.markdown('<div style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,245,255,0.1);border-radius:16px;padding:20px 24px;margin:12px 0;font-family:var(--f-mono);font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">', unsafe_allow_html=True)
 
     analysis = f"""
 ═══════════════════════════════════════════════════════════
-🚦 MACRO HUD v5.0 — 七維驗證完整戰情推演
-   信號燈：{sig_text}  |  七維評分：{score}/7
-   新增三維：10Y殖利率 · 美元指數DXY · HYG信用利差
+🚦 MACRO HUD v3.0 — 三重驗證戰情推演
+   信號燈：{sig_text}  |  驗證強度：{score}/3
 ═══════════════════════════════════════════════════════════
 
-【一、七燈號系統架構（第一性原則）】
-  市場的本質是「定價機器」——它在持續為兩件事定價：
-  ① 未來現金流（盈利預期）
-  ② 折現率（利率 + 風險溢價）
-
-  七個指標分別監測這台定價機器的不同零件：
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 維度        指標     現值          評級                     │
-  │ ─────────────────────────────────────────────────────────── │
-  │ 市場恐慌    VIX      {vix:.1f}       {vix_lv[:14]}         │
-  │ 台股籌碼    PR90     {"N/A" if not has_pr90 else f"{pr90:.0f}"}       {pr90_lv[:14]}         │
-  │ 散戶情緒    PTT      {ptt_txt}     {ptt_lv[:14]}         │
-  │ 折現率      10Y殖利率 {tnx_txt}   {tnx_lv[:18]}    │
-  │ 資金流向    DXY美元  {dxy_txt}   {dxy_lv[:18]}    │
-  │ 信用壓力    HYG      {hyg_txt}   {hyg_lv[:18]}    │
-  │ 台股技術    TSE點位  {tse_price:,.0f}  {tse_mom}          │
-  └─────────────────────────────────────────────────────────────┘
+【一、三燈號系統原理（為什麼是這個燈？）】
+  三燈號系統由三個獨立指標交叉驗證決定：
+  ① VIX（恐慌指數）：衡量選擇權市場對未來波動的預期
+  ② PR90（籌碼分佈）：CB籌碼分佈的第90百分位，反映市場超漲程度
+  ③ PTT 散戶情緒：散戶看空比例，作為反向指標使用
+  
+  當前燈號：{sig_text}
+  觸發依據：VIX {vix:.1f} ({vix_lv}) | PR90 {pr90:.1f} ({pr90_lv[:8]}) | PTT {ptt_txt} ({ptt_lv[:10]})
 
 【二、VIX 深度解讀（現值：{vix:.2f}）】
-  本質：S&P 500選擇權隱含波動率，市場對未來30天波動的「恐懼定價」。
-  當前：{vix_lv}
+  VIX 的本質：S&P 500選擇權隱含波動率指數，代表市場對未來30天波動的「恐懼定價」。
+  
+  當前評級：{vix_lv}
   {vix_context}
-  ▸ {'VIX高位=買點，但等VIX從峰值回落後才進場，峰值直接買=接飛刀。' if vix > 25 else 'VIX低位市場自滿，持股需設好停損防黑天鵝。' if vix < 15 else 'VIX中性，無特殊系統性風險，跟技術面操作。'}
+  
+  操作含義：{'VIX 高位通常是買點，但需等待VIX從峰值回落後才進場（峰值買 = 接飛刀）。' if vix > 25 else 'VIX 低位市場自滿，代表系統性風險被忽視，適合持股但需設好停損。' if vix < 15 else 'VIX 中性區間，跟著技術面操作即可，無特殊系統性風險。'}
 
-【三、10年期美債殖利率（現值：{tnx_txt}，3M變化：{tnx_chg:+.2f}%）】
-  ▸ 第一性原則：殖利率是「所有資產定價的基準折現率」。
-    股票估值公式：P = E / (r - g)  其中 r 包含無風險利率（10Y殖利率）
-    → 10Y每上升1%，理論上所有資產估值下壓約15~20%（取決於久期）
+【三、PR90 籌碼壓力解讀（現值：{pr90:.1f}）】
+  PR90 的本質：CB 可轉換公司債的第90百分位價格，反映市場「過熱籌碼」的集中程度。
+  
+  當前評級：{pr90_lv}
+  解讀：PR90 > 130 代表高價籌碼已嚴重堆積，若遭主力出貨，市場將面臨籌碼崩塌式下跌。
+  {'⚠️ 目前籌碼壓力嚴重偏高，持股風險升高，建議降低高PR值個股的倉位。' if pr90 > 130 else '✅ 籌碼分佈尚在合理範圍，無立即性崩盤風險。' if pr90 <= 115 else '🟡 籌碼分佈偏高，注意高位個股的獲利了結壓力。'}
 
-  ▸ 當前評級：{tnx_lv}
-  {"▸ ⚠️ 殖利率快速上升（3M+{:.2f}%），歷史上每次殖利率3個月漲超1%都伴隨股市修正（2013縮減恐慌、2018Q4、2022全年）。估值壓力顯著，成長股/高本益比個股首當其衝。".format(tnx_chg) if tnx_v and (tnx_v > 5.0 or tnx_chg > 1.0) else "▸ ✅ 殖利率在可控區間，折現率壓力有限，股市估值無系統性威脅。" if tnx_v and tnx_v <= 4.5 else "▸ 🟡 殖利率偏高，成長股估值承壓，但未達系統性危險水位。" if tnx_v else "▸ ⚪ 數據暫時無法取得，以VIX+HYG替代評估。"}
+【四、PTT 散戶情緒（反向指標）解讀（現值：{ptt_txt}）】
+  PTT 的本質：散戶情緒是最佳反向指標——散戶最悲觀時，往往是市場底部。
+  
+  當前評級：{ptt_lv}
+  {'逆向邏輯：散戶>65%看空 = 空方能量基本耗盡，主力有機會在此區間吸籌，歷史上是強買點。' if ptt != -1.0 and ptt > 65 else '逆向邏輯：散戶<35%看空 = 全員樂觀，歷史上反而是市場頂部前兆，需謹慎。' if ptt != -1.0 and ptt < 35 else '逆向邏輯：散戶情緒中性，無強烈反向訊號，跟隨技術面操作。' if ptt != -1.0 else 'PTT 數據暫無法取得，僅憑 VIX + PR90 兩重驗證。'}
 
-  ▸ 關鍵閾值：安全(<4%) → 警戒(4~4.5%) → 危險(4.5~5%) → 崩盤風險(>5%)
-  ▸ 速度比絕對值更重要：3個月漲>50bps=警戒，>100bps=危險
-
-【四、美元指數 DXY（現值：{dxy_txt}，3M變化：{dxy_chg:+.1f}%）】
-  ▸ 第一性原則：美元是「全球流動性的水位計」。
-    強美元機制：美元↑ → 全球美元計價債務還款壓力↑ → 新興市場被迫賣資產還錢
-    → 外資從台灣撤資 → 台幣貶值 → 台股估值（美元計）下降
-
-  ▸ 當前評級：{dxy_lv}
-  {"▸ ⚠️ DXY強勢且站上20日均線，歷史上DXY>107通常伴隨新興市場資金外流。台股外資籌碼承壓，需監控外資買賣超。" if dxy_v and dxy_v > 107 else "▸ 🟡 美元偏強，外資對台股保持觀望，避免大規模加碼。" if dxy_v and dxy_v > 104 else "▸ 🔵 弱美元環境，資金傾向回流新興市場，台股受惠。" if dxy_v and dxy_v < 100 else "▸ ✅ 美元中性，對台股資金面無特殊壓力。" if dxy_v else "▸ ⚪ 數據暫時無法取得。"}
-
-  ▸ 台灣特殊性：台幣與外資高度相關，DXY轉折點往往領先台股轉折1~2週
-
-【五、HYG 信用利差（現值：{hyg_txt}，3M漲跌：{hyg_chg:+.1f}%）】
-  ▸ 第一性原則：HYG 是股市的「煤礦中的金絲雀」。
-    機制：HYG↓ = 高收益債價格跌 = 信用利差擴大 = 企業融資成本上升
-    → 高槓桿企業資金鏈壓力 → 潛在違約風險上升 → 比VIX更早預警
-    → 歷史驗證：2008年、2018年Q4、2020年3月，HYG都在VIX飆升前先下跌
-
-  ▸ 當前評級：{hyg_lv}
-  {"▸ 🚨 信用利差急速擴大（HYG 3M {:.1f}%），這是股市即將大幅修正的最強預警訊號！歷史上HYG單月跌超5%後，股市通常在1~3個月內出現10%以上回調。現在是系統性去風險的時機。".format(hyg_chg) if hyg_v and hyg_chg < -5 else "▸ 🟡 信用略為偏緊，流動性壓力初現，留意高負債企業的股價。" if hyg_v and hyg_chg < -2 else "▸ ✅ 信用市場健康，企業融資環境寬鬆，無金融壓力預警。" if hyg_v and hyg_chg > -1 else "▸ ⚪ 數據暫時無法取得，以VIX替代評估信用壓力。"}
-
-  ▸ 組合邏輯：VIX上升 + HYG下跌同時出現 = 雙重確認，系統性風險最高警戒
-
-【六、加權指數技術面（TSE）】
+【五、加權指數技術面（TSE 精讀）】
   現值：{tse_price:,.0f}  │  動能：{tse_mom}
-  格蘭碧法則：{tse_gran}  │  87MA：{tse_ma}
+  格蘭碧法則：{tse_gran}
+  神奇均線(87MA)：{tse_ma}
   扣抵斜率：{deducts}
+  解讀：格蘭碧法則判定生命線關係，當現值{'高於' if '多頭' in str(tse_gran) else '低於'}87MA，{'趨勢偏多，回測均線為買點。' if '多頭' in str(tse_gran) else '趨勢偏空，反彈均線為賣點。'}
 
-【七、跨市場矩陣 × 綜合操作建議】
-  {"🟢 七維全數健康 — 積極進攻：" if score >= 6 else "🟡 部分維度警示 — 謹慎操作：" if score >= 4 else "🔴 多維警示 — 防守為主："}
-  {"✅ VIX低+PR90健康+PTT中性+殖利率穩定+美元不強+信用健康——系統性風險最低水位，可積極佈局。倉位80~100%，以87MA為支撐選股，優先高動能族群。" if score >= 6 and sig == "GREEN_LIGHT" else "⚠️ 部分維度亮黃，建議倉位降至50~70%，嚴選基本面強且符合多維指標的個股，避開高估值+高槓桿+外資撤離股。" if sig == "YELLOW_LIGHT" else "🛡️ 多維同時亮紅，這是歷史上股市大幅回調前的典型特徵。建議倉位20~30%，大量持現，等待VIX+HYG+10Y三者同時收斂後再重新佈局。"}
-
-  ▸ 第一性原理操作哲學：
-    市場在「定價機器失真」時給你最大的機會。
-    七維同時偏向極端（全紅或全綠）= 定價偏差最大 = 最佳操作視窗。
-    當前評分 {score}/7 → {"這是歷史稀有的低風險視窗，勇敢進場。" if score >= 6 else "局部失真，精選操作。" if score >= 4 else "多維失真，等待收斂。"}
+【六、綜合戰術推演】
+  {'🟢 積極進攻：三重驗證全數通過（VIX低+PR90健康+PTT中性），系統性風險極低。策略：正常倉位佈局，以格蘭碧法則選股，優先布局動能強的族群。' if score == 3 else '🟡 區間操作：三重驗證部分警示，市場存在局部風險。策略：精選強勢股，倉位控制在60%以下，避開高PR90個股，設好停損。' if score == 2 else '🔴 防守模式：三重驗證多數警示，系統性風險上升。策略：降低整體倉位至30%以下，持有現金等待訊號轉為中性後再積極操作。'}
 
 ═══════════════════════════════════════════════════════════
 """
-    key_hud = "hud_v5_streamed"
+    key_hud = 'hud_streamed_v3'
     if key_hud not in st.session_state:
-        st.write_stream(_stream_text(analysis, speed=0.006))
+        st.write_stream(_stream_text(analysis, speed=0.008))
         st.session_state[key_hud] = True
     else:
-        st.markdown(f'<pre style="white-space:pre-wrap;font-size:26px;color:rgba(200,215,230,0.8);line-height:2.0;">{analysis}</pre>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(f'<pre style="white-space:pre-wrap;font-size:13px;color:rgba(200,215,230,0.8);line-height:1.85;">{analysis}</pre>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── TSE 深度面板 ──────────────────────────────────────────────────────
-    st.markdown("<div style='margin-top:16px;'>", unsafe_allow_html=True)
-    deducts_full = " &nbsp;|&nbsp; ".join(tse.get("deduct_slope", ["計算中"]))
+    # ── TSE 深度面板 ────────────────────────────────────────────────────────
+    st.markdown('<div style="margin-top:16px;">', unsafe_allow_html=True)
+    deducts_full = " &nbsp;|&nbsp; ".join(tse.get('deduct_slope', ["計算中…"]))
     st.markdown(f"""
 <div style="background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:20px 22px 18px;margin-top:8px;">
-  <div style="font-family:var(--f-mono);font-size:26px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:16px;">
+  <div style="font-family:var(--f-mono);font-size:9px;letter-spacing:3.5px;color:#334455;text-transform:uppercase;margin-bottom:16px;">
     🇹🇼 Taiwan Weighted Index — 技術面深度解讀
   </div>
   <div class="tse-grid">
-    <div class="tse-chip"><div class="tsc-lbl">目前點位</div>
-      <div class="tsc-val" style="font-family:var(--f-display);font-size:28px;color:#FFF;margin-top:4px;">{tse_price:,.0f}</div></div>
-    <div class="tse-chip"><div class="tsc-lbl">動能方向</div>
-      <div class="tsc-val" style="font-size:26px;margin-top:4px;">{tse_mom}</div></div>
-    <div class="tse-chip"><div class="tsc-lbl">神奇均線(87MA)</div>
-      <div class="tsc-val" style="font-size:26px;margin-top:4px;">{tse_ma}</div></div>
-    <div class="tse-chip"><div class="tsc-lbl">格蘭碧法則</div>
-      <div class="tsc-val" style="font-size:26px;margin-top:4px;">{tse_gran}</div></div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">目前點位</div>
+      <div class="tsc-val" style="font-family:var(--f-display);font-size:24px;color:#FFF;margin-top:4px;">
+        {tse.get('price', 0):,.0f}
+      </div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">動能方向</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('momentum', 'N/A')}</div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">神奇均線(87MA)</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('magic_ma', 'N/A')}</div>
+    </div>
+    <div class="tse-chip">
+      <div class="tsc-lbl">格蘭碧法則</div>
+      <div class="tsc-val" style="margin-top:4px;">{tse.get('granville', 'N/A')}</div>
+    </div>
   </div>
-  <div class="tse-deduct" style="margin-top:12px;font-size:26px;line-height:1.8;">
+  <div class="tse-deduct" style="margin-top:12px;font-size:12px;line-height:1.7;">
     扣抵斜率預判 — {deducts_full}
   </div>
 </div>""", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── 全球三維走勢圖（TNX / DXY / HYG 近60日）────────────────────────
+    # ── VIX × PR90 對照圖（近期趨勢）──────────────────────────────────────
     try:
-        chart_tabs = st.tabs(["📈 VIX 60日", "💹 10Y殖利率 60日", "💵 DXY美元 60日", "🔴 HYG信用 60日"])
-        # ① VIX
-        with chart_tabs[0]:
-            vix_df = vix_hist
-            if vix_df.empty:
-                vix_df = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
-            if isinstance(vix_df.columns, pd.MultiIndex):
-                vix_df.columns = vix_df.columns.get_level_values(0)
-            if not vix_df.empty:
-                vp = vix_df[["Close"]].tail(60).reset_index()
-                vp.columns = ["Date","VIX"]
-                vp["Date"] = pd.to_datetime(vp["Date"])
-                ax = alt.Axis(labelFontSize=26, titleFontSize=26, labelColor="#aaa")
-                vc = alt.Chart(vp).mark_area(
-                    line={"color":"#FF3131","strokeWidth":2},
-                    color=alt.Gradient(gradient="linear",
-                        stops=[alt.GradientStop(color="rgba(255,49,49,0.3)",offset=0),
-                               alt.GradientStop(color="rgba(255,49,49,0.02)",offset=1)],x1=1,x2=1,y1=1,y2=0)
-                ).encode(x=alt.X("Date:T",axis=ax,title="日期"),
-                         y=alt.Y("VIX:Q",axis=ax,title="VIX",scale=alt.Scale(zero=False)),
-                         tooltip=[alt.Tooltip("Date:T"),alt.Tooltip("VIX:Q",format=".2f")])
-                r20 = alt.Chart(pd.DataFrame({"y":[20]})).mark_rule(color="#FFD700",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                r30 = alt.Chart(pd.DataFrame({"y":[30]})).mark_rule(color="#FF3131",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                ch = alt.layer(vc,r20,r30).properties(height=220,
-                    title=alt.TitleParams("VIX 近60日  金虛=警戒(20)  紅虛=危險(30)",color="#aaa",fontSize=26,font="JetBrains Mono")
-                ).configure_view(strokeOpacity=0,fill="rgba(0,0,0,0)"
-                ).configure_axis(gridColor="rgba(0,245,255,0.07)",labelColor="#aaa",titleColor="#aaa")
-                st.altair_chart(ch, use_container_width=True)
-
-        # ② TNX
-        with chart_tabs[1]:
-            tnx_h = glob.get("tnx_hist", pd.DataFrame())
-            if not tnx_h.empty:
-                if isinstance(tnx_h.columns, pd.MultiIndex):
-                    tnx_h.columns = tnx_h.columns.get_level_values(0)
-                tp = tnx_h[["Close"]].tail(60).reset_index()
-                tp.columns = ["Date","Yield"]
-                tp["Date"] = pd.to_datetime(tp["Date"])
-                ax = alt.Axis(labelFontSize=26, titleFontSize=26, labelColor="#aaa")
-                tc = alt.Chart(tp).mark_area(
-                    line={"color":"#FFD700","strokeWidth":2},
-                    color=alt.Gradient(gradient="linear",
-                        stops=[alt.GradientStop(color="rgba(255,215,0,0.25)",offset=0),
-                               alt.GradientStop(color="rgba(255,215,0,0.02)",offset=1)],x1=1,x2=1,y1=1,y2=0)
-                ).encode(x=alt.X("Date:T",axis=ax,title="日期"),
-                         y=alt.Y("Yield:Q",axis=ax,title="殖利率(%)",scale=alt.Scale(zero=False)),
-                         tooltip=[alt.Tooltip("Date:T"),alt.Tooltip("Yield:Q",format=".3f")])
-                r45 = alt.Chart(pd.DataFrame({"y":[4.5]})).mark_rule(color="#FFD700",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                r50 = alt.Chart(pd.DataFrame({"y":[5.0]})).mark_rule(color="#FF3131",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                ch = alt.layer(tc,r45,r50).properties(height=220,
-                    title=alt.TitleParams("10Y 美債殖利率  金虛=警戒(4.5%)  紅虛=危險(5%)",color="#aaa",fontSize=26,font="JetBrains Mono")
-                ).configure_view(strokeOpacity=0,fill="rgba(0,0,0,0)"
-                ).configure_axis(gridColor="rgba(0,245,255,0.07)",labelColor="#aaa",titleColor="#aaa")
-                st.altair_chart(ch, use_container_width=True)
-                st.markdown(f'<div style="font-size:26px;color:rgba(160,176,208,.6);margin-top:6px;font-family:var(--f-mono);">⚡ 3個月變化：<span style="color:{tnx_col};">{tnx_chg:+.2f}%</span>　→ {tnx_lv}</div>', unsafe_allow_html=True)
-
-        # ③ DXY
-        with chart_tabs[2]:
-            dxy_h = glob.get("dxy_hist", pd.DataFrame())
-            if not dxy_h.empty:
-                if isinstance(dxy_h.columns, pd.MultiIndex):
-                    dxy_h.columns = dxy_h.columns.get_level_values(0)
-                dp = dxy_h[["Close"]].tail(60).reset_index()
-                dp.columns = ["Date","DXY"]
-                dp["Date"] = pd.to_datetime(dp["Date"])
-                ax = alt.Axis(labelFontSize=26, titleFontSize=26, labelColor="#aaa")
-                dc = alt.Chart(dp).mark_area(
-                    line={"color":"#00BFFF","strokeWidth":2},
-                    color=alt.Gradient(gradient="linear",
-                        stops=[alt.GradientStop(color="rgba(0,191,255,0.25)",offset=0),
-                               alt.GradientStop(color="rgba(0,191,255,0.02)",offset=1)],x1=1,x2=1,y1=1,y2=0)
-                ).encode(x=alt.X("Date:T",axis=ax,title="日期"),
-                         y=alt.Y("DXY:Q",axis=ax,title="DXY",scale=alt.Scale(zero=False)),
-                         tooltip=[alt.Tooltip("Date:T"),alt.Tooltip("DXY:Q",format=".2f")])
-                r104 = alt.Chart(pd.DataFrame({"y":[104]})).mark_rule(color="#FFD700",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                r107 = alt.Chart(pd.DataFrame({"y":[107]})).mark_rule(color="#FF3131",strokeDash=[5,3],strokeWidth=2).encode(y="y:Q")
-                ch = alt.layer(dc,r104,r107).properties(height=220,
-                    title=alt.TitleParams("DXY 美元指數  金虛=警戒(104)  紅虛=危險(107)",color="#aaa",fontSize=26,font="JetBrains Mono")
-                ).configure_view(strokeOpacity=0,fill="rgba(0,0,0,0)"
-                ).configure_axis(gridColor="rgba(0,245,255,0.07)",labelColor="#aaa",titleColor="#aaa")
-                st.altair_chart(ch, use_container_width=True)
-                st.markdown(f'<div style="font-size:26px;color:rgba(160,176,208,.6);margin-top:6px;font-family:var(--f-mono);">⚡ 3個月變化：<span style="color:{dxy_col};">{dxy_chg:+.1f}%</span>　→ {dxy_lv}</div>', unsafe_allow_html=True)
-
-        # ④ HYG
-        with chart_tabs[3]:
-            hyg_h = glob.get("hyg_hist", pd.DataFrame())
-            if not hyg_h.empty:
-                if isinstance(hyg_h.columns, pd.MultiIndex):
-                    hyg_h.columns = hyg_h.columns.get_level_values(0)
-                hp = hyg_h[["Close"]].tail(60).reset_index()
-                hp.columns = ["Date","HYG"]
-                hp["Date"] = pd.to_datetime(hp["Date"])
-                ax = alt.Axis(labelFontSize=26, titleFontSize=26, labelColor="#aaa")
-                hc = alt.Chart(hp).mark_area(
-                    line={"color":"#FF6B6B","strokeWidth":2},
-                    color=alt.Gradient(gradient="linear",
-                        stops=[alt.GradientStop(color="rgba(255,107,107,0.25)",offset=0),
-                               alt.GradientStop(color="rgba(255,107,107,0.02)",offset=1)],x1=1,x2=1,y1=1,y2=0)
-                ).encode(x=alt.X("Date:T",axis=ax,title="日期"),
-                         y=alt.Y("HYG:Q",axis=ax,title="HYG ($)",scale=alt.Scale(zero=False)),
-                         tooltip=[alt.Tooltip("Date:T"),alt.Tooltip("HYG:Q",format=".2f")])
-                ch = hc.properties(height=220,
-                    title=alt.TitleParams("HYG 高收益債 ETF（信用利差代理）",color="#aaa",fontSize=26,font="JetBrains Mono")
-                ).configure_view(strokeOpacity=0,fill="rgba(0,0,0,0)"
-                ).configure_axis(gridColor="rgba(0,245,255,0.07)",labelColor="#aaa",titleColor="#aaa")
-                st.altair_chart(ch, use_container_width=True)
-                st.markdown(f'<div style="font-size:26px;color:rgba(160,176,208,.6);margin-top:6px;font-family:var(--f-mono);">⚡ 3個月變化：<span style="color:{hyg_col};">{hyg_chg:+.1f}%</span>　→ {hyg_lv}<br>💡 煤礦金絲雀：HYG 先於 VIX 1~4 週預警股市壓力</div>', unsafe_allow_html=True)
+        vix_df = macro.get_single_stock_data("^VIX", period="3mo")
+        if not vix_df.empty:
+            vix_plot = vix_df[['Close']].tail(60).reset_index()
+            vix_plot.columns = ['Date', 'VIX']
+            vix_plot['Date'] = pd.to_datetime(vix_plot['Date'])
+            ax_v = alt.Axis(labelFontSize=26, titleFontSize=24, labelColor='#aaa')
+            vix_line = alt.Chart(vix_plot).mark_area(
+                line={'color': '#FF3131', 'strokeWidth': 2},
+                color=alt.Gradient(gradient='linear', stops=[
+                    alt.GradientStop(color='rgba(255,49,49,0.3)', offset=0),
+                    alt.GradientStop(color='rgba(255,49,49,0.02)', offset=1)
+                ], x1=1, x2=1, y1=1, y2=0)
+            ).encode(
+                x=alt.X('Date:T', axis=ax_v, title='日期'),
+                y=alt.Y('VIX:Q', axis=ax_v, title='VIX', scale=alt.Scale(zero=False)),
+                tooltip=[alt.Tooltip('Date:T'), alt.Tooltip('VIX:Q', format='.2f')]
+            )
+            r20 = alt.Chart(pd.DataFrame({'y': [20]})).mark_rule(color='#FFD700', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+            r30 = alt.Chart(pd.DataFrame({'y': [30]})).mark_rule(color='#FF3131', strokeDash=[5,3], strokeWidth=2).encode(y='y:Q')
+            vix_chart = alt.layer(vix_line, r20, r30).properties(
+                height=200,
+                title=alt.TitleParams('VIX 近60日走勢  金虛=警戒(20)  紅虛=危險(30)',
+                                      color='#aaa', fontSize=18, font='JetBrains Mono')
+            ).configure_view(strokeOpacity=0, fill='rgba(0,0,0,0)'
+            ).configure_axis(gridColor='rgba(0,245,255,0.07)', labelColor='#aaa', titleColor='#aaa')
+            st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
+            st.altair_chart(vix_chart, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
     except Exception:
-        pass
-
+        pass  # VIX chart is bonus — don't crash if unavailable
 
 
 def render_1_2_thermometer():
@@ -2802,7 +2319,7 @@ def render_1_7_predator():
 <div style="background:rgba(0,0,0,0.32);border:1px solid rgba(255,49,49,0.18);
      border-left:3px solid rgba(255,49,49,0.55);border-radius:14px;
      padding:16px 20px;margin-bottom:20px;font-family:var(--f-mono);
-     font-size:26px;color:rgba(200,215,230,0.7);line-height:1.9;">
+     font-size:11px;color:rgba(200,215,230,0.7);line-height:1.9;">
 
 <span style="color:#FF3131;font-weight:700;letter-spacing:2px;">█ 第一性原則 — 台指期結算不是隨機的，而是「歷史慣性」的再現</span><br><br>
 
@@ -2842,16 +2359,14 @@ def render_1_7_predator():
     bar_color = "#d62728" if is_red else "#2ca02c"
     cf_rgb    = "214,39,40" if is_red else "44,160,44"
     bias      = res['price'] - res['anc']
+    bias_col  = "#FF3131" if bias > 0 else "#26A69A"
     bias_pct  = (bias / res['anc'] * 100) if res['anc'] != 0 else 0
-    # 方向正確（多方正乖離 / 空方負乖離）→ 綠；反向 → 紅
-    on_track  = (is_red and bias >= 0) or (not is_red and bias <= 0)
-    bias_col  = "#00FF7F" if on_track else "#FF3131"
 
     # ── KPI Row ──────────────────────────────────────────────────────────────
     _kpi_row(
         ("ANCHOR OPEN",   f"{res['anc']:,.0f}",   res['name'],           "#00F5FF"),
         ("CURRENT PRICE", f"{res['price']:,.0f}",  f"{bias:+.0f} pts",   bias_col),
-        ("BIAS FROM ANCHOR", f"{bias_pct:+.2f}%", "偏離結算後首日開盤",  bias_col),
+        ("BIAS FROM ANCHOR", f"{bias_pct:+.2f}%", "偏離開盤錨定點",      bias_col),
     )
 
     # ── Direction Banner ─────────────────────────────────────────────────────
@@ -2863,7 +2378,7 @@ def render_1_7_predator():
     st.markdown("""
 <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,49,49,0.1);
      border-radius:16px;padding:20px 24px;margin:16px 0;font-family:var(--f-mono);
-     font-size:26px;color:rgba(200,215,230,0.85);line-height:1.9;">""", unsafe_allow_html=True)
+     font-size:13px;color:rgba(200,215,230,0.85);line-height:1.9;">""", unsafe_allow_html=True)
 
     # 目標達成判斷
     t1_hit = (is_red and res['price'] >= res['t']['1B']) or (not is_red and res['price'] <= res['t']['1B'])
@@ -2948,7 +2463,7 @@ def render_1_7_predator():
         st.session_state[key_pred] = True
     else:
         st.markdown(
-            f'<pre style="white-space:pre-wrap;font-size:26px;'
+            f'<pre style="white-space:pre-wrap;font-size:13px;'
             f'color:rgba(200,215,230,0.8);line-height:1.85;">{pred_analysis}</pre>',
             unsafe_allow_html=True
         )
@@ -3007,14 +2522,14 @@ def render_1_7_predator():
             base.mark_tick(color='#FFD700', thickness=2, size=86)
             .encode(y=f'Target_{k}')
             + base.mark_text(dx=52, align='left', color='#FFD700',
-                             fontSize=28, fontWeight='bold', font='JetBrains Mono')
+                             fontSize=14, fontWeight='bold', font='JetBrains Mono')
             .encode(y=f'Target_{k}', text=alt.value(f"{k}  {res['t'][k]:,.0f}"))
         )
     chart += (
         base.mark_tick(color='#FF3131', thickness=4, size=100)
         .encode(y='Target_HR')
         + base.mark_text(dx=56, align='left', color='#FF3131',
-                         fontSize=28, fontWeight='bold', font='JetBrains Mono')
+                         fontSize=15, fontWeight='bold', font='JetBrains Mono')
         .encode(y='Target_HR', text=alt.value(f"HR  {res['t']['HR']:,.0f}"))
     )
 
@@ -3041,24 +2556,24 @@ def render_1_7_predator():
 #  RENDER MAP
 # ══════════════════════════════════════════════════════════════════════════════
 RENDER_MAP = {
-    "1.1": render_1_7_predator,
-    "1.2": render_1_1_hud,
-    "1.3": render_1_2_thermometer,
-    "1.4": render_1_3_pr90,
-    "1.5": render_1_4_heatmap,
-    "1.6": render_1_5_turnover,
-    "1.7": render_1_6_trend_radar,
+    "1.1": render_1_1_hud,
+    "1.2": render_1_2_thermometer,
+    "1.3": render_1_3_pr90,
+    "1.4": render_1_4_heatmap,
+    "1.5": render_1_5_turnover,
+    "1.6": render_1_6_trend_radar,
+    "1.7": render_1_7_predator,
 }
 
 # Icon accent per poster card
 _POSTER_ACCENT = {
-    "1.1": "#FF3131",
-    "1.2": "#00F5FF",
-    "1.3": "#FF6B6B",
-    "1.4": "#FFD700",
-    "1.5": "#FF5722",
-    "1.6": "#FFA07A",
-    "1.7": "#9370DB",
+    "1.1": "#00F5FF",
+    "1.2": "#FF6B6B",
+    "1.3": "#FFD700",
+    "1.4": "#FF5722",
+    "1.5": "#FFA07A",
+    "1.6": "#9370DB",
+    "1.7": "#FF3131",
 }
 
 
