@@ -104,56 +104,6 @@ def get_time_slice(df, months):
     return df
 
 
-def _is_rl(e) -> bool:
-    """Rate limit 偵測（tab6 共用）"""
-    msg = str(e).lower()
-    return any(k in msg for k in ["429","too many requests","rate limit","ratelimit","rate limited"])
-
-
-@st.cache_data(ttl=1800, show_spinner=False)
-def _fetch_ticker_dna(sym: str) -> dict:
-    """
-    6.3 DNA掃描 — 帶 cache 的 ticker 財務資料抓取
-    cache TTL=1800s，避免重複打 Yahoo Finance
-    回傳 dict 包含 info / quarterly_income_stmt / quarterly_cashflow
-    """
-    result = {"info": {}, "qi": None, "qc": None, "error": None}
-    fetch_sym = sym
-    bare = sym.replace('.TW','').replace('.TWO','')
-    if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
-        fetch_sym = sym + '.TW'
-    try:
-        tk   = yf.Ticker(fetch_sym)
-        info = tk.info or {}
-        # .TWO fallback
-        if (bare.isdigit() and len(bare) >= 4
-                and not sym.endswith('.TWO')
-                and not info.get('marketCap') and not info.get('shortName')):
-            _tk2 = yf.Ticker(bare + '.TWO')
-            _i2  = _tk2.info or {}
-            if _i2.get('marketCap') or _i2.get('shortName'):
-                tk, info, fetch_sym = _tk2, _i2, bare + '.TWO'
-        result["info"] = info
-        result["fetch_sym"] = fetch_sym
-        # 季報資料（允許失敗，不阻擋主流程）
-        try:
-            result["qi"] = tk.quarterly_income_stmt
-        except Exception:
-            pass
-        try:
-            result["qc"] = tk.quarterly_cashflow
-        except Exception:
-            pass
-    except Exception as _e:
-        if _is_rl(_e):
-            result["error"] = "rate_limit"
-            result["error_msg"] = str(_e)
-        else:
-            result["error"] = "other"
-            result["error_msg"] = str(_e)
-    return result
-
-
 @st.cache_data(ttl=3600)
 def download_full_history(ticker, start="1990-01-01"):
     """下載完整歷史月K線 [V86.2]: 支援台股上櫃 (.TWO)"""
@@ -3417,26 +3367,22 @@ def _s63():
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
                 try:
-                    # ⚡ 使用 cached _fetch_ticker_dna，避免每個 ticker 連打 API
-                    _dna = _fetch_ticker_dna(sym)
-                    if _dna.get("error") == "rate_limit":
-                        st.toast(f"⏳ {sym} Yahoo 限速，請稍後點「重新掃描」。", icon="⏳")
-                        prog.progress((idx+1) / len(tickers))
-                        time.sleep(2.0)  # 限速時多等一下
-                        continue
-                    elif _dna.get("error") == "other":
-                        st.toast(f"⚠️ {sym} 讀取失敗: {_dna.get('error_msg','')}", icon="⚡")
-                        prog.progress((idx+1) / len(tickers))
-                        continue
+                    fetch_sym = sym
+                    bare = sym.replace('.TW','').replace('.TWO','')
+                    if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
+                        fetch_sym = sym + '.TW'
 
-                    info      = _dna["info"]
-                    fetch_sym = _dna.get("fetch_sym", sym)
-                    # tk 僅用於季報（已在 _fetch_ticker_dna 中取得）
-                    _qi_data  = _dna.get("qi")
-                    _qc_data  = _dna.get("qc")
+                    tk   = yf.Ticker(fetch_sym)
+                    info = tk.info
 
-                    # sleep 避免 cache miss 時連打（cache 命中不影響速度）
-                    time.sleep(0.8)
+                    # .TWO fallback：上櫃股（純數字且 .TW 抓不到）
+                    if (bare.isdigit() and len(bare) >= 4
+                            and not sym.endswith('.TWO')
+                            and not info.get('marketCap') and not info.get('shortName')):
+                        _tk2 = yf.Ticker(bare + '.TWO')
+                        _i2  = _tk2.info
+                        if _i2.get('marketCap') or _i2.get('shortName'):
+                            tk, info, fetch_sym = _tk2, _i2, bare + '.TWO'
 
                     def _g(k, d=0):
                         v = info.get(k, d)
@@ -3571,8 +3517,8 @@ def _s63():
                                 "qtrs_to_fcf_positive":None,"rev_qoq_list":[],"quarters":[]}
                     try:
                         import numpy as _np
-                        qi = _qi_data   # 已在 _fetch_ticker_dna 中取得，無需重複 API 呼叫
-                        qc = _qc_data
+                        qi = tk.quarterly_income_stmt
+                        qc = tk.quarterly_cashflow
                         if qi is not None and not qi.empty and qi.shape[1] >= 4:
                             _RN = ["Total Revenue","Revenue","Net Revenue","Operating Revenue"]
                             _GN = ["Gross Profit","Gross Income"]
@@ -3696,11 +3642,7 @@ def _s63():
                         d11=d11_data,
                     ))
                 except Exception as e:
-                    if _is_rl(e):
-                        st.toast(f"⏳ {sym} Yahoo 限速，跳過。若持續發生請等 30 秒後重新掃描。", icon="⏳")
-                        time.sleep(2.0)
-                    else:
-                        st.toast(f"⚠️ {sym} 讀取失敗: {e}", icon="⚡")
+                    st.toast(f"⚠️ {sym} 讀取失敗: {e}")
 
                 prog.progress((idx+1) / len(tickers))
 
