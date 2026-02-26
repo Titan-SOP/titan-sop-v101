@@ -973,14 +973,55 @@ def _calculate_futures_targets():
     df = df.sort_values('Date')
     df['YM'] = df['Date'].dt.to_period('M')
 
+    # ── 結算日計算（假期容錯版）────────────────────────────────────────────
+    # 第一性原則：台指期每月「第三個週三」結算，但遇例假日順延至下一個交易日。
+    # 例：2026/02 春節連假覆蓋 2/18（第三個週三），結算日順延至 2/23（連假後首個交易日）。
+    # 解法：
+    #   STEP1 → 計算「理論第三個週三」（日曆計算，不依賴交易資料）
+    #   STEP2 → 若該日不在交易資料中（休假），向後找最近實際交易日
+    #   STEP3 → 確認該結算日之後確實有後續交易資料再收錄
+
+    def _theoretical_3rd_wed(year: int, month: int):
+        """計算某年某月的理論第三個週三（日曆計算）"""
+        import calendar
+        count = 0
+        for day in range(1, calendar.monthrange(year, month)[1] + 1):
+            d = pd.Timestamp(year, month, day)
+            if d.weekday() == 2:   # Wednesday = 2
+                count += 1
+                if count == 3:
+                    return d
+        return None
+
+    # 所有實際交易日的集合（快速查詢用）
+    trading_days = set(df['Date'].dt.normalize())
+
     s_dates = []
     for ym in df['YM'].unique():
-        wed = df[(df['YM'] == ym) & (df['Date'].dt.weekday == 2)]
-        if len(wed) >= 3:
-            d   = wed.iloc[2]['Date']
-            val = d.item() if hasattr(d, 'item') else d
-            if not df[df['Date'] >= val].empty:
-                s_dates.append(val)
+        year, month = ym.year, ym.month
+        theo_wed = _theoretical_3rd_wed(year, month)
+        if theo_wed is None:
+            continue
+
+        # 若理論週三不是交易日（假期），向後找最近交易日（同月內，最多順延10天）
+        settle_day = None
+        for offset in range(11):                         # 0=當天，1~10=順延
+            candidate = theo_wed + pd.Timedelta(days=offset)
+            # 限制在同月或只允許跨到下月初1天（極端情況）
+            if candidate.month != month and offset > 0:
+                break
+            if candidate in trading_days:
+                settle_day = candidate
+                break
+
+        # 找不到（整月無交易？）則跳過
+        if settle_day is None:
+            continue
+
+        # 確認結算日之後還有交易資料（才能建立本月錨定點）
+        val = settle_day.item() if hasattr(settle_day, 'item') else settle_day
+        if not df[df['Date'] > val].empty:
+            s_dates.append(val)
 
     stats = []
     for i in range(len(s_dates) - 1):
@@ -1325,13 +1366,23 @@ def render_1_1_hud():
     # 七維評分系統（0~7）→ 燈號判定
     # ══════════════════════════════════════════════════════════════════════
     score = 0
-    if vix <= 20:                                       score += 1
-    if has_pr90 and pr90 <= 115:                        score += 1
-    elif not has_pr90:                                  score += 1
-    if ptt != -1.0 and ptt <= 50:                       score += 1
-    if tnx_v is None or (tnx_v <= 4.5 and tnx_chg <= 0.5): score += 1
-    if dxy_v is None or dxy_v <= 104:                   score += 1
+    # ① VIX：< 20 = 市場平靜
+    if vix <= 20:                                              score += 1
+    # ② PR90：健康或無CB數據皆給分
+    if has_pr90 and pr90 <= 115:                              score += 1
+    elif not has_pr90:                                        score += 1
+    # ③ PTT：散戶極悲觀(>65)=反向看多 ✓ / 情緒平衡(35-65) ✓ / 過樂觀(<35)=危險
+    #    N/A(-1.0) 給分（不扣分，給予中性優惠）
+    if ptt == -1.0 or ptt > 35:                               score += 1
+    # ④ 10Y殖利率：不存在或在安全範圍
+    if tnx_v is None or (tnx_v <= 4.5 and tnx_chg <= 0.5):   score += 1
+    # ⑤ DXY：不存在或美元未過強
+    if dxy_v is None or dxy_v <= 104:                         score += 1
+    # ⑥ HYG 信用：不存在或信用健康
     if hyg_v is None or (hyg_chg >= -2 and above_hyg_ma if hyg_v else True): score += 1
+    # ⑦ TSE 台股技術：站上87MA = 多頭
+    tse_above_87 = (tse_price > 0 and tse_gran and "多頭" in tse_gran)
+    if tse_price == 0 or tse_above_87:                        score += 1  # 無數據給中性分
 
     # 燈號：任一「核心指標」亮紅 = 紅燈
     red_flags = [
@@ -1343,10 +1394,11 @@ def render_1_1_hud():
     yellow_flags = [
         vix > 20,
         has_pr90 and pr90 > 115,
-        ptt != -1.0 and ptt > 50,
+        ptt != -1.0 and 35 < ptt <= 50,        # 偏空但未到極端（真正的謹慎訊號）
         tnx_v is not None and (tnx_v > 4.5 or tnx_chg > 0.5),
         dxy_v is not None and dxy_v > 104,
         hyg_v is not None and (hyg_chg < -2 or not above_hyg_ma if hyg_v else False),
+        not tse_above_87 and tse_price > 0,    # TSE 跌破87MA = 黃燈
     ]
     if any(red_flags):       sig = "RED_LIGHT"
     elif sum(yellow_flags) >= 2: sig = "YELLOW_LIGHT"
@@ -1448,7 +1500,7 @@ def render_1_1_hud():
   │ ─────────────────────────────────────────────────────────── │
   │ 市場恐慌    VIX      {vix:.1f}       {vix_lv[:14]}         │
   │ 台股籌碼    PR90     {"N/A" if not has_pr90 else f"{pr90:.0f}"}       {pr90_lv[:14]}         │
-  │ 散戶情緒    PTT      {ptt_txt}     {ptt_lv[:14]}         │
+  │ 散戶情緒    PTT      {ptt_txt:<8} {ptt_lv[:20]}   │
   │ 折現率      10Y殖利率 {tnx_txt}   {tnx_lv[:18]}    │
   │ 資金流向    DXY美元  {dxy_txt}   {dxy_lv[:18]}    │
   │ 信用壓力    HYG      {hyg_txt}   {hyg_lv[:18]}    │
@@ -3041,13 +3093,13 @@ def render_1_7_predator():
 #  RENDER MAP
 # ══════════════════════════════════════════════════════════════════════════════
 RENDER_MAP = {
-    "1.1": render_1_7_predator,
-    "1.2": render_1_1_hud,
-    "1.3": render_1_2_thermometer,
-    "1.4": render_1_3_pr90,
-    "1.5": render_1_4_heatmap,
-    "1.6": render_1_5_turnover,
-    "1.7": render_1_6_trend_radar,
+    "1.1": render_1_1_hud,           # 🚦 宏觀風控儀表（七維HUD）
+    "1.2": render_1_2_thermometer,   # 🌡️ 溫度計
+    "1.3": render_1_3_pr90,          # 📊 PR90 籌碼
+    "1.4": render_1_4_heatmap,       # 🔥 熱力圖
+    "1.5": render_1_5_turnover,      # 🔄 週轉率
+    "1.6": render_1_6_trend_radar,   # 📡 趨勢雷達
+    "1.7": render_1_7_predator,      # 🎯 台指獵殺
 }
 
 # Icon accent per poster card
