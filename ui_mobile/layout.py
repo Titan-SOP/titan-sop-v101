@@ -460,9 +460,15 @@ def _run_tab(tab_id: str):
 # ══════════════════════════════════════════════════════════════
 def _render_statusbar(active_tab_id: str | None = None):
     now = datetime.now()
-    is_market_hours = (9 <= now.hour < 14) and (now.weekday() < 5)
-    status_badge = "● LIVE" if is_market_hours else "● CLOSED"
-    status_color = "#00FF7F" if is_market_hours else "#FF4B4B"
+    
+    # ── 新增：動態讀取連線狀態 ──
+    data_mode = st.session_state.get("DATA_MODE", "Guest")
+    if data_mode == "Quantum":
+        status_badge = "⚡ API LIVE"
+        status_color = "#00FF7F" # 螢光綠
+    else:
+        status_badge = "🌐 GUEST"
+        status_color = "#00C9FF" # 科技藍
 
     if active_tab_id:
         tab_info = next((t for t in TABS if t["id"] == active_tab_id), None)
@@ -587,8 +593,28 @@ def _render_topbar_back(tab_info: dict):
 #  主入口
 # ══════════════════════════════════════════════════════════════
 def _render_sidebar_switcher():
-    """側邊欄：切換到桌面版"""
+    """側邊欄：切換模式與數據源"""
     with st.sidebar:
+        # ── 1. 數據源切換開關 (Data Bridge Toggle) ──
+        st.markdown(
+            '<div style="font-family:JetBrains Mono,monospace;font-size:10px;' 
+            'color:rgba(160,180,220,0.4);letter-spacing:2px;text-transform:uppercase;' 
+            'margin-bottom:8px;">⬡ 數據連線引擎</div>',
+            unsafe_allow_html=True
+        )
+        current_mode = st.session_state.get("DATA_MODE", "Guest")
+        is_quantum = st.toggle("⚡ 啟動 Quantum API", value=(current_mode == "Quantum"))
+        
+        if is_quantum and current_mode != "Quantum":
+            st.session_state["DATA_MODE"] = "Quantum"
+            st.rerun()
+        elif not is_quantum and current_mode == "Quantum":
+            st.session_state["DATA_MODE"] = "Guest"
+            st.rerun()
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── 2. 切換到桌面版 ──
         st.markdown(
             '<div style="font-family:JetBrains Mono,monospace;font-size:10px;' 
             'color:rgba(160,180,220,0.4);letter-spacing:2px;text-transform:uppercase;' 
@@ -600,6 +626,7 @@ def _render_sidebar_switcher():
             st.session_state.choice_confirmed = True
             st.session_state.mob_active_tab  = None
             st.rerun()
+            
         st.markdown(
             '<div style="font-family:JetBrains Mono,monospace;font-size:9px;' 
             'color:rgba(160,180,220,0.2);margin-top:6px;letter-spacing:1px;">' 
