@@ -1095,16 +1095,17 @@ def render_1_1_hud():
     # ── 數據抓取（全部獨立，不依賴 CB）─────────────────────────────────
     @st.cache_data(ttl=300, show_spinner=False)
     def _fetch_vix():
+        # ⚠️ 不可在 @st.cache_data 內呼叫任何 st.* UI 元素
+        # 改回傳第三個值 rate_limited，由外層決定是否顯示 toast
         try:
             tk  = yf.Ticker("^VIX")
             inf = tk.info
             v   = (inf.get("regularMarketPrice") or inf.get("previousClose") or 20.0)
             h   = yf.download("^VIX", period="3mo", progress=False, auto_adjust=True)
-            return float(v), h
+            return float(v), h, False
         except Exception as _e1v:
-            if any(k in str(_e1v).lower() for k in ["429","too many requests","rate limit"]):
-                st.toast("⏳ VIX 資料 Yahoo 限速，使用預設值 20.0。請稍後點「🔄 重新整合」。", icon="⏳")
-            return 20.0, pd.DataFrame()
+            _is_429 = any(k in str(_e1v).lower() for k in ["429","too many requests","rate limit"])
+            return 20.0, pd.DataFrame(), _is_429
 
     @st.cache_data(ttl=300, show_spinner=False)
     def _fetch_tse():
@@ -1260,7 +1261,9 @@ def render_1_1_hud():
 
     # ── 抓取所有七維數據 ──────────────────────────────────────────────────
     with st.spinner("📡 同步七維宏觀指標：VIX · TSE · PTT · PR90 · 10Y · DXY · HYG …"):
-        vix, vix_hist = _fetch_vix()
+        vix, vix_hist, _vix_429 = _fetch_vix()
+        if _vix_429:
+            st.toast("⏳ VIX 資料 Yahoo 限速，使用預設值 20.0。請稍後點「🔄 重新整合」。", icon="⏳")
         tse           = _fetch_tse()
         ptt           = _fetch_ptt(id(_load_engines))
         df_cb         = st.session_state.get("df", pd.DataFrame())
