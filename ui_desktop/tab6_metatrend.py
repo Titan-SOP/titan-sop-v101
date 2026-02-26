@@ -224,19 +224,20 @@ class TitanIntelAgency:
     def fetch_full_report(self, ticker):
         try:
             original_ticker = ticker
+            # 台股後綴偵測：用 download 取代 info（info 現在常回 None，不可靠）
             if ticker.isdigit() and len(ticker) >= 4:
-                ticker = f"{ticker}.TW"
+                resolved = None
+                for sfx in [".TW", ".TWO"]:
+                    try:
+                        _td = yf.download(ticker + sfx, period="5d",
+                                          progress=False, auto_adjust=True)
+                        if not _td.empty:
+                            resolved = ticker + sfx
+                            break
+                    except Exception:
+                        continue
+                ticker = resolved if resolved else ticker + ".TW"
             self.ticker_obj = yf.Ticker(ticker)
-            try:
-                test_info = self.ticker_obj.info
-                if not test_info or 'symbol' not in test_info:
-                    if original_ticker.isdigit() and len(original_ticker) >= 4:
-                        ticker = f"{original_ticker}.TWO"
-                        self.ticker_obj = yf.Ticker(ticker)
-            except:
-                if original_ticker.isdigit() and len(original_ticker) >= 4:
-                    ticker = f"{original_ticker}.TWO"
-                    self.ticker_obj = yf.Ticker(ticker)
             fundamentals = self._fetch_fundamentals()
             news = self._fetch_news()
             return self._generate_report(ticker, fundamentals, news)
@@ -245,23 +246,103 @@ class TitanIntelAgency:
 
     def _fetch_fundamentals(self):
         try:
-            info = self.ticker_obj.info
+            tk = self.ticker_obj
+            info = {}   # 從空 dict 開始，逐層疊加，永遠不會 NoneType
+
+            # 層①: fast_info — 穩定，取價格/市值/股數
+            try:
+                fi = tk.fast_info
+                for _k, _attr in [
+                    ("currentPrice",      "last_price"),
+                    ("marketCap",         "market_cap"),
+                    ("sharesOutstanding", "shares"),
+                    ("currency",          "currency"),
+                    ("fiftyTwoWeekHigh",  "fifty_two_week_high"),
+                    ("fiftyTwoWeekLow",   "fifty_two_week_low"),
+                ]:
+                    try:
+                        _v = getattr(fi, _attr, None)
+                        if _v is not None:
+                            info[_k] = _v
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # 層②: tk.info 疊加（失敗不影響已有資料）
+            try:
+                _raw = tk.info
+                if isinstance(_raw, dict):
+                    for _k, _v in _raw.items():
+                        if _v is not None:
+                            info[_k] = _v
+            except Exception:
+                pass
+
+            # 層③: income_stmt → EPS（Yahoo 財報 API 仍可用）
+            _eps = info.get("trailingEps") or info.get("forwardEps")
+            if not _eps:
+                _sh = info.get("sharesOutstanding")
+                if _sh and float(_sh) > 0:
+                    for _stmt_attr in ["income_stmt", "quarterly_income_stmt"]:
+                        try:
+                            _stmt = getattr(tk, _stmt_attr, None)
+                            if _stmt is None or _stmt.empty:
+                                continue
+                            _priority = ["Net Income Common Stockholders",
+                                         "Net Income",
+                                         "Net Income From Continuing And Discontinued Operation"]
+                            _ni_row = None
+                            for _p in _priority:
+                                if _p in _stmt.index:
+                                    _ni_row = _p; break
+                            if _ni_row is None:
+                                for _r in _stmt.index:
+                                    if "net income" in str(_r).lower():
+                                        _ni_row = _r; break
+                            if _ni_row:
+                                if _stmt_attr == "quarterly_income_stmt" and _stmt.shape[1] >= 4:
+                                    _ni = float(_stmt.loc[_ni_row].iloc[:4].sum())
+                                else:
+                                    _ni = float(_stmt.loc[_ni_row].iloc[0])
+                                if abs(_ni) > 0:
+                                    _e = round(_ni / float(_sh), 4)
+                                    if abs(_e) > 0.001:
+                                        info["trailingEps"] = _e
+                                        break
+                        except Exception:
+                            continue
+
+            # PE 補強
+            _cp = info.get("currentPrice")
+            _e  = info.get("trailingEps") or info.get("forwardEps")
+            if _cp and _e and not info.get("trailingPE"):
+                try:
+                    _pe = float(_cp) / float(_e)
+                    if 0 < _pe < 500:
+                        info["trailingPE"] = round(_pe, 1)
+                except Exception:
+                    pass
+
+            def _g(k): return info.get(k, 'N/A')
             return {
-                '市值': info.get('marketCap', 'N/A'),
-                '現價': info.get('currentPrice', 'N/A'),
-                'Forward PE': info.get('forwardPE', 'N/A'),
-                'PEG Ratio': info.get('pegRatio', 'N/A'),
-                '營收成長 (YoY)': info.get('revenueGrowth', 'N/A'),
-                '毛利率': info.get('grossMargins', 'N/A'),
-                '營業利益率': info.get('operatingMargins', 'N/A'),
-                'ROE': info.get('returnOnEquity', 'N/A'),
-                '負債比': info.get('debtToEquity', 'N/A'),
-                '自由現金流': info.get('freeCashflow', 'N/A'),
-                '機構目標價': info.get('targetMeanPrice', 'N/A'),
-                '52週高點': info.get('fiftyTwoWeekHigh', 'N/A'),
-                '52週低點': info.get('fiftyTwoWeekLow', 'N/A'),
-                '產業': info.get('industry', 'N/A'),
-                '公司簡介': info.get('longBusinessSummary', 'N/A'),
+                '市值':           _g('marketCap'),
+                '現價':           _g('currentPrice'),
+                'EPS (TTM)':      _g('trailingEps'),
+                'Trailing PE':    _g('trailingPE'),
+                'Forward PE':     _g('forwardPE'),
+                'PEG Ratio':      _g('pegRatio'),
+                '營收成長 (YoY)': _g('revenueGrowth'),
+                '毛利率':         _g('grossMargins'),
+                '營業利益率':     _g('operatingMargins'),
+                'ROE':            _g('returnOnEquity'),
+                '負債比':         _g('debtToEquity'),
+                '自由現金流':     _g('freeCashflow'),
+                '機構目標價':     _g('targetMeanPrice'),
+                '52週高點':       _g('fiftyTwoWeekHigh'),
+                '52週低點':       _g('fiftyTwoWeekLow'),
+                '產業':           _g('industry'),
+                '公司簡介':       _g('longBusinessSummary'),
             }
         except Exception as e:
             return {'錯誤': str(e)}
@@ -307,6 +388,8 @@ class TitanIntelAgency:
         else:
             report += f"**市值**: {_fmt_bn(fundamentals.get('市值', 'N/A'))}\n"
             report += f"**現價**: ${fundamentals.get('現價', 'N/A')}\n"
+            report += f"**EPS (TTM)**: {fundamentals.get('EPS (TTM)', 'N/A')}\n"
+            report += f"**Trailing PE**: {fundamentals.get('Trailing PE', 'N/A')}\n"
             report += f"**Forward PE**: {fundamentals.get('Forward PE', 'N/A')}\n"
             report += f"**PEG Ratio**: {fundamentals.get('PEG Ratio', 'N/A')}\n"
             report += f"**機構目標價**: ${fundamentals.get('機構目標價', 'N/A')}\n\n"
