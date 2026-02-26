@@ -1268,9 +1268,22 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
         "#FF9A3C"
     )
 
-    cp      = info.get("currentPrice") or info.get("regularMarketPrice") or \
-              (float(hist3y["Close"].iloc[-1]) if not hist3y.empty else 0)
-    eps     = info.get("trailingEps") or info.get("forwardEps")
+    # ── 安全取得收盤價（防 MultiIndex）──────────────────────────────
+    def _safe_close(df: pd.DataFrame) -> pd.Series:
+        """確保取得 1D Series，兼容 yfinance MultiIndex 和一般 DataFrame"""
+        if df.empty:
+            return pd.Series(dtype=float)
+        c = df["Close"] if "Close" in df.columns else df.iloc[:, 0]
+        # MultiIndex 殘留 or 1欄 DataFrame → squeeze 成 Series
+        if isinstance(c, pd.DataFrame):
+            c = c.squeeze()
+        return c.astype(float)
+
+    _close_ser = _safe_close(hist3y)
+    cp      = (info.get("currentPrice") or info.get("regularMarketPrice") or
+               (float(_close_ser.iloc[-1]) if not _close_ser.empty else 0))
+    cp      = float(cp) if cp else 0.0
+
     pe_trail = info.get("trailingPE")
     pe_fwd   = info.get("forwardPE")
     pb      = info.get("priceToBook")
@@ -1279,23 +1292,42 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     roe     = info.get("returnOnEquity", 0) or 0
     bvps    = info.get("bookValue", 0) or 0
 
-    # ── Mine Sweeper ──────────────────────────────────────────────────
-    debt_to_equity = info.get("debtToEquity")       # 0–100 scale typically
-    free_cashflow  = info.get("freeCashflow")        # raw value in currency
+    # ── EPS 三層取得（render 層自救，不依賴 _fetch 是否成功）────────
+    # Layer 1: 直接從 info 取
+    eps = info.get("trailingEps") or info.get("forwardEps")
+    # Layer 2: 股價 ÷ PE 反推（PE 常從 fast_info 補入，美股幾乎必有）
+    if not eps and cp > 0:
+        _pe_src = pe_trail or pe_fwd
+        if _pe_src and float(_pe_src) > 0:
+            eps = round(cp / float(_pe_src), 2)
+    # Layer 3: netIncomeToCommon ÷ sharesOutstanding
+    if not eps:
+        _ni = info.get("netIncomeToCommon")
+        _sh = info.get("sharesOutstanding")
+        if _ni and _sh and float(_sh) > 0:
+            _eps_calc = float(_ni) / float(_sh)
+            if abs(_eps_calc) > 0.001:
+                eps = round(_eps_calc, 2)
 
+    # Mine Sweeper
+    debt_to_equity = info.get("debtToEquity")
+    free_cashflow  = info.get("freeCashflow")
     has_debt_mine = debt_to_equity is not None and float(debt_to_equity) > 200
     has_fcf_mine  = free_cashflow is not None  and float(free_cashflow)  < 0
 
-    # ── Historical PE percentiles ─────────────────────────────────────
+    # ── Historical PE percentiles（使用 _safe_close 確保 1D Series）─
     pe_25 = pe_50 = pe_75 = hist_pe = None
-    if not hist3y.empty and eps and float(eps) > 0:
-        pe_ser = (hist3y["Close"] / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
-        pe_ser = pe_ser[pe_ser > 0]
-        if len(pe_ser) > 20:
-            pe_25 = float(np.percentile(pe_ser, 25))
-            pe_50 = float(np.percentile(pe_ser, 50))
-            pe_75 = float(np.percentile(pe_ser, 75))
-            hist_pe = float(pe_ser.iloc[-1])
+    if not _close_ser.empty and eps and float(eps) > 0:
+        try:
+            pe_ser = (_close_ser / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
+            pe_ser = pe_ser[pe_ser > 0]
+            if len(pe_ser) > 20:
+                pe_25    = float(np.percentile(pe_ser, 25))
+                pe_50    = float(np.percentile(pe_ser, 50))
+                pe_75    = float(np.percentile(pe_ser, 75))
+                hist_pe  = float(pe_ser.iloc[-1])
+        except Exception:
+            pass   # 靜默降級，use_pe 改用 pe_trail
 
     use_pe = hist_pe or pe_trail or pe_fwd
     if use_pe and pe_25 and pe_75:
@@ -1375,7 +1407,7 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     _sec28("PE 價值河流圖 (PE River Chart)")
     _sec26("股價與四條PE估值帶的相對位置 — 落在哪條河道一眼看清估值高低", "rgba(160,176,208,.45)")
 
-    if not hist3y.empty and eps and float(eps) > 0:
+    if not _close_ser.empty and eps and float(eps) > 0:
         eps_val = float(eps)
         river_df = hist3y.copy().reset_index()
         for c in river_df.columns:
@@ -1385,6 +1417,9 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
         if "Date" not in river_df.columns:
             river_df["Date"] = river_df.index
         river_df["Date"]  = pd.to_datetime(river_df["Date"])
+        # 確保 Close 是 1D（防 MultiIndex 殘留）
+        if "Close" in river_df.columns and isinstance(river_df["Close"], pd.DataFrame):
+            river_df["Close"] = river_df["Close"].squeeze()
         river_df["PE8"]   = eps_val * 8
         river_df["PE12"]  = eps_val * 12
         river_df["PE16"]  = eps_val * 16
