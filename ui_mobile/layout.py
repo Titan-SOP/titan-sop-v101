@@ -30,11 +30,7 @@ MOBILE_CSS = """
 <style>
 /* ── 全局 ── */
 .stApp { background-color: #0a0a0a; color: #f0f0f0; font-size: 14px; }
-[data-testid="stSidebar"] {
-    background: #111 !important;
-    border-right: 1px solid #2a2a2a !important;
-}
-[data-testid="stSidebarContent"] { padding: 12px 10px !important; }
+[data-testid="stSidebar"] { display: none !important; }
 [data-testid="stHeader"]  { display: none !important; }
 footer { display: none !important; }
 #MainMenu { display: none !important; }
@@ -174,32 +170,6 @@ def _upload_zone():
 # ════════════════════════════════════════════════════════════════
 #  輔助函式
 # ════════════════════════════════════════════════════════════════
-def _render_top_title(icon: str, title: str):
-    """
-    全局頁面標題列 + 數據連線狀態 Badge。
-    讀取 DATA_MODE session state，動態切換燈號顏色與文字。
-    """
-    mode = st.session_state.get("DATA_MODE", "Guest")
-    if mode == "Quantum":
-        badge_color = "#00FF7F"           # 螢光綠
-        badge_text  = "⚡ API LIVE"
-    else:
-        badge_color = "#00C9FF"           # 科技藍
-        badge_text  = "🌐 GUEST"
-
-    st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between;
-     margin:0 0 12px 0;gap:8px;">
-  <div class="m-page-title" style="margin:0;">{icon} {title}</div>
-  <div style="font-size:10px;font-weight:bold;color:{badge_color};
-       border:1px solid {badge_color};border-radius:6px;
-       padding:2px 8px;letter-spacing:1px;white-space:nowrap;
-       background:{badge_color}18;">
-    {badge_text}
-  </div>
-</div>""", unsafe_allow_html=True)
-
-
 def _metric_card(title, value, sub="", color="#fff"):
     st.markdown(f"""
     <div class="m-card">
@@ -256,7 +226,7 @@ def _mini_candle(df, height=280, title=""):
 #  PAGE 1: 宏觀大盤
 # ════════════════════════════════════════════════════════════════
 def _page_macro():
-    _render_top_title("🛡️", "宏觀大盤")
+    st.markdown('<div class="m-page-title">🛡️ 宏觀大盤</div>', unsafe_allow_html=True)
     _upload_zone()
 
     # 直接呼叫桌面版 render（宏觀大盤天然單欄）
@@ -294,7 +264,7 @@ def _macro_fallback():
 #  PAGE 2: 獵殺雷達（完整功能，手機 UX）
 # ════════════════════════════════════════════════════════════════
 def _page_radar():
-    _render_top_title("🏹", "獵殺雷達")
+    st.markdown('<div class="m-page-title">🏹 獵殺雷達</div>', unsafe_allow_html=True)
     _upload_zone()
     df = st.session_state.get('df', pd.DataFrame())
     if df.empty:
@@ -461,7 +431,7 @@ def _mobile_risk_radar(df):
 #  PAGE 3: 單兵狙擊（7 子分頁完整）
 # ════════════════════════════════════════════════════════════════
 def _page_sniper():
-    _render_top_title("🎯", "單兵狙擊")
+    st.markdown('<div class="m-page-title">🎯 單兵狙擊</div>', unsafe_allow_html=True)
 
     ticker_in = st.text_input("輸入標的（台股/美股/加密）",
                                value=st.session_state.get('sniper_ticker','2330'),
@@ -704,7 +674,7 @@ def _sniper_monthly(tkr):
 #  PAGE 4: 全球決策（完整 4.1~4.5）
 # ════════════════════════════════════════════════════════════════
 def _page_decision():
-    _render_top_title("🚀", "全球決策")
+    st.markdown('<div class="m-page-title">🚀 全球決策</div>', unsafe_allow_html=True)
     _upload_zone()
 
     tabs = st.tabs(["📋 持倉", "📈 回測", "🧪 均線實驗", "⚖️ 調倉", "🌪️ 壓力測試"])
@@ -964,7 +934,7 @@ def _decision_stress():
 #  PAGE 5: 戰略百科（完整功能）
 # ════════════════════════════════════════════════════════════════
 def _page_wiki():
-    _render_top_title("📚", "戰略百科")
+    st.markdown('<div class="m-page-title">📚 戰略百科</div>', unsafe_allow_html=True)
 
     tabs = st.tabs(["📖 SOP規則", "💰 CBAS", "📅 行事曆", "🕵️ 情報分析"])
 
@@ -1191,7 +1161,7 @@ def _wiki_intel():
 #  PAGE 6: 元趨勢戰法（完整：7D幾何+信評+戰略工廠+獵殺清單+全境獵殺）
 # ════════════════════════════════════════════════════════════════
 def _page_meta():
-    _render_top_title("🧠", "元趨勢戰法")
+    st.markdown('<div class="m-page-title">🧠 元趨勢戰法</div>', unsafe_allow_html=True)
 
     tabs = st.tabs(["📐 7D幾何", "🏭 戰略工廠", "📝 獵殺清單", "🚀 全境獵殺"])
 
@@ -1491,45 +1461,8 @@ def _meta_full_hunt():
 def render():
     st.markdown(MOBILE_CSS, unsafe_allow_html=True)
 
-    # ── Session State 初始化 ────────────────────────────────────
     if 'mobile_page' not in st.session_state:
         st.session_state['mobile_page'] = 'macro'
-    if 'DATA_MODE' not in st.session_state:
-        st.session_state['DATA_MODE'] = 'Guest'
-
-    # ── 側邊欄：數據連線引擎開關 ────────────────────────────────
-    with st.sidebar:
-        st.markdown("### ⬡ 數據連線引擎")
-
-        current_mode = st.session_state.get("DATA_MODE", "Guest")
-        is_quantum   = st.toggle(
-            "⚡ 啟動 Quantum API (即時報價)",
-            value=(current_mode == "Quantum"),
-            key="sidebar_engine_toggle",
-        )
-
-        # 狀態寫入：toggle 改變時更新 session_state
-        new_mode = "Quantum" if is_quantum else "Guest"
-        if new_mode != current_mode:
-            st.session_state["DATA_MODE"] = new_mode
-            if new_mode == "Quantum":
-                st.success("⚡ Quantum API 已啟動")
-            else:
-                st.info("🌐 已切換回 Guest 模式")
-            st.rerun()
-
-        # 目前模式燈號
-        _badge_c = "#00FF7F" if current_mode == "Quantum" else "#00C9FF"
-        _badge_t = "⚡ API LIVE" if current_mode == "Quantum" else "🌐 GUEST MODE"
-        st.markdown(
-            f'<div style="font-size:11px;color:{_badge_c};letter-spacing:1px;'
-            f'border:1px solid {_badge_c};border-radius:6px;padding:3px 10px;'
-            f'margin-top:4px;background:{_badge_c}18;text-align:center;">'
-            f'{_badge_t}</div>',
-            unsafe_allow_html=True,
-        )
-        st.divider()
-        st.caption("Quantum 模式：永豐金 API 即時報價\nGuest 模式：Yahoo Finance 延遲數據")
 
     page = st.session_state['mobile_page']
 
