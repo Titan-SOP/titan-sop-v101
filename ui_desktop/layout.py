@@ -92,13 +92,32 @@ def render():
 
     render_sidebar_utilities()
 
-    # ── 側邊欄：切換到手機版 ──────────────────────────────────
+    # ── 側邊欄：全局控制中心 ──────────────────────────────────
     with st.sidebar:
-        st.markdown("---")
+        # ── 1. 數據引擎切換開關 (桌面版) ──
         st.markdown(
             '<div style="font-size:11px;color:rgba(160,180,220,0.4);' 
             'letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">' 
-            '⬡ 切換模式</div>',
+            '⬡ 數據連線引擎</div>',
+            unsafe_allow_html=True
+        )
+        current_mode = st.session_state.get("DATA_MODE", "Guest")
+        is_quantum = st.toggle("⚡ 啟動 Quantum API", value=(current_mode == "Quantum"), key="desktop_api_toggle")
+        
+        if is_quantum and current_mode != "Quantum":
+            st.session_state["DATA_MODE"] = "Quantum"
+            st.rerun()
+        elif not is_quantum and current_mode == "Quantum":
+            st.session_state["DATA_MODE"] = "Guest"
+            st.rerun()
+            
+        st.markdown("---")
+
+        # ── 2. 切換到手機版 ──
+        st.markdown(
+            '<div style="font-size:11px;color:rgba(160,180,220,0.4);' 
+            'letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">' 
+            '⬡ 介面模式</div>',
             unsafe_allow_html=True
         )
         if st.button("📱  切換到手機版", use_container_width=True, key="desk_switch_mobile"):
