@@ -105,7 +105,7 @@ html, body, .stApp {
 
 /* ── 頁面主體留底部空間給 nav bar ─────────── */
 [data-testid="stAppViewContainer"] > section:first-child {
-    padding-bottom: 90px !important;
+    padding-bottom: 20px !important;
 }
 
 /* ── 頂部狀態列 ───────────────────────────── */
@@ -233,46 +233,59 @@ html, body, .stApp {
     text-transform: uppercase;
 }
 
-/* ── 首頁 3×2 卡片按鈕 ─────────────────────── */
-/* 每個 .mob-card-btn 包裹一個 st.button，CSS讓它變卡片外觀 */
-.mob-card-btn div.stButton > button {
-    background: rgba(255,255,255,0.025) !important;
-    border-radius: 18px !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-top-width: 2px !important;
-    padding: 18px 8px 16px !important;
-    min-height: 120px !important;
-    width: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 6px !important;
-    font-family: 'Rajdhani', sans-serif !important;
-    font-size: 15px !important;
-    font-weight: 700 !important;
-    line-height: 1.3 !important;
-    color: rgba(200,215,240,0.85) !important;
-    letter-spacing: 0.5px !important;
-    white-space: pre-line !important;
-    transition: all 0.2s !important;
-    box-shadow: none !important;
+.mob-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 8px 14px 100px;
 }
-.mob-card-btn div.stButton > button:hover {
-    background: rgba(255,255,255,0.06) !important;
-    transform: scale(1.04) !important;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.5) !important;
+.mob-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px;
+    padding: 20px 14px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+    min-height: 130px;
+    justify-content: center;
 }
-.mob-card-btn div.stButton > button:active {
-    transform: scale(0.96) !important;
+.mob-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 18px 18px 0 0;
 }
-/* 各板塊頂部強調色 */
-.mob-cb-macro    div.stButton > button { border-top-color: #FF4B4B !important; }
-.mob-cb-radar    div.stButton > button { border-top-color: #00C9FF !important; }
-.mob-cb-sniper   div.stButton > button { border-top-color: #00FF7F !important; }
-.mob-cb-decision div.stButton > button { border-top-color: #FFD700 !important; }
-.mob-cb-wiki     div.stButton > button { border-top-color: #00F5FF !important; }
-.mob-cb-meta     div.stButton > button { border-top-color: #B77DFF !important; }
+.mob-card:active {
+    transform: scale(0.97);
+    background: rgba(255,255,255,0.05);
+}
+.mob-card-icon {
+    font-size: 36px;
+    line-height: 1;
+}
+.mob-card-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.1;
+}
+.mob-card-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: rgba(160,180,220,0.4);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+}
 
 /* ── 模組頂部返回列 ────────────────────────── */
 .mob-topbar {
@@ -519,38 +532,40 @@ def _render_home():
   <div class="mob-home-title">TITAN OS</div>
   <div class="mob-home-sub">⬡ MOBILE COMMAND POST · SELECT BATTLE ZONE</div>
 </div>
+<div class="mob-card-grid">
 """, unsafe_allow_html=True)
 
-    # ── 3×2 卡片按鈕 Grid（圖示 + 標題 + 英文副標，全部可點擊）──
-    # 用 CSS class 注入各板塊強調色，省去重複按鈕
-    page_key_map = {
-        "tab1_macro":     "macro",
-        "tab2_radar":     "radar",
-        "tab3_sniper":    "sniper",
-        "tab4_decision":  "decision",
-        "tab5_wiki":      "wiki",
-        "tab6_metatrend": "meta",
-    }
+    # 用 HTML 渲染卡片視覺（純展示）
+    cards_html = ""
+    for tab in TABS:
+        cards_html += f"""
+<div class="mob-card" style="border-color:{tab['color']}18;">
+  <div class="mob-card::before" style="background:{tab['color']};"></div>
+  <div class="mob-card-icon">{tab['icon']}</div>
+  <div class="mob-card-title" style="color:{tab['color']};">{tab['label']}</div>
+  <div class="mob-card-sub">{tab['label_en']}</div>
+</div>
+"""
+    st.markdown(cards_html + "</div>", unsafe_allow_html=True)
+
+    # 實際可點擊按鈕（2列排版）
+    st.markdown('<div style="margin:8px 0;"></div>', unsafe_allow_html=True)
+
     row1 = st.columns(3)
     row2 = st.columns(3)
     all_cols = row1 + row2
 
     for col, tab in zip(all_cols, TABS):
-        pk = page_key_map.get(tab["id"], tab["id"])
         with col:
-            # CSS class 用於注入頂部強調色
-            st.markdown(f'<div class="mob-card-btn mob-cb-{pk}">', unsafe_allow_html=True)
-            # 按鈕文字：大emoji + 換行 + 中文名 + 換行 + 英文副標
-            btn_label = f"{tab['icon']}\n{tab['label']}\n{tab['label_en'].upper()}"
             if st.button(
-                btn_label,
+                f"{tab['icon']}  {tab['label']}",
                 key=f"mob_home_{tab['id']}",
                 use_container_width=True,
+                type="primary",
                 help=tab["desc"],
             ):
                 st.session_state.mob_active_tab = tab["id"]
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -651,8 +666,7 @@ def render():
         # ⚡ 直接呼叫模組的 render()
         _run_tab(active_id)
 
-    # ── 底部導航列（固定在底部）──────────────────────────────
-    _render_bottom_nav(active_id)
+    # 底部導航列已移除（改用首頁卡片 + 各頁返回按鈕導航）
 
 
 if __name__ == "__main__":
