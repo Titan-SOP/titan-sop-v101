@@ -220,3 +220,94 @@ def get_macro_snapshot() -> dict:
     except Exception:
         pass
     return result
+
+
+# ═══════════════════════════════════════════════════════════════
+#  雙軌數據適配器 — TitanDataBridge
+# ═══════════════════════════════════════════════════════════════
+
+class TitanDataBridge:
+    """
+    雙軌數據適配器。
+    DATA_MODE = "Guest"   → yfinance (免費，延遲)
+    DATA_MODE = "Quantum" → 永豐金 API (即時，預留位)
+    """
+
+    def __init__(self):
+        self.mode = st.session_state.get("DATA_MODE", "Guest")
+
+    # ── 公開介面 ─────────────────────────────────────────────
+    def get_realtime_quote(self, symbol: str) -> dict:
+        """
+        依 DATA_MODE 分流，回傳標準化行情字典：
+        { price, bid1, ask1, status }
+        """
+        # 每次呼叫都重讀 mode，讓 toggle 切換立即生效
+        self.mode = st.session_state.get("DATA_MODE", "Guest")
+
+        if self.mode == "Quantum":
+            return self._fetch_api_quote(symbol)
+        else:
+            return self._fetch_guest_quote(symbol)
+
+    # ── Guest 模式：yfinance fast_info ───────────────────────
+    def _fetch_guest_quote(self, symbol: str) -> dict:
+        """
+        使用 yfinance fast_info.last_price 取得最新價，
+        模擬 bid1 / ask1（±0.1% spread）。
+        """
+        try:
+            tk    = yf.Ticker(symbol)
+            price = None
+
+            # fast_info 優先（速度快，屬性安全取）
+            try:
+                price = getattr(tk.fast_info, "last_price", None)
+            except Exception:
+                pass
+
+            # 降級：download 最後一根收盤
+            if not price:
+                df = yf.download(symbol, period="2d", progress=False, auto_adjust=True)
+                if not df.empty:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df.columns = df.columns.get_level_values(0)
+                    price = float(df["Close"].iloc[-1])
+
+            if not price:
+                return {"price": 0.0, "bid1": 0.0, "ask1": 0.0, "status": "No Data"}
+
+            price = round(float(price), 2)
+            spread = round(price * 0.001, 2)   # 模擬 0.1% 價差
+            return {
+                "price":  price,
+                "bid1":   round(price - spread, 2),
+                "ask1":   round(price + spread, 2),
+                "status": "Guest (Delayed)",
+            }
+        except Exception as e:
+            return {"price": 0.0, "bid1": 0.0, "ask1": 0.0, "status": f"Error: {e}"}
+
+    # ── Quantum 模式：永豐金 API 預留位 ─────────────────────
+    def _fetch_api_quote(self, symbol: str) -> dict:
+        """
+        永豐金 Sinopac API 預留位。
+        目前寫死測試值，待 API 金鑰與 SDK 接入後替換此函式體。
+        """
+        # TODO: 接入 SinopacAPI / shioaji SDK
+        # import shioaji as sj
+        # api = sj.Shioaji(); api.login(...)
+        # contract = api.Contracts.Stocks[symbol]
+        # snapshot = api.snapshots([contract])[0]
+        # return {"price": snapshot.close, "bid1": snapshot.buy_price,
+        #         "ask1": snapshot.sell_price, "status": "API Live"}
+        return {
+            "price":  999,
+            "bid1":   998,
+            "ask1":   1000,
+            "status": "API Live",
+        }
+
+
+# ── 模組層級單例，供各 tab 直接 import 使用 ─────────────────
+data_bridge = TitanDataBridge()
