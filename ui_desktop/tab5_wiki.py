@@ -199,24 +199,18 @@ def _fetch(symbol: str):
         if h1.empty:
             h1 = raw.tail(252).copy()   # fallback：最近 252 筆
 
-        # ── Step 3: info — 加 jitter 避免與 download 並發，失敗不炸 ──
+        # ── Step 3: info — 多層防護，根治 Yahoo Finance API 不穩定問題 ──
+        # 背景：Yahoo Finance API 2024年後對 tk.info 回傳 None 或殼字典越來越頻繁
+        # 策略：fast_info 幾乎永遠可用（獨立 API 路徑），優先補齊價格和 PE；
+        #        tk.info 成功時再疊加深層財務欄位（EPS/bookValue/debtToEquity 等）
         time.sleep(0.35)
         tk = yf.Ticker(resolved)
         info: dict = {}
-        try:
-            _raw_info = tk.info or {}
-            # yfinance 有時回傳 {'trailingPegRatio': None, ...} 等殼字典
-            if len(_raw_info) > 5:
-                info = _raw_info
-        except Exception:
-            pass
 
-        # fast_info 保底（幾乎不限速）— 只「補缺」，絕不覆蓋 tk.info 已有的財務資料
-        # 關鍵原則：艾蜜莉(5.4)需要 trailingEps/bookValue/debtToEquity 等深層欄位，
-        # 若用新 dict 取代 info，這些欄位會消失，導致 5.4 財務資料全部找不到。
+        # ① fast_info 優先（穩定，不限速，覆蓋價格/PE/市值）
         try:
             fi = tk.fast_info
-            _fi_patch = {
+            _fi_base = {
                 "currentPrice":       getattr(fi, "last_price",          None),
                 "regularMarketPrice": getattr(fi, "last_price",          None),
                 "marketCap":          getattr(fi, "market_cap",          None),
@@ -224,13 +218,62 @@ def _fetch(symbol: str):
                 "fiftyTwoWeekLow":    getattr(fi, "fifty_two_week_low",  None),
                 "trailingPE":         getattr(fi, "p_e_ratio",           None),
                 "sharesOutstanding":  getattr(fi, "shares",              None),
+                "currency":           getattr(fi, "currency",            None),
             }
-            # 只填補 info 中缺失的 key，不覆蓋任何已有欄位
-            for _k, _v in _fi_patch.items():
-                if _v is not None and not info.get(_k):
-                    info[_k] = _v
+            info = {k: v for k, v in _fi_base.items() if v is not None}
         except Exception:
             pass
+
+        # ② tk.info 疊加深層財務欄位（失敗不影響 ① 已取得的資料）
+        try:
+            _raw_info = tk.info
+            # None、空dict、殼字典（只有 quoteType/symbol 等無財務資料）都跳過
+            if isinstance(_raw_info, dict) and _raw_info:
+                _price_keys = ["regularMarketPrice","currentPrice","previousClose","open"]
+                _fin_keys   = ["trailingEps","forwardEps","bookValue","debtToEquity",
+                               "freeCashflow","returnOnEquity","dividendYield",
+                               "priceToBook","netIncomeToCommon"]
+                _has_price  = any(_raw_info.get(k) for k in _price_keys)
+                _has_fin    = any(_raw_info.get(k) is not None for k in _fin_keys)
+                if _has_price or _has_fin:
+                    # 疊加：tk.info 有的欄位直接覆蓋（tk.info 更精確）
+                    for _k, _v in _raw_info.items():
+                        if _v is not None:
+                            info[_k] = _v
+        except Exception:
+            pass
+
+        # ③ EPS 救援鏈 — 確保 5.4 艾蜜莉河流圖永遠有 EPS
+        if not info.get("trailingEps") and not info.get("forwardEps"):
+            _cp = info.get("currentPrice") or info.get("regularMarketPrice")
+            _pe = info.get("trailingPE")
+            _ni = info.get("netIncomeToCommon")
+            _sh = info.get("sharesOutstanding")
+            # Layer A: 股價 ÷ PE（fast_info 的 p_e_ratio 幾乎永遠有效）
+            if _cp and _pe and float(_pe) > 0:
+                try:
+                    info["trailingEps"] = round(float(_cp) / float(_pe), 2)
+                except Exception:
+                    pass
+            # Layer B: 淨利 ÷ 股數
+            elif _ni and _sh and float(_sh) > 0:
+                try:
+                    _e = float(_ni) / float(_sh)
+                    if abs(_e) > 0.001:
+                        info["trailingEps"] = round(_e, 2)
+                except Exception:
+                    pass
+
+        # ④ PE 補強（若 trailingPE 仍空但 EPS 已算出）
+        if not info.get("trailingPE") and info.get("trailingEps"):
+            _cp = info.get("currentPrice") or info.get("regularMarketPrice")
+            if _cp:
+                try:
+                    _pe_calc = float(_cp) / float(info["trailingEps"])
+                    if 0 < _pe_calc < 500:
+                        info["trailingPE"] = round(_pe_calc, 1)
+                except Exception:
+                    pass
 
         # ── Step 4: holders — 非關鍵，失敗優雅降級（原有邏輯不變） ──
         try:
@@ -1268,66 +1311,57 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
         "#FF9A3C"
     )
 
-    # ── 安全取得收盤價（防 MultiIndex）──────────────────────────────
-    def _safe_close(df: pd.DataFrame) -> pd.Series:
-        """確保取得 1D Series，兼容 yfinance MultiIndex 和一般 DataFrame"""
-        if df.empty:
-            return pd.Series(dtype=float)
+    # ── 安全取得 Close Series（防 yfinance MultiIndex 殘留）────────
+    def _sc(df):
+        if df.empty: return pd.Series(dtype=float)
         c = df["Close"] if "Close" in df.columns else df.iloc[:, 0]
-        # MultiIndex 殘留 or 1欄 DataFrame → squeeze 成 Series
-        if isinstance(c, pd.DataFrame):
-            c = c.squeeze()
-        return c.astype(float)
+        return (c.squeeze() if isinstance(c, pd.DataFrame) else c).astype(float)
 
-    _close_ser = _safe_close(hist3y)
-    cp      = (info.get("currentPrice") or info.get("regularMarketPrice") or
-               (float(_close_ser.iloc[-1]) if not _close_ser.empty else 0))
-    cp      = float(cp) if cp else 0.0
+    _cl = _sc(hist3y)
 
+    cp       = float(info.get("currentPrice") or info.get("regularMarketPrice") or
+                     (_cl.iloc[-1] if not _cl.empty else 0) or 0)
     pe_trail = info.get("trailingPE")
     pe_fwd   = info.get("forwardPE")
-    pb      = info.get("priceToBook")
-    ps      = info.get("priceToSalesTrailing12Months")
-    div_y   = info.get("dividendYield", 0) or 0
-    roe     = info.get("returnOnEquity", 0) or 0
-    bvps    = info.get("bookValue", 0) or 0
+    pb       = info.get("priceToBook")
+    ps       = info.get("priceToSalesTrailing12Months")
+    div_y    = float(info.get("dividendYield") or 0)
+    roe      = float(info.get("returnOnEquity") or 0)
+    bvps     = float(info.get("bookValue") or 0)
 
-    # ── EPS 三層取得（render 層自救，不依賴 _fetch 是否成功）────────
-    # Layer 1: 直接從 info 取
+    # EPS — render 層二次救援（_fetch 已做過，這裡是最後防線）
     eps = info.get("trailingEps") or info.get("forwardEps")
-    # Layer 2: 股價 ÷ PE 反推（PE 常從 fast_info 補入，美股幾乎必有）
     if not eps and cp > 0:
-        _pe_src = pe_trail or pe_fwd
-        if _pe_src and float(_pe_src) > 0:
-            eps = round(cp / float(_pe_src), 2)
-    # Layer 3: netIncomeToCommon ÷ sharesOutstanding
+        _pe = pe_trail or pe_fwd
+        if _pe and float(_pe) > 0:
+            eps = round(cp / float(_pe), 2)
     if not eps:
         _ni = info.get("netIncomeToCommon")
         _sh = info.get("sharesOutstanding")
         if _ni and _sh and float(_sh) > 0:
-            _eps_calc = float(_ni) / float(_sh)
-            if abs(_eps_calc) > 0.001:
-                eps = round(_eps_calc, 2)
+            _e = float(_ni) / float(_sh)
+            if abs(_e) > 0.001:
+                eps = round(_e, 2)
 
     # Mine Sweeper
     debt_to_equity = info.get("debtToEquity")
     free_cashflow  = info.get("freeCashflow")
-    has_debt_mine = debt_to_equity is not None and float(debt_to_equity) > 200
-    has_fcf_mine  = free_cashflow is not None  and float(free_cashflow)  < 0
+    has_debt_mine  = debt_to_equity is not None and float(debt_to_equity) > 200
+    has_fcf_mine   = free_cashflow  is not None and float(free_cashflow)  < 0
 
-    # ── Historical PE percentiles（使用 _safe_close 確保 1D Series）─
+    # ── Historical PE percentiles（_cl 已是安全 1D Series）─────────
     pe_25 = pe_50 = pe_75 = hist_pe = None
-    if not _close_ser.empty and eps and float(eps) > 0:
+    if not _cl.empty and eps and float(eps) > 0:
         try:
-            pe_ser = (_close_ser / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
+            pe_ser = (_cl / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
             pe_ser = pe_ser[pe_ser > 0]
             if len(pe_ser) > 20:
-                pe_25    = float(np.percentile(pe_ser, 25))
-                pe_50    = float(np.percentile(pe_ser, 50))
-                pe_75    = float(np.percentile(pe_ser, 75))
-                hist_pe  = float(pe_ser.iloc[-1])
+                pe_25   = float(np.percentile(pe_ser, 25))
+                pe_50   = float(np.percentile(pe_ser, 50))
+                pe_75   = float(np.percentile(pe_ser, 75))
+                hist_pe = float(pe_ser.iloc[-1])
         except Exception:
-            pass   # 靜默降級，use_pe 改用 pe_trail
+            pass
 
     use_pe = hist_pe or pe_trail or pe_fwd
     if use_pe and pe_25 and pe_75:
@@ -1407,7 +1441,7 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     _sec28("PE 價值河流圖 (PE River Chart)")
     _sec26("股價與四條PE估值帶的相對位置 — 落在哪條河道一眼看清估值高低", "rgba(160,176,208,.45)")
 
-    if not _close_ser.empty and eps and float(eps) > 0:
+    if not _cl.empty and eps and float(eps) > 0:
         eps_val = float(eps)
         river_df = hist3y.copy().reset_index()
         for c in river_df.columns:
@@ -1417,9 +1451,6 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
         if "Date" not in river_df.columns:
             river_df["Date"] = river_df.index
         river_df["Date"]  = pd.to_datetime(river_df["Date"])
-        # 確保 Close 是 1D（防 MultiIndex 殘留）
-        if "Close" in river_df.columns and isinstance(river_df["Close"], pd.DataFrame):
-            river_df["Close"] = river_df["Close"].squeeze()
         river_df["PE8"]   = eps_val * 8
         river_df["PE12"]  = eps_val * 12
         river_df["PE16"]  = eps_val * 16
