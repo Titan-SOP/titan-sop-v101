@@ -3093,13 +3093,13 @@ def render_1_7_predator():
 #  RENDER MAP
 # ══════════════════════════════════════════════════════════════════════════════
 RENDER_MAP = {
-    "1.1": render_1_1_hud,           # 🚦 宏觀風控儀表（七維HUD）
-    "1.2": render_1_2_thermometer,   # 🌡️ 溫度計
-    "1.3": render_1_3_pr90,          # 📊 PR90 籌碼
-    "1.4": render_1_4_heatmap,       # 🔥 熱力圖
-    "1.5": render_1_5_turnover,      # 🔄 週轉率
-    "1.6": render_1_6_trend_radar,   # 📡 趨勢雷達
-    "1.7": render_1_7_predator,      # 🎯 台指獵殺
+    "1.1": render_1_7_predator,
+    "1.2": render_1_1_hud,
+    "1.3": render_1_2_thermometer,
+    "1.4": render_1_3_pr90,
+    "1.5": render_1_4_heatmap,
+    "1.6": render_1_5_turnover,
+    "1.7": render_1_6_trend_radar,
 }
 
 # Icon accent per poster card
