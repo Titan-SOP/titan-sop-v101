@@ -224,12 +224,12 @@ class TitanIntelAgency:
     def fetch_full_report(self, ticker):
         try:
             original_ticker = ticker
-            # 台股後綴偵測：用 download 取代 info（info 現在常回 None，不可靠）
+            # 台股：用 download 偵測後綴（比 tk.info 更可靠）
             if ticker.isdigit() and len(ticker) >= 4:
                 resolved = None
                 for sfx in [".TW", ".TWO"]:
                     try:
-                        _td = yf.download(ticker + sfx, period="5d",
+                        _td = yf.download(ticker + sfx, period="3d",
                                           progress=False, auto_adjust=True)
                         if not _td.empty:
                             resolved = ticker + sfx
@@ -237,115 +237,178 @@ class TitanIntelAgency:
                     except Exception:
                         continue
                 ticker = resolved if resolved else ticker + ".TW"
+
+            # 暖機：先呼叫一次 tk.info，讓 yfinance 物件快取完整資料
+            # 這是原始版成功的關鍵——第二次呼叫（在_fetch_fundamentals）命中快取
             self.ticker_obj = yf.Ticker(ticker)
+            try:
+                _warmup = self.ticker_obj.info   # 暖機，結果不用
+            except Exception:
+                pass   # 失敗不影響，_fetch_fundamentals 內部有備援
+
             fundamentals = self._fetch_fundamentals()
+            self._last_fundamentals = fundamentals  # 供診斷 expander 讀取
             news = self._fetch_news()
             return self._generate_report(ticker, fundamentals, news)
         except Exception as e:
             return f"❌ **情報抓取失敗**\n\n錯誤訊息: {str(e)}\n\n請確認股票代號是否正確，或手動貼上情報。"
 
     def _fetch_fundamentals(self):
+        """
+        多層防護版：
+        層① tk.info（主力，有暖機快取時最完整）
+        層② fast_info 補齊價格/市值
+        層③ income_stmt + balance_sheet + cashflow 直接算財務指標
+        """
         try:
-            tk = self.ticker_obj
-            info = {}   # 從空 dict 開始，逐層疊加，永遠不會 NoneType
+            tk   = self.ticker_obj
+            info = {}
+            _diag = {}   # 診斷用
 
-            # 層①: fast_info — 穩定，取價格/市值/股數
+            # 層①: tk.info — 暖機後再取（原始版成功的關鍵）
+            try:
+                _raw = tk.info
+                _diag['tk.info 欄位數'] = len(_raw) if isinstance(_raw, dict) else 'None/Error'
+                if isinstance(_raw, dict) and len(_raw) > 5:
+                    info.update({k: v for k, v in _raw.items() if v is not None})
+            except Exception as _e1:
+                _diag['tk.info'] = str(_e1)
+
+            # 層②: fast_info 補齊（getattr 逐一取，AttributeError 跳過）
             try:
                 fi = tk.fast_info
-                for _k, _attr in [
-                    ("currentPrice",      "last_price"),
-                    ("marketCap",         "market_cap"),
-                    ("sharesOutstanding", "shares"),
-                    ("currency",          "currency"),
-                    ("fiftyTwoWeekHigh",  "fifty_two_week_high"),
-                    ("fiftyTwoWeekLow",   "fifty_two_week_low"),
-                ]:
+                _fi_map = {
+                    "currentPrice":      "last_price",
+                    "regularMarketPrice":"last_price",
+                    "marketCap":         "market_cap",
+                    "sharesOutstanding": "shares",
+                    "currency":          "currency",
+                    "fiftyTwoWeekHigh":  "fifty_two_week_high",
+                    "fiftyTwoWeekLow":   "fifty_two_week_low",
+                }
+                for _k, _attr in _fi_map.items():
                     try:
                         _v = getattr(fi, _attr, None)
-                        if _v is not None:
+                        if _v is not None and _k not in info:
                             info[_k] = _v
                     except Exception:
                         pass
-            except Exception:
-                pass
+                _diag['fast_info.last_price'] = getattr(fi, 'last_price', 'AttributeError')
+            except Exception as _e2:
+                _diag['fast_info'] = str(_e2)
 
-            # 層②: tk.info 疊加（失敗不影響已有資料）
-            try:
-                _raw = tk.info
-                if isinstance(_raw, dict):
-                    for _k, _v in _raw.items():
-                        if _v is not None:
-                            info[_k] = _v
-            except Exception:
-                pass
+            # 層③: 財報直接計算（tk.info 返回稀疏時的完整備援）
+            # 只在 tk.info 沒有提供關鍵財務指標時才執行
+            _needs_stmt = not any(info.get(k) for k in
+                                  ['grossMargins','returnOnEquity','freeCashflow','revenueGrowth'])
+            if _needs_stmt:
+                _sh = info.get('sharesOutstanding')
+                try:
+                    # 損益表 → 毛利率、營業利益率、EPS、營收成長
+                    _inc = tk.income_stmt
+                    _diag['income_stmt shape'] = str(_inc.shape) if _inc is not None and not _inc.empty else 'empty'
+                    if _inc is not None and not _inc.empty and _inc.shape[1] >= 2:
+                        def _row(df, *keys):
+                            for k in keys:
+                                if k in df.index:
+                                    return df.loc[k]
+                            return None
 
-            # 層③: income_stmt → EPS（Yahoo 財報 API 仍可用）
-            _eps = info.get("trailingEps") or info.get("forwardEps")
-            if not _eps:
-                _sh = info.get("sharesOutstanding")
-                if _sh and float(_sh) > 0:
-                    for _stmt_attr in ["income_stmt", "quarterly_income_stmt"]:
-                        try:
-                            _stmt = getattr(tk, _stmt_attr, None)
-                            if _stmt is None or _stmt.empty:
-                                continue
-                            _priority = ["Net Income Common Stockholders",
-                                         "Net Income",
-                                         "Net Income From Continuing And Discontinued Operation"]
-                            _ni_row = None
-                            for _p in _priority:
-                                if _p in _stmt.index:
-                                    _ni_row = _p; break
-                            if _ni_row is None:
-                                for _r in _stmt.index:
-                                    if "net income" in str(_r).lower():
-                                        _ni_row = _r; break
-                            if _ni_row:
-                                if _stmt_attr == "quarterly_income_stmt" and _stmt.shape[1] >= 4:
-                                    _ni = float(_stmt.loc[_ni_row].iloc[:4].sum())
-                                else:
-                                    _ni = float(_stmt.loc[_ni_row].iloc[0])
-                                if abs(_ni) > 0:
-                                    _e = round(_ni / float(_sh), 4)
-                                    if abs(_e) > 0.001:
-                                        info["trailingEps"] = _e
-                                        break
-                        except Exception:
-                            continue
+                        _rev   = _row(_inc, 'Total Revenue', 'Revenue')
+                        _gross = _row(_inc, 'Gross Profit')
+                        _oper  = _row(_inc, 'Operating Income', 'EBIT')
+                        _ni    = _row(_inc, 'Net Income Common Stockholders', 'Net Income')
+
+                        if _rev is not None and float(_rev.iloc[0]) > 0:
+                            if _gross is not None and not info.get('grossMargins'):
+                                info['grossMargins'] = round(float(_gross.iloc[0]) / float(_rev.iloc[0]), 4)
+                            if _oper is not None and not info.get('operatingMargins'):
+                                info['operatingMargins'] = round(float(_oper.iloc[0]) / float(_rev.iloc[0]), 4)
+                            # 營收成長 YoY
+                            if len(_rev) >= 2 and not info.get('revenueGrowth'):
+                                _r0, _r1 = float(_rev.iloc[0]), float(_rev.iloc[1])
+                                if _r1 != 0:
+                                    info['revenueGrowth'] = round((_r0 - _r1) / abs(_r1), 4)
+                        # EPS
+                        if _ni is not None and _sh and not info.get('trailingEps'):
+                            _ni_v = float(_ni.iloc[0])
+                            _e    = round(_ni_v / float(_sh), 4)
+                            if abs(_e) > 0.001:
+                                info['trailingEps'] = _e
+                except Exception as _e3:
+                    _diag['income_stmt error'] = str(_e3)
+
+                try:
+                    # 資產負債表 → ROE、負債比
+                    _bal = tk.balance_sheet
+                    if _bal is not None and not _bal.empty:
+                        _eq  = None
+                        for _r in ['Stockholders Equity','Total Stockholder Equity','Common Stock Equity']:
+                            if _r in _bal.index:
+                                _eq = float(_bal.loc[_r].iloc[0]); break
+                        _td  = None
+                        for _r in ['Total Debt','Long Term Debt And Capital Lease Obligation']:
+                            if _r in _bal.index:
+                                _td = float(_bal.loc[_r].iloc[0]); break
+                        if _eq and not info.get('returnOnEquity') and info.get('trailingEps') and _sh:
+                            _ni_v2 = float(info['trailingEps']) * float(_sh)
+                            info['returnOnEquity'] = round(_ni_v2 / _eq, 4)
+                        if _td and _eq and not info.get('debtToEquity'):
+                            info['debtToEquity'] = round(_td / _eq * 100, 2)
+                except Exception as _e4:
+                    _diag['balance_sheet error'] = str(_e4)
+
+                try:
+                    # 現金流量表 → 自由現金流
+                    _cf = tk.cashflow
+                    if _cf is not None and not _cf.empty:
+                        _op, _cap = None, None
+                        for _r in ['Operating Cash Flow','Total Cash From Operating Activities']:
+                            if _r in _cf.index:
+                                _op = float(_cf.loc[_r].iloc[0]); break
+                        for _r in ['Capital Expenditure','Purchase Of Plant And Equipment']:
+                            if _r in _cf.index:
+                                _cap = float(_cf.loc[_r].iloc[0]); break
+                        if _op is not None and not info.get('freeCashflow'):
+                            info['freeCashflow'] = _op + (_cap or 0)
+                except Exception as _e5:
+                    _diag['cashflow error'] = str(_e5)
 
             # PE 補強
-            _cp = info.get("currentPrice")
-            _e  = info.get("trailingEps") or info.get("forwardEps")
-            if _cp and _e and not info.get("trailingPE"):
+            _cp = info.get('currentPrice') or info.get('regularMarketPrice')
+            _e  = info.get('trailingEps')
+            if _cp and _e and not info.get('trailingPE'):
                 try:
                     _pe = float(_cp) / float(_e)
                     if 0 < _pe < 500:
-                        info["trailingPE"] = round(_pe, 1)
+                        info['trailingPE'] = round(_pe, 1)
                 except Exception:
                     pass
 
             def _g(k): return info.get(k, 'N/A')
-            return {
-                '市值':           _g('marketCap'),
-                '現價':           _g('currentPrice'),
-                'EPS (TTM)':      _g('trailingEps'),
-                'Trailing PE':    _g('trailingPE'),
-                'Forward PE':     _g('forwardPE'),
-                'PEG Ratio':      _g('pegRatio'),
-                '營收成長 (YoY)': _g('revenueGrowth'),
-                '毛利率':         _g('grossMargins'),
-                '營業利益率':     _g('operatingMargins'),
-                'ROE':            _g('returnOnEquity'),
-                '負債比':         _g('debtToEquity'),
-                '自由現金流':     _g('freeCashflow'),
-                '機構目標價':     _g('targetMeanPrice'),
-                '52週高點':       _g('fiftyTwoWeekHigh'),
-                '52週低點':       _g('fiftyTwoWeekLow'),
-                '產業':           _g('industry'),
-                '公司簡介':       _g('longBusinessSummary'),
+            result = {
+                '市值':            _g('marketCap'),
+                '現價':            _g('currentPrice') or _g('regularMarketPrice'),
+                'EPS (TTM)':       _g('trailingEps'),
+                'Trailing PE':     _g('trailingPE'),
+                'Forward PE':      _g('forwardPE'),
+                'PEG Ratio':       _g('pegRatio'),
+                '營收成長 (YoY)':  _g('revenueGrowth'),
+                '毛利率':          _g('grossMargins'),
+                '營業利益率':      _g('operatingMargins'),
+                'ROE':             _g('returnOnEquity'),
+                '負債比':          _g('debtToEquity'),
+                '自由現金流':      _g('freeCashflow'),
+                '機構目標價':      _g('targetMeanPrice'),
+                '52週高點':        _g('fiftyTwoWeekHigh'),
+                '52週低點':        _g('fiftyTwoWeekLow'),
+                '產業':            _g('industry'),
+                '公司簡介':        _g('longBusinessSummary'),
+                '_diag':           _diag,   # 內部診斷，不對外顯示
             }
+            return result
         except Exception as e:
-            return {'錯誤': str(e)}
+            return {'錯誤': str(e), '_diag': {}}
 
     def _fetch_news(self):
         try:
@@ -388,8 +451,6 @@ class TitanIntelAgency:
         else:
             report += f"**市值**: {_fmt_bn(fundamentals.get('市值', 'N/A'))}\n"
             report += f"**現價**: ${fundamentals.get('現價', 'N/A')}\n"
-            report += f"**EPS (TTM)**: {fundamentals.get('EPS (TTM)', 'N/A')}\n"
-            report += f"**Trailing PE**: {fundamentals.get('Trailing PE', 'N/A')}\n"
             report += f"**Forward PE**: {fundamentals.get('Forward PE', 'N/A')}\n"
             report += f"**PEG Ratio**: {fundamentals.get('PEG Ratio', 'N/A')}\n"
             report += f"**機構目標價**: ${fundamentals.get('機構目標價', 'N/A')}\n\n"
@@ -2453,15 +2514,56 @@ def _s62():
             if st.button("🤖 啟動瓦爾基里 Auto-Fetch", type="primary", use_container_width=True, key="btn_valk_v300"):
                 with st.spinner("🤖 瓦爾基里正在抓取情報..."):
                     agency = TitanIntelAgency()
-                    st.session_state['valkyrie_report_v300'] = agency.fetch_full_report(ticker_in)
+                    _report = agency.fetch_full_report(ticker_in)
+                    st.session_state['valkyrie_report_v300'] = _report
+                    # 存診斷資訊供 expander 顯示
+                    _f = agency._last_fundamentals if hasattr(agency, '_last_fundamentals') else {}
+                    _diag_store = {
+                        'tk_info_fields':   _f.get('_diag', {}).get('tk.info 欄位數', '?'),
+                        'income_stmt_shape':_f.get('_diag', {}).get('income_stmt shape', '未嘗試'),
+                        'errors':           '; '.join(f"{k}={v}" for k,v in _f.get('_diag',{}).items()
+                                                      if 'error' in k.lower()) or '無',
+                        '_data_source':     ('tk.info 完整' if isinstance(_f.get('_diag',{}).get('tk.info 欄位數'),int)
+                                                            and _f.get('_diag',{}).get('tk.info 欄位數',0)>20
+                                             else '財報備援'),
+                    }
+                    for _fk in ['grossMargins','returnOnEquity','freeCashflow',
+                                'revenueGrowth','forwardPE','targetMeanPrice']:
+                        _diag_store[f'field_{_fk}'] = _f.get(_fk)
+                    st.session_state['_valk_diag_v300'] = _diag_store
                 st.toast("✅ 情報抓取完成！", icon="🎯")
                 st.rerun()
             if 'valkyrie_report_v300' in st.session_state:
+                # ── 成功狀態 ──────────────────────────────────────
+                st.success("✅ 瓦爾基里情報抓取完成！")
                 intel_text = st.text_area(
                     "📝 瓦爾基里情報（可編輯補充）",
                     value=st.session_state['valkyrie_report_v300'],
                     height=220, key="intel_v300_valk"
                 )
+                # ── 診斷 expander ─────────────────────────────────
+                if st.session_state.get('_valk_diag_v300'):
+                    with st.expander("🔬 數據品質診斷（點此展開）", expanded=False):
+                        _d = st.session_state['_valk_diag_v300']
+                        _total = _d.get('_total_fields', 0)
+                        _src   = _d.get('_data_source', 'unknown')
+                        # 品質評分
+                        _key_fields = ['grossMargins','returnOnEquity','freeCashflow',
+                                        'revenueGrowth','forwardPE','targetMeanPrice']
+                        _filled = sum(1 for f in _key_fields
+                                      if _d.get(f'field_{f}') not in [None, 'N/A', ''])
+                        _quality = "🟢 完整" if _filled >= 5 else "🟡 部分" if _filled >= 2 else "🔴 稀疏"
+
+                        st.markdown(f"""
+<div style="font-family:'JetBrains Mono',monospace;font-size:13px;
+            background:rgba(0,0,0,.35);border:1px solid rgba(0,245,255,.08);
+            border-radius:10px;padding:14px 18px;line-height:2.0;">
+<b>📡 數據來源：</b> {_src}<br>
+<b>📊 info 欄位數：</b> {_d.get('tk_info_fields','?')}<br>
+<b>🎯 關鍵財務欄位：</b> {_filled}/6 已填充 — {_quality}<br>
+<b>🧮 income_stmt：</b> {_d.get('income_stmt_shape','未嘗試')}<br>
+<b>⚠️ 錯誤記錄：</b> {_d.get('errors','無')}</div>""",
+                            unsafe_allow_html=True)
             else:
                 intel_text = st.text_area(
                     "📝 手動貼上情報（法說摘要/財報數字/新聞）",
