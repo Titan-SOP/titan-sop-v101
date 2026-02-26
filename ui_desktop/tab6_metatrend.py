@@ -168,25 +168,6 @@ def compute_7d_geometry(ticker):
     df = download_full_history(ticker)
     if df is None:
         return None
-    # @cache_data 快取命中時不執行函式體 → session_state 不被寫入 → 上帝軌道無數據
-    _bare = ticker.split('.')[0] if '.' in ticker else ticker
-    if 'daily_price_data' not in st.session_state:
-        st.session_state.daily_price_data = {}
-    if _bare not in st.session_state.daily_price_data:
-        try:
-            _suffixes = [''] if not ticker.isdigit() else ['.TW', '.TWO']
-            for _sfx in _suffixes:
-                _sym = ticker if not _sfx else _bare + _sfx
-                _raw = yf.download(_sym, start="1990-01-01",
-                                   progress=False, auto_adjust=True)
-                if isinstance(_raw.columns, pd.MultiIndex):
-                    _raw.columns = _raw.columns.get_level_values(0)
-                if not _raw.empty:
-                    st.session_state.daily_price_data[_bare] = _raw
-                    st.session_state.daily_price_data[_sym]  = _raw
-                    break
-        except Exception:
-            pass
     periods = {'35Y': 420, '10Y': 120, '5Y': 60, '3Y': 36, '1Y': 12, '6M': 6, '3M': 3}
     results = {}
     for label, months in periods.items():
@@ -244,22 +225,19 @@ class TitanIntelAgency:
         try:
             original_ticker = ticker
             if ticker.isdigit() and len(ticker) >= 4:
-                resolved = None
-                for sfx in [".TW", ".TWO"]:
-                    try:
-                        _td = yf.download(ticker+sfx, period="3d", progress=False, auto_adjust=True)
-                        if not _td.empty:
-                            resolved = ticker+sfx; break
-                    except Exception:
-                        continue
-                ticker = resolved if resolved else ticker+".TW"
+                ticker = f"{ticker}.TW"
             self.ticker_obj = yf.Ticker(ticker)
             try:
-                _ = self.ticker_obj.info  # 暖機
-            except Exception:
-                pass
+                test_info = self.ticker_obj.info
+                if not test_info or 'symbol' not in test_info:
+                    if original_ticker.isdigit() and len(original_ticker) >= 4:
+                        ticker = f"{original_ticker}.TWO"
+                        self.ticker_obj = yf.Ticker(ticker)
+            except:
+                if original_ticker.isdigit() and len(original_ticker) >= 4:
+                    ticker = f"{original_ticker}.TWO"
+                    self.ticker_obj = yf.Ticker(ticker)
             fundamentals = self._fetch_fundamentals()
-            self._last_fundamentals = fundamentals
             news = self._fetch_news()
             return self._generate_report(ticker, fundamentals, news)
         except Exception as e:
@@ -267,128 +245,23 @@ class TitanIntelAgency:
 
     def _fetch_fundamentals(self):
         try:
-            tk = self.ticker_obj
-            info = {}
-            # 層①: tk.info（暖機後快取命中最完整）
-            try:
-                _raw = tk.info
-                if isinstance(_raw, dict) and len(_raw) > 5:
-                    info.update({k: v for k, v in _raw.items() if v is not None})
-            except Exception:
-                pass
-            # 層②: fast_info 補齊價格/市值
-            try:
-                fi = tk.fast_info
-                for _k, _attr in [("currentPrice","last_price"),
-                                   ("regularMarketPrice","last_price"),
-                                   ("marketCap","market_cap"),
-                                   ("sharesOutstanding","shares")]:
-                    try:
-                        _v = getattr(fi, _attr, None)
-                        if _v is not None and _k not in info:
-                            info[_k] = _v
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            # 層③: 財報備援（tk.info 稀疏時）
-            _need = not any(info.get(k) for k in
-                            ['grossMargins','returnOnEquity','freeCashflow','revenueGrowth'])
-            if _need:
-                _sh = info.get('sharesOutstanding')
-                try:
-                    _inc = tk.income_stmt
-                    if _inc is not None and not _inc.empty and _inc.shape[1] >= 1:
-                        def _row(df, *keys):
-                            for k in keys:
-                                if k in df.index: return df.loc[k]
-                            return None
-                        _rev  = _row(_inc,'Total Revenue','Revenue')
-                        _gp   = _row(_inc,'Gross Profit')
-                        _op   = _row(_inc,'Operating Income','EBIT')
-                        _ni   = _row(_inc,'Net Income Common Stockholders','Net Income')
-                        if _rev is not None and float(_rev.iloc[0]) > 0:
-                            if _gp is not None and not info.get('grossMargins'):
-                                info['grossMargins']     = round(float(_gp.iloc[0])/float(_rev.iloc[0]),4)
-                            if _op is not None and not info.get('operatingMargins'):
-                                info['operatingMargins'] = round(float(_op.iloc[0])/float(_rev.iloc[0]),4)
-                            if _inc.shape[1]>=2 and not info.get('revenueGrowth'):
-                                _r0,_r1 = float(_rev.iloc[0]),float(_rev.iloc[1])
-                                if _r1!=0: info['revenueGrowth'] = round((_r0-_r1)/abs(_r1),4)
-                        if _ni is not None and _sh and not info.get('trailingEps'):
-                            _e = round(float(_ni.iloc[0])/float(_sh),4)
-                            if abs(_e)>0.001: info['trailingEps'] = _e
-                except Exception:
-                    pass
-                try:
-                    _bal = tk.balance_sheet
-                    if _bal is not None and not _bal.empty:
-                        _eq,_td = None,None
-                        for _r in ['Stockholders Equity','Total Stockholder Equity','Common Stock Equity']:
-                            if _r in _bal.index: _eq = float(_bal.loc[_r].iloc[0]); break
-                        for _r in ['Total Debt','Long Term Debt And Capital Lease Obligation']:
-                            if _r in _bal.index: _td = float(_bal.loc[_r].iloc[0]); break
-                        if _eq and not info.get('returnOnEquity') and info.get('trailingEps') and _sh:
-                            info['returnOnEquity'] = round(float(info['trailingEps'])*float(_sh)/_eq,4)
-                        if _td and _eq and not info.get('debtToEquity'):
-                            info['debtToEquity'] = round(_td/_eq*100,2)
-                except Exception:
-                    pass
-                try:
-                    _cf = tk.cashflow
-                    if _cf is not None and not _cf.empty:
-                        _op2,_cap = None,None
-                        for _r in ['Operating Cash Flow','Total Cash From Operating Activities']:
-                            if _r in _cf.index: _op2 = float(_cf.loc[_r].iloc[0]); break
-                        for _r in ['Capital Expenditure','Purchase Of Plant And Equipment']:
-                            if _r in _cf.index: _cap = float(_cf.loc[_r].iloc[0]); break
-                        if _op2 is not None and not info.get('freeCashflow'):
-                            info['freeCashflow'] = _op2 + (_cap or 0)
-                except Exception:
-                    pass
-            # PE 補強
-            _cp = info.get('currentPrice') or info.get('regularMarketPrice')
-            _e  = info.get('trailingEps')
-            if _cp and _e and not info.get('trailingPE'):
-                try:
-                    _pe = float(_cp)/float(_e)
-                    if 0 < _pe < 500: info['trailingPE'] = round(_pe,1)
-                except Exception:
-                    pass
-            # 52週高低補強（從 session_state 日K計算）
-            if not info.get('fiftyTwoWeekHigh') or not info.get('fiftyTwoWeekLow'):
-                try:
-                    _tkr  = getattr(tk,'ticker','')
-                    _symb = _tkr.split('.')[0] if _tkr else ''
-                    _dp2  = st.session_state.get('daily_price_data', {})
-                    _dh1  = _dp2.get(_tkr)
-                    _dh   = _dh1 if (_dh1 is not None and not _dh1.empty) else _dp2.get(_symb)
-                    if _dh is not None and not _dh.empty:
-                        _cls = _dh['Close'].squeeze() if isinstance(_dh['Close'], pd.DataFrame) else _dh['Close']
-                        _1y  = _cls.tail(252)
-                        if not info.get('fiftyTwoWeekHigh'): info['fiftyTwoWeekHigh'] = round(float(_1y.max()),2)
-                        if not info.get('fiftyTwoWeekLow'):  info['fiftyTwoWeekLow']  = round(float(_1y.min()),2)
-                except Exception:
-                    pass
-            def _g(k): return info.get(k,'N/A')
+            info = self.ticker_obj.info
             return {
-                '市值':           _g('marketCap'),
-                '現價':           _g('currentPrice') or _g('regularMarketPrice'),
-                'EPS (TTM)':      _g('trailingEps'),
-                'Trailing PE':    _g('trailingPE'),
-                'Forward PE':     _g('forwardPE'),
-                'PEG Ratio':      _g('pegRatio'),
-                '營收成長 (YoY)': _g('revenueGrowth'),
-                '毛利率':         _g('grossMargins'),
-                '營業利益率':     _g('operatingMargins'),
-                'ROE':            _g('returnOnEquity'),
-                '負債比':         _g('debtToEquity'),
-                '自由現金流':     _g('freeCashflow'),
-                '機構目標價':     _g('targetMeanPrice'),
-                '52週高點':       _g('fiftyTwoWeekHigh'),
-                '52週低點':       _g('fiftyTwoWeekLow'),
-                '產業':           _g('industry'),
-                '公司簡介':       _g('longBusinessSummary'),
+                '市值': info.get('marketCap', 'N/A'),
+                '現價': info.get('currentPrice', 'N/A'),
+                'Forward PE': info.get('forwardPE', 'N/A'),
+                'PEG Ratio': info.get('pegRatio', 'N/A'),
+                '營收成長 (YoY)': info.get('revenueGrowth', 'N/A'),
+                '毛利率': info.get('grossMargins', 'N/A'),
+                '營業利益率': info.get('operatingMargins', 'N/A'),
+                'ROE': info.get('returnOnEquity', 'N/A'),
+                '負債比': info.get('debtToEquity', 'N/A'),
+                '自由現金流': info.get('freeCashflow', 'N/A'),
+                '機構目標價': info.get('targetMeanPrice', 'N/A'),
+                '52週高點': info.get('fiftyTwoWeekHigh', 'N/A'),
+                '52週低點': info.get('fiftyTwoWeekLow', 'N/A'),
+                '產業': info.get('industry', 'N/A'),
+                '公司簡介': info.get('longBusinessSummary', 'N/A'),
             }
         except Exception as e:
             return {'錯誤': str(e)}
@@ -1054,10 +927,7 @@ def _render_radar(geo, ticker):
 
 
 def _render_monthly_chart(ticker, months=120):
-    _dp   = st.session_state.get('daily_price_data', {})
-    _bare = ticker.split('.')[0]
-    _t1   = _dp.get(ticker)
-    df    = _t1 if (_t1 is not None and not _t1.empty) else _dp.get(_bare)
+    df = st.session_state.get('daily_price_data', {}).get(ticker)
     if df is None:
         st.toast("⚠️ 無日K數據", icon="⚡")
         return
@@ -1088,11 +958,7 @@ def _render_monthly_chart(ticker, months=120):
 
 def _render_god_orbit(ticker):
     """[FIX #4] 上帝軌道 — 全歷史對數線性回歸 (RESTORED)"""
-    _dp   = st.session_state.get('daily_price_data', {})
-    _bare = ticker.split('.')[0]
-    # 不能用 or，DataFrame 的 bool 是 ambiguous，改用 is not None
-    _t1 = _dp.get(ticker)
-    df_daily = _t1 if (_t1 is not None and not _t1.empty) else _dp.get(_bare)
+    df_daily = st.session_state.get('daily_price_data', {}).get(ticker)
     if df_daily is None or df_daily.empty:
         st.toast("⚠️ 請先執行掃描以載入數據。", icon="⚡")
         return
@@ -3498,23 +3364,113 @@ def _s63():
         import math as _math
 
         with st.spinner("🧠 正在解碼企業財務 DNA…"):
+            # ── 速率限制防護：jitter sleep + 指數退避 retry ──────────────
+            import random as _random
+            def _safe_info(ticker_sym, max_retry=3):
+                """抓取 tk.info，429 時指數退避重試；失敗降級用 fast_info"""
+                _info = {}
+                for _attempt in range(max_retry):
+                    try:
+                        _tk = yf.Ticker(ticker_sym)
+                        _raw = _tk.info
+                        if isinstance(_raw, dict) and len(_raw) > 5:
+                            _info = {k: v for k, v in _raw.items() if v is not None}
+                            # fast_info 補齊（逐屬性安全取）
+                            try:
+                                _fi = _tk.fast_info
+                                for _k, _attr in [("currentPrice","last_price"),
+                                                  ("marketCap","market_cap"),
+                                                  ("sharesOutstanding","shares")]:
+                                    try:
+                                        _v = getattr(_fi, _attr, None)
+                                        if _v is not None and _k not in _info:
+                                            _info[_k] = _v
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                            return _tk, _info
+                        # info 稀疏：用 fast_info 建基底，再補財報
+                        try:
+                            _fi = _tk.fast_info
+                            for _k, _attr in [("currentPrice","last_price"),
+                                              ("regularMarketPrice","last_price"),
+                                              ("marketCap","market_cap"),
+                                              ("sharesOutstanding","shares"),
+                                              ("currency","currency")]:
+                                try:
+                                    _v = getattr(_fi, _attr, None)
+                                    if _v is not None: _info[_k] = _v
+                                except Exception: pass
+                        except Exception: pass
+                        # income_stmt → 財務指標
+                        try:
+                            _sh = _info.get('sharesOutstanding')
+                            _inc = _tk.income_stmt
+                            if _inc is not None and not _inc.empty:
+                                def _row(df, *keys):
+                                    for k in keys:
+                                        if k in df.index: return df.loc[k]
+                                    return None
+                                _rev  = _row(_inc,'Total Revenue','Revenue')
+                                _gp   = _row(_inc,'Gross Profit')
+                                _op   = _row(_inc,'Operating Income','EBIT')
+                                _ni   = _row(_inc,'Net Income Common Stockholders','Net Income')
+                                if _rev is not None and float(_rev.iloc[0]) > 0:
+                                    if _gp  and not _info.get('grossMargins'):
+                                        _info['grossMargins']     = round(float(_gp.iloc[0])/float(_rev.iloc[0]),4)
+                                    if _op  and not _info.get('operatingMargins'):
+                                        _info['operatingMargins'] = round(float(_op.iloc[0])/float(_rev.iloc[0]),4)
+                                    if _inc.shape[1]>=2 and not _info.get('revenueGrowth'):
+                                        _r0,_r1 = float(_rev.iloc[0]),float(_rev.iloc[1])
+                                        if _r1!=0: _info['revenueGrowth'] = round((_r0-_r1)/abs(_r1),4)
+                                if _ni and _sh and not _info.get('trailingEps'):
+                                    _e = round(float(_ni.iloc[0])/float(_sh),4)
+                                    if abs(_e)>0.001: _info['trailingEps'] = _e
+                        except Exception: pass
+                        try:
+                            _bal = _tk.balance_sheet
+                            if _bal is not None and not _bal.empty:
+                                _eq,_td = None,None
+                                for _r in ['Stockholders Equity','Common Stock Equity']:
+                                    if _r in _bal.index: _eq = float(_bal.loc[_r].iloc[0]); break
+                                for _r in ['Total Debt']:
+                                    if _r in _bal.index: _td = float(_bal.loc[_r].iloc[0]); break
+                                _sh2 = _info.get('sharesOutstanding')
+                                if _eq and not _info.get('returnOnEquity') and _info.get('trailingEps') and _sh2:
+                                    _info['returnOnEquity'] = round(float(_info['trailingEps'])*float(_sh2)/_eq,4)
+                                if _td and _eq and not _info.get('debtToEquity'):
+                                    _info['debtToEquity'] = round(_td/_eq*100,2)
+                        except Exception: pass
+                        return _tk, _info
+                    except Exception as _ex:
+                        _is_429 = '429' in str(_ex) or 'Too Many' in str(_ex) or 'Rate limit' in str(_ex)
+                        if _is_429 and _attempt < max_retry - 1:
+                            _wait = (2 ** _attempt) + _random.uniform(1, 3)
+                            time.sleep(_wait)
+                            continue
+                        raise  # 非429 或 已達重試上限
+                return yf.Ticker(ticker_sym), _info
+
             for idx, sym in enumerate(tickers):
                 stat_ph.markdown(f'<div class="bg26">▶ 解碼 {sym}… ({idx+1}/{len(tickers)})</div>', unsafe_allow_html=True)
+                # jitter sleep：前幾筆較短，後續保持間隔避免 429
+                _base_sleep = 0.8 if idx == 0 else 1.2
+                time.sleep(_base_sleep + _random.uniform(0.3, 0.8))
                 try:
                     fetch_sym = sym
                     bare = sym.replace('.TW','').replace('.TWO','')
                     if bare.isdigit() and len(bare) >= 4 and not sym.endswith(('.TW','.TWO')):
                         fetch_sym = sym + '.TW'
 
-                    tk   = yf.Ticker(fetch_sym)
-                    info = tk.info
+                    tk, info = _safe_info(fetch_sym)
 
                     # .TWO fallback：上櫃股（純數字且 .TW 抓不到）
                     if (bare.isdigit() and len(bare) >= 4
                             and not sym.endswith('.TWO')
                             and not info.get('marketCap') and not info.get('shortName')):
-                        _tk2 = yf.Ticker(bare + '.TWO')
-                        _i2  = _tk2.info
+                        time.sleep(0.8)
+                        _tk2, _i2 = _safe_info(bare + '.TWO')
                         if _i2.get('marketCap') or _i2.get('shortName'):
                             tk, info, fetch_sym = _tk2, _i2, bare + '.TWO'
 
