@@ -199,38 +199,119 @@ def _fetch(symbol: str):
         if h1.empty:
             h1 = raw.tail(252).copy()   # fallback：最近 252 筆
 
-        # ── Step 3: info — 加 jitter 避免與 download 並發，失敗不炸 ──
+        # ── Step 3: info — 根治版（應對 Yahoo Finance API 2025 大規模失效）──
+        # 診斷結論：tk.info 現在只回傳 4 個欄位，fast_info.p_e_ratio 已移除
+        # 唯一可靠路徑：fast_info 取價格/市值/股數 + income_stmt 直接算 EPS
         time.sleep(0.35)
-        tk = yf.Ticker(resolved)
-        info: dict = {}
+        tk   = yf.Ticker(resolved)
+        info : dict = {}
+
+        # 層①: fast_info — getattr 逐一取，AttributeError 跳過
         try:
-            _raw_info = tk.info or {}
-            # yfinance 有時回傳 {'trailingPegRatio': None, ...} 等殼字典
-            if len(_raw_info) > 5:
-                info = _raw_info
+            fi = tk.fast_info
+            for _k, _attr in [
+                ("currentPrice",      "last_price"),
+                ("regularMarketPrice","last_price"),
+                ("marketCap",         "market_cap"),
+                ("sharesOutstanding", "shares"),
+                ("currency",          "currency"),
+                ("trailingPE",        "p_e_ratio"),
+                ("fiftyTwoWeekHigh",  "fifty_two_week_high"),
+                ("fiftyTwoWeekLow",   "fifty_two_week_low"),
+            ]:
+                try:
+                    _v = getattr(fi, _attr, None)
+                    if _v is not None:
+                        info[_k] = float(_v) if _k != "currency" else str(_v)
+                except Exception:
+                    pass
         except Exception:
             pass
 
-        # fast_info 保底（幾乎不限速）— 只「補缺」，絕不覆蓋 tk.info 已有的財務資料
-        # 關鍵原則：艾蜜莉(5.4)需要 trailingEps/bookValue/debtToEquity 等深層欄位，
-        # 若用新 dict 取代 info，這些欄位會消失，導致 5.4 財務資料全部找不到。
+        # 層②: tk.info 疊加（只取非 None 欄位，彌補 fast_info 無法提供的深層財務）
         try:
-            fi = tk.fast_info
-            _fi_patch = {
-                "currentPrice":       getattr(fi, "last_price",          None),
-                "regularMarketPrice": getattr(fi, "last_price",          None),
-                "marketCap":          getattr(fi, "market_cap",          None),
-                "fiftyTwoWeekHigh":   getattr(fi, "fifty_two_week_high", None),
-                "fiftyTwoWeekLow":    getattr(fi, "fifty_two_week_low",  None),
-                "trailingPE":         getattr(fi, "p_e_ratio",           None),
-                "sharesOutstanding":  getattr(fi, "shares",              None),
-            }
-            # 只填補 info 中缺失的 key，不覆蓋任何已有欄位
-            for _k, _v in _fi_patch.items():
-                if _v is not None and not info.get(_k):
-                    info[_k] = _v
+            _raw = tk.info
+            if isinstance(_raw, dict):
+                for _k, _v in _raw.items():
+                    if _v is not None and _k not in info:
+                        info[_k] = _v
+                # 幾個關鍵欄位允許 tk.info 覆蓋（更精確）
+                for _k in ["trailingEps","forwardEps","trailingPE","forwardPE",
+                            "bookValue","debtToEquity","freeCashflow",
+                            "returnOnEquity","dividendYield","dividendRate",
+                            "netIncomeToCommon","priceToBook","currentRatio",
+                            "grossMargins","operatingMargins","revenueGrowth",
+                            "payoutRatio","longName","shortName","sector",
+                            "regularMarketChangePercent"]:
+                    _v = _raw.get(_k)
+                    if _v is not None:
+                        info[_k] = _v
         except Exception:
             pass
+
+        # 層③: income_stmt → TTM EPS（Yahoo 財報 API 2025 仍正常，最可靠）
+        # 根據診斷：NVDA income_stmt shape=(43,4), Net Income=72,880,000,000
+        # EPS = 72,880,000,000 / 24,347,000,000 = 2.99
+        if not info.get("trailingEps") and not info.get("forwardEps"):
+            _sh = info.get("sharesOutstanding")
+            if _sh and float(_sh) > 0:
+                # 先試年度報表
+                for _stmt_attr in ["income_stmt", "quarterly_income_stmt"]:
+                    try:
+                        _stmt = getattr(tk, _stmt_attr, None)
+                        if _stmt is None or _stmt.empty:
+                            continue
+                        # 找淨利行（Net Income Common Stockholders 最準確）
+                        _priority = ["Net Income Common Stockholders",
+                                     "Net Income",
+                                     "Net Income From Continuing And Discontinued Operation",
+                                     "Net Income From Continuing Operation Net Minority Interest"]
+                        _ni_row = None
+                        for _p in _priority:
+                            if _p in _stmt.index:
+                                _ni_row = _p
+                                break
+                        if _ni_row is None:
+                            # fallback: 模糊搜尋
+                            for _r in _stmt.index:
+                                if "net income" in str(_r).lower():
+                                    _ni_row = _r
+                                    break
+                        if _ni_row:
+                            if _stmt_attr == "quarterly_income_stmt" and _stmt.shape[1] >= 4:
+                                _ni_val = float(_stmt.loc[_ni_row].iloc[:4].sum())  # TTM=最近4季
+                            else:
+                                _ni_val = float(_stmt.loc[_ni_row].iloc[0])  # 最新年度
+                            if abs(_ni_val) > 0:
+                                _eps = round(_ni_val / float(_sh), 4)
+                                if abs(_eps) > 0.001:
+                                    info["trailingEps"] = _eps
+                                    break
+                    except Exception:
+                        continue
+
+        # 層④: PE 反推 EPS（三層全失才用）
+        if not info.get("trailingEps") and not info.get("forwardEps"):
+            _cp = info.get("currentPrice") or info.get("regularMarketPrice")
+            _pe = info.get("trailingPE") or info.get("forwardPE")
+            if _cp and _pe:
+                try:
+                    if float(_pe) > 0:
+                        info["trailingEps"] = round(float(_cp) / float(_pe), 4)
+                except Exception:
+                    pass
+
+        # PE 補強
+        if not info.get("trailingPE"):
+            _cp = info.get("currentPrice") or info.get("regularMarketPrice")
+            _e  = info.get("trailingEps")
+            if _cp and _e:
+                try:
+                    _pe = float(_cp) / float(_e)
+                    if 0 < _pe < 500:
+                        info["trailingPE"] = round(_pe, 1)
+                except Exception:
+                    pass
 
         # ── Step 4: holders — 非關鍵，失敗優雅降級（原有邏輯不變） ──
         try:
@@ -1258,66 +1339,6 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     _hd("5.4", "🚦 價值紅綠燈 + PE河流圖 + 掃雷大隊",
         "PE河流 8×/12×/16×/20× · 財務地雷掃除 · DDM · Graham · 安全邊際", "#FF9A3C")
 
-    # ════════════════════════════════════════════════════════
-    # 🔍 診斷區塊 — 顯示 Yahoo Finance 原始回傳資料
-    # ════════════════════════════════════════════════════════
-    with st.expander("🔍 原始數據診斷（點此展開 — 看 Yahoo 到底回了什麼）", expanded=False):
-        _diag_keys = [
-            "currentPrice","regularMarketPrice","trailingEps","forwardEps",
-            "trailingPE","forwardPE","priceToBook","bookValue",
-            "debtToEquity","freeCashflow","returnOnEquity","dividendYield",
-            "netIncomeToCommon","sharesOutstanding","currency",
-            "longName","shortName","sector","marketCap",
-        ]
-        _rows = []
-        for _k in _diag_keys:
-            _v = info.get(_k)
-            _rows.append(f"{'✅' if _v is not None else '❌'}  {_k}: {_v}")
-        _diag_text = "\n".join(_rows)
-
-        st.markdown(
-            f'<div style="background:rgba(0,0,0,.4);border:1px solid rgba(0,245,255,.1);'
-            f'border-radius:10px;padding:16px 20px;">'
-            f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:14px;'
-            f'color:rgba(180,210,240,.7);line-height:1.8;white-space:pre;">{_diag_text}</div>'
-            f'<div style="margin-top:12px;font-family:\'JetBrains Mono\',monospace;'
-            f'font-size:12px;color:rgba(255,165,0,.5);">'
-            f'info 欄位總數: {len(info)} | ticker: {ticker} | hist3y rows: {len(hist3y)}'
-            f'</div></div>',
-            unsafe_allow_html=True
-        )
-
-        # 也顯示 fast_info 原始屬性
-        st.markdown("**fast_info 原始屬性：**")
-        try:
-            import yfinance as _yf
-            _tk2 = _yf.Ticker(ticker)
-            _fi2 = _tk2.fast_info
-            _fi_attrs = ["last_price","p_e_ratio","market_cap","shares",
-                         "fifty_two_week_high","fifty_two_week_low","currency"]
-            _fi_rows = [f"  {a}: {getattr(_fi2, a, 'AttributeError')}" for a in _fi_attrs]
-            st.code("\n".join(_fi_rows))
-        except Exception as _de:
-            st.code(f"fast_info error: {_de}")
-
-        # income_stmt 測試
-        st.markdown("**income_stmt 測試：**")
-        try:
-            import yfinance as _yf
-            _tk3 = _yf.Ticker(ticker)
-            _stmt3 = _tk3.income_stmt
-            if _stmt3 is not None and not _stmt3.empty:
-                _ni_keys3 = [r for r in _stmt3.index
-                             if any(k in str(r).lower()
-                                    for k in ["net income","netincome"])]
-                st.code(f"income_stmt shape: {_stmt3.shape}\n"
-                        f"Net Income rows: {_ni_keys3}\n"
-                        f"Latest value: {float(_stmt3.loc[_ni_keys3[0]].iloc[0]) if _ni_keys3 else 'N/A'}")
-            else:
-                st.code("income_stmt: empty or None")
-        except Exception as _de3:
-            st.code(f"income_stmt error: {_de3}")
-
     _explain(
         "第一性原理：均值回歸 + 財務健康雙重保險",
         "PE河流圖是價值投資最直觀的視覺工具：用歷史EPS乘以不同PE倍數（8x/12x/16x/20x），"
@@ -1328,34 +1349,49 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
         "#FF9A3C"
     )
 
-    cp      = info.get("currentPrice") or info.get("regularMarketPrice") or \
-              (float(hist3y["Close"].iloc[-1]) if not hist3y.empty else 0)
-    eps     = info.get("trailingEps") or info.get("forwardEps")
+    # 防 MultiIndex 的 Close 提取
+    def _sc(df):
+        if df.empty: return pd.Series(dtype=float)
+        c = df["Close"] if "Close" in df.columns else df.iloc[:, 0]
+        return (c.squeeze() if isinstance(c, pd.DataFrame) else c).astype(float)
+    _cl = _sc(hist3y)
+
+    cp       = float(info.get("currentPrice") or info.get("regularMarketPrice") or
+                     (_cl.iloc[-1] if not _cl.empty else 0) or 0)
     pe_trail = info.get("trailingPE")
     pe_fwd   = info.get("forwardPE")
-    pb      = info.get("priceToBook")
-    ps      = info.get("priceToSalesTrailing12Months")
-    div_y   = info.get("dividendYield", 0) or 0
-    roe     = info.get("returnOnEquity", 0) or 0
-    bvps    = info.get("bookValue", 0) or 0
+    pb       = info.get("priceToBook")
+    ps       = info.get("priceToSalesTrailing12Months")
+    div_y    = float(info.get("dividendYield") or 0)
+    roe      = float(info.get("returnOnEquity") or 0)
+    bvps     = float(info.get("bookValue") or 0)
 
-    # ── Mine Sweeper ──────────────────────────────────────────────────
-    debt_to_equity = info.get("debtToEquity")       # 0–100 scale typically
-    free_cashflow  = info.get("freeCashflow")        # raw value in currency
+    # EPS — render 層最終保底
+    eps = info.get("trailingEps") or info.get("forwardEps")
+    if not eps and cp > 0:
+        _pe = pe_trail or pe_fwd
+        if _pe and float(_pe) > 0:
+            eps = round(cp / float(_pe), 4)
 
-    has_debt_mine = debt_to_equity is not None and float(debt_to_equity) > 200
-    has_fcf_mine  = free_cashflow is not None  and float(free_cashflow)  < 0
+    # Mine Sweeper
+    debt_to_equity = info.get("debtToEquity")
+    free_cashflow  = info.get("freeCashflow")
+    has_debt_mine  = debt_to_equity is not None and float(debt_to_equity) > 200
+    has_fcf_mine   = free_cashflow  is not None and float(free_cashflow)  < 0
 
-    # ── Historical PE percentiles ─────────────────────────────────────
+    # Historical PE percentiles（_cl 安全 1D Series）
     pe_25 = pe_50 = pe_75 = hist_pe = None
-    if not hist3y.empty and eps and float(eps) > 0:
-        pe_ser = (hist3y["Close"] / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
-        pe_ser = pe_ser[pe_ser > 0]
-        if len(pe_ser) > 20:
-            pe_25 = float(np.percentile(pe_ser, 25))
-            pe_50 = float(np.percentile(pe_ser, 50))
-            pe_75 = float(np.percentile(pe_ser, 75))
-            hist_pe = float(pe_ser.iloc[-1])
+    if not _cl.empty and eps and float(eps) > 0:
+        try:
+            pe_ser = (_cl / float(eps)).replace([np.inf, -np.inf], np.nan).dropna()
+            pe_ser = pe_ser[pe_ser > 0]
+            if len(pe_ser) > 20:
+                pe_25   = float(np.percentile(pe_ser, 25))
+                pe_50   = float(np.percentile(pe_ser, 50))
+                pe_75   = float(np.percentile(pe_ser, 75))
+                hist_pe = float(pe_ser.iloc[-1])
+        except Exception:
+            pass
 
     use_pe = hist_pe or pe_trail or pe_fwd
     if use_pe and pe_25 and pe_75:
@@ -1435,7 +1471,7 @@ def render_5_4_value_river(ticker: str, info: dict, hist3y: pd.DataFrame):
     _sec28("PE 價值河流圖 (PE River Chart)")
     _sec26("股價與四條PE估值帶的相對位置 — 落在哪條河道一眼看清估值高低", "rgba(160,176,208,.45)")
 
-    if not hist3y.empty and eps and float(eps) > 0:
+    if not _cl.empty and eps and float(eps) > 0:
         eps_val = float(eps)
         river_df = hist3y.copy().reset_index()
         for c in river_df.columns:
